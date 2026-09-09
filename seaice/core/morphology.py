@@ -589,3 +589,121 @@ def morphological_gradient(I: np.ndarray, se, kind: str = "basic", *, eroded: np
         return _matlab_minus(I, E, I.dtype)  # Eq. (4.40)
     D = imdilate(I, se) if dilated is None else dilated
     return _matlab_minus(D, I, I.dtype)  # Eq. (4.41)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Regional extrema and minima imposition (Chapter 5 §5.1 / §5.1.3; MATLAB imregionalmin/max, imimposemin)
+# ---------------------------------------------------------------------------------------------------------------
+
+
+def _regional_extrema(I: np.ndarray, conn, kind: str) -> np.ndarray:
+    from skimage.morphology import local_maxima, local_minima
+
+    I = np.asarray(I)
+    if I.ndim != 2:
+        raise ValueError("imregionalmin/max: 2-D images only")
+    if I.dtype == np.bool_:
+        I = I.astype(np.uint8)  # imregionalmin.m: imcomplement(+I) strips the logical flag
+    if np.issubdtype(I.dtype, np.floating) and np.isnan(I).any():
+        raise ValueError("imregionalmin/max: NaN values are not allowed (validateattributes 'nonnan')")
+    if isinstance(conn, np.ndarray):
+        fp = conn != 0
+        if fp.shape != (3, 3):
+            raise ValueError("conn must be 4, 8 or a 3×3 neighbourhood")
+        connectivity = 2 if fp[0, 0] or fp[0, 2] or fp[2, 0] or fp[2, 2] else 1
+    elif conn == 8:
+        connectivity = 2
+    elif conn == 4:
+        connectivity = 1
+    else:
+        raise ValueError("conn must be 4 or 8")
+    if I.size and np.all(I == I.flat[0]):
+        # A constant image is one plateau without an external boundary: MATLAB returns all-true
+        # (imregionalmin(ones(3)) == true(3)); skimage's local_minima returns all-false there.
+        return np.ones(I.shape, dtype=bool)
+    fn = local_minima if kind == "min" else local_maxima
+    # PARITY: exact — skimage's local_minima/local_maxima with allow_borders=True implement the same definition
+    # (connected iso-level components whose every outer neighbour is strictly higher/lower; ±Inf plateaus and
+    # border-touching plateaus included); 0 px vs MATLAB on the chapter's six distance-map probes.
+    return np.asarray(fn(I, connectivity=connectivity, allow_borders=True), dtype=bool)
+
+
+def imregionalmin(I: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
+    """MATLAB ``BW = imregionalmin(I[, conn])`` — regional minima: connected components of equal value whose external
+    boundary pixels are all strictly greater (Book §5.1 p. 85: "regional minimum ... its every neighbour is strictly
+    higher"; the level-set characterisation is Eq. (5.1)/(5.2), see :func:`seaice.ch05_watershed.regional_minima_by_reconstruction`).
+
+    Book: §5.1, §5.1.2 Fig. 5.8(d) (minima of the inverse chessboard distance map), §5.1.3 Fig. 5.12(a) ("four
+    regional minima consisting of 18 local minimum pixels", p. 96).  MATLAB source: ``distance_watershed.m`` /
+    ``marker_watershed.m`` line ``Dis_img = imregionalmin(imgDist)``; R2025a ``imregionalmin.m`` =
+    ``imregionalmax(imcomplement(+I), conn)`` (default 8-connectivity, NaN rejected, ±Inf allowed, logical ignored).
+
+    Returns a bool image.  ``conn`` may be 4, 8 or a 3×3 neighbourhood.  Parity: exact.
+    """
+    return _regional_extrema(I, conn, "min")
+
+
+def imregionalmax(I: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
+    """MATLAB ``BW = imregionalmax(I[, conn])`` — regional maxima (dual of :func:`imregionalmin`; the regional
+    maxima of a distance map ``D`` are the regional minima of ``-D``, Book §5.1.2 p. 90).  Parity: exact."""
+    return _regional_extrema(I, conn, "max")
+
+
+def _complement_like(x: np.ndarray) -> np.ndarray:
+    """MATLAB ``imcomplement`` computed *in the input class* (``1 - x`` in single stays single; integer rules of
+    :func:`seaice.core.matlab_compat.imcomplement`)."""
+    from .matlab_compat import imcomplement as _imc
+
+    if np.issubdtype(x.dtype, np.floating):
+        return (x.dtype.type(1) - x).astype(x.dtype, copy=False)
+    return _imc(x)
+
+
+def imimposemin(I: np.ndarray, BW: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
+    """MATLAB ``J = imimposemin(I, BW[, conn])`` — modify ``I`` so that its only regional minima are the marker
+    components of ``BW`` (minima imposition by reconstruction, Book §5.1.3 Steps 1–2, p. 96:
+    ``(g + 1) ∧ f`` then ``g' = R^E_{(g+1)∧f}(f)``; Fig. 5.12(c)).
+
+    MATLAB source: ``marker_watershed.m`` line ``imgDist = imimposemin(imgDist, marker)``; R2025a ``imimposemin.m``
+    lines 82–126, ported literally:
+
+    * ``fm = -Inf`` on the markers, ``+Inf`` elsewhere (``intmin``/``intmax`` for integer classes);
+    * ``h = 0.001 * (max(I) - min(I))`` for single/double (``0.1`` if the image is constant), ``h = 1`` for integer
+      classes — this is MATLAB's version of the book's literal "+1";
+    * ``g = min(I + h, fm)``, computed **in the input class** (single stays single; integers saturate);
+    * ``J = imcomplement(imreconstruct(imcomplement(fm), imcomplement(g), conn))`` — reconstruction by erosion of
+      ``fm`` under ``g`` written with the dilation primitive (:func:`imreconstruct`).
+
+    Returns an array of the input class whose marker pixels are exactly ``-Inf`` (``intmin``); ``imregionalmin(J)``
+    equals ``BW`` up to the connectivity.  Bool ``I`` is rejected (MATLAB's ``validateattributes(I, {'numeric'})``).
+
+    Parity: exact (single-precision ``Dimp`` of ``marker_watershed.m`` reproduced to 0.0 once the arithmetic is done
+    in the input class; uint8 fixtures identical).
+    """
+    I = np.asarray(I)
+    BW = np.asarray(BW)
+    if I.dtype == np.bool_:
+        raise TypeError("imimposemin: I must be numeric (MATLAB rejects logical input)")
+    if I.ndim != 2:
+        raise ValueError("imimposemin: 2-D images only")
+    if BW.shape != I.shape:
+        raise ValueError("imimposemin: BW must have the same size as I (images:imimposemin:sizeMismatch)")
+    bw = BW != 0
+    if I.size == 0:
+        return I.copy()
+    if np.issubdtype(I.dtype, np.floating):
+        if np.isnan(I).any():
+            raise ValueError("imimposemin: NaN values are not allowed")
+        inf = I.dtype.type(np.inf)
+        fm = np.where(bw, -inf, inf).astype(I.dtype)
+        rng = float(I.max()) - float(I.min())  # double(max(I(:))) - double(min(I(:)))
+        h = 0.1 if rng == 0 else rng * 0.001
+        fpOne = (I + I.dtype.type(h)).astype(I.dtype, copy=False)  # single + double → single in MATLAB
+    else:
+        info = np.iinfo(I.dtype)
+        fm = np.where(bw, info.min, info.max).astype(I.dtype)
+        h = 1
+        fpOne = np.clip(I.astype(np.int64) + h, info.min, info.max).astype(I.dtype)  # saturating integer add
+    g = np.minimum(fpOne, fm)
+    imrec_out = imreconstruct(_complement_like(fm), _complement_like(g), conn)
+    return _complement_like(np.asarray(imrec_out, dtype=I.dtype))

@@ -334,3 +334,122 @@ def two_blobs_with_marker(shape: tuple[int, int] = (40, 60)) -> tuple[np.ndarray
     marker = np.zeros_like(mask)
     marker[18, 16] = True
     return marker, mask
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Chapter 5 fixtures (Figs. 5.15, 5.16; watershed tie fixtures; synthetic touching floes)
+# ---------------------------------------------------------------------------------------------------------------
+
+#: Fig. 5.15(a) (p. 101): the 12 "ending point and its 8 surrounding pixels" patterns of a 4-connected, 1-px-thick
+#: junction line (centre = ending point, exactly one 4-neighbour).  Transcribed row by row from the printed page;
+#: order = reading order (left→right, top→bottom).  Filtering each with :data:`FIG_5_15_KERNEL` gives 3 at the centre.
+FIG_5_15_ENDPOINT_PATTERNS = np.array(
+    [
+        [[0, 1, 0], [0, 1, 0], [0, 0, 0]],
+        [[0, 0, 0], [0, 1, 1], [0, 0, 0]],
+        [[0, 0, 0], [0, 1, 0], [0, 1, 0]],
+        [[0, 0, 0], [1, 1, 0], [0, 0, 0]],
+        [[0, 1, 1], [0, 1, 0], [0, 0, 0]],
+        [[0, 0, 1], [0, 1, 1], [0, 0, 0]],
+        [[0, 0, 0], [0, 1, 1], [0, 0, 1]],
+        [[0, 0, 0], [0, 1, 0], [0, 1, 1]],
+        [[0, 0, 0], [0, 1, 0], [1, 1, 0]],
+        [[0, 0, 0], [1, 1, 0], [1, 0, 0]],
+        [[1, 0, 0], [1, 1, 0], [0, 0, 0]],
+        [[1, 1, 0], [0, 1, 0], [0, 0, 0]],
+    ],
+    dtype=np.int64,
+)
+
+#: Fig. 5.15(b) (p. 101) / ``main.m`` line ``wr = [0 -1 0; -1 4 -1; 0 -1 0]``: ending-point detection kernel.
+FIG_5_15_KERNEL = np.array([[0, -1, 0], [-1, 4, -1], [0, -1, 0]], dtype=np.float64)
+
+#: Fig. 5.16 (p. 102): the 6×6 binary object used to illustrate the boundary tracing algorithm.
+FIG_5_16_IMAGE = _m(
+    """
+    0 0 0 0 0 0
+    0 0 1 1 0 0
+    0 1 1 1 1 0
+    0 0 1 1 1 0
+    0 0 0 1 0 0
+    0 0 0 0 0 0
+    """
+).astype(bool)
+
+#: Fig. 5.16: the first traced boundary pixels ``b0 → b1 → b2`` (1-based (row, col) as printed; the text starts at
+#: the *uppermost-leftmost* pixel (2, 3)).  DIPUM ``boundaries.m`` starts at the first object pixel in **column-major**
+#: order, (3, 2), so its closed list is a rotation of the book's: ``(3,2), (2,3), (2,4), (3,5), …`` — the printed
+#: triple is a contiguous sub-sequence, not the head.
+FIG_5_16_TRACE_MATLAB = ((2, 3), (2, 4), (3, 5))
+
+
+def two_touching_floes(shape: tuple[int, int] = (96, 81), seed: int = 0, noise: float = 6.0) -> np.ndarray:
+    """Synthetic RGB image in the spirit of ``q.jpg`` (Figs. 5.1(a), 5.8(a)): two bright convex floes on dark water
+    that touch along a short junction with concave notches at both ends, plus mild Gaussian noise and a slight
+    blue tint of the water.  Deterministic for a given ``seed``; returns uint8 ``(M, N, 3)``.
+
+    Used as a test input / public substitute where the private book image is absent: Otsu binarisation gives one
+    connected component, the city-block distance watershed splits it into >= 2 regions, and the notch ending
+    points are concave (so the junction line survives neighbouring-region merging).
+    """
+    from .matlab_compat import to_uint8_saturating
+
+    M, N = shape
+    sr, sc = M / 96.0, N / 81.0  # ellipse geometry defined on the 96×81 grid of q.jpg, scaled to ``shape``
+    rr, cc = np.mgrid[0:M, 0:N]
+    a = ((rr - 30 * sr) / (24 * sr)) ** 2 + ((cc - 30 * sc) / (26 * sc)) ** 2 <= 1.0  # upper-left floe
+    b = ((rr - 66 * sr) / (22 * sr)) ** 2 + ((cc - 52 * sc) / (24 * sc)) ** 2 <= 1.0  # lower-right floe (narrow neck)
+    ice = a | b
+    rng = np.random.default_rng(seed)
+    base = np.where(ice, 205.0, 55.0) + rng.normal(0.0, noise, size=(M, N))
+    rgb = np.stack([base - 4.0 * (~ice), base, base + 12.0 * (~ice)], axis=-1)
+    return to_uint8_saturating(rgb)
+
+
+def plateau_fixtures() -> dict[str, np.ndarray]:
+    """Small constructed images whose watershed depends on the flooding *order* (plateaus, ties, corridors) — the
+    kind of case where MATLAB's Meyer flooding and other implementations disagree.  Used to pin
+    :func:`seaice.core.watershed.watershed` against MATLAB references.  All values are small integers.
+    """
+    fx: dict[str, np.ndarray] = {}
+    # even-width plateau (value 2) between two minima (value 1) — the dam position depends on the FIFO order
+    t = np.full((5, 10), 5, dtype=np.int16)
+    t[2, 1] = 1
+    t[2, 8] = 1
+    t[1:4, 2:8] = 2
+    fx["even_plateau"] = t
+    # diagonal / anti-diagonal corners of a plateau with minima at opposite corners
+    t = np.full((6, 6), 3, dtype=np.int16)
+    t[0, 0] = 1
+    t[5, 5] = 1
+    t[1:5, 1:5] = 2
+    fx["diag_corners"] = t
+    fx["anti_diag_corners"] = t[:, ::-1].copy()
+    # four minima around a central plateau
+    t = np.full((7, 7), 4, dtype=np.int16)
+    t[2:5, 2:5] = 2
+    for r, c in ((0, 3), (3, 0), (6, 3), (3, 6)):
+        t[r, c] = 1
+    fx["four_minima_plateau"] = t
+    # 2-px-wide corridor joining two basins: the first-pushed side wins the corridor
+    t = np.full((9, 12), 6, dtype=np.int16)
+    t[1:8, 1:4] = 1
+    t[1:8, 8:11] = 1
+    t[3:5, 4:8] = 3
+    fx["corridor_2px"] = t
+    # -Inf planted minima in a float image
+    t = np.full((6, 8), 2.0)
+    t[1, 1] = -np.inf
+    t[4, 6] = -np.inf
+    fx["neg_inf_minima"] = t
+    # 1-D profiles (row and column) with two basins and a plateau ridge
+    prof = np.array([3, 2, 1, 2, 3, 3, 3, 2, 1], dtype=np.int16)
+    fx["profile_row"] = prof[None, :].copy()
+    fx["profile_col"] = prof[:, None].copy()
+    # seeded random fields (ties everywhere)
+    rng = np.random.default_rng(5)
+    fx["random_u8_20x25"] = rng.integers(2, 6, size=(20, 25)).astype(np.uint8)
+    fx["random_u8_40x50"] = rng.integers(2, 6, size=(40, 50)).astype(np.uint8)
+    fx["random_binary_60x60"] = rng.integers(1, 3, size=(60, 60)).astype(np.uint8)
+    fx["random_single_30x30"] = rng.integers(2, 5, size=(30, 30)).astype(np.float32)
+    return fx

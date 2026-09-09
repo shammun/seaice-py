@@ -31,11 +31,18 @@ Chapter 4 primitives:
 * :mod:`~seaice.core.morphology` — ``strel`` (incl. MATLAB's approximate disk), ``imerode``, ``imdilate``, ``imopen``,
   ``imclose``, ``imreconstruct``, ``reconstruct_by_erosion``, ``geodesic_dilation/erosion``, ``reconstruct_iterative``,
   ``morphological_gradient`` (§4.2)
+
+Chapter 5 primitives:
+
+* :mod:`~seaice.core.watershed` — ``watershed`` (MATLAB Meyer flooding, line-by-line port of ``eml/watershed.m``),
+  ``watershed_skimage`` (cross-check only)
+* :mod:`~seaice.core.morphology` — ``imregionalmin``, ``imregionalmax``, ``imimposemin`` (§5.1, §5.1.3)
+* :mod:`~seaice.core.plotting` — ``label2rgb``, ``surface_plot``, ``contour_overlay`` (display only)
 """
 from __future__ import annotations
 
 from . import chaincode, clustering, color, connectivity, distance, edges, filters, histogram, interp, io, \
-    matlab_compat, morphology, plotting, setops, synth, threshold
+    matlab_compat, morphology, plotting, setops, synth, threshold, watershed
 from .chaincode import ChainCode, bound2im, boundaries, code_reverse, fchcode, first_difference, min_magnitude, \
     normalized_first_difference
 from .clustering import KMeansGray, KMeansResult, kmeans_gray, kmeans_lloyd, objective_J, pairwise_distance
@@ -46,9 +53,10 @@ from .distance import bwdist, center_distance_map, distance_transform, pixel_dis
 from .edges import EdgeResult, edge, gradient_roberts, gradient_sobel_prewitt, log_zero_crossings, thin_gradient
 from .filters import conv2, conv_at, fspecial, imfilter
 from .histogram import imhist, normalized_histogram
-from .morphology import disk_decomposition, geodesic_dilation, geodesic_erosion, imclose, imdilate, imerode, imopen, \
-    imreconstruct, intline, line_strel, minkowski_sum, morphological_gradient, periodic_line, reconstruct_by_erosion, \
-    reconstruct_iterative, se_origin, strel
+from .morphology import disk_decomposition, geodesic_dilation, geodesic_erosion, imclose, imdilate, imerode, \
+    imimposemin, imopen, imreconstruct, imregionalmax, imregionalmin, intline, line_strel, minkowski_sum, \
+    morphological_gradient, periodic_line, reconstruct_by_erosion, reconstruct_iterative, se_origin, strel
+from .watershed import watershed as watershed_transform, watershed_skimage
 from .interp import interp2, interp_bicubic, interp_bilinear, interp_nearest, keys_kernel, resize, warp_image
 from .io import REPO_ROOT, data_roots, load_image, output_dir, read_image, repo_root
 from .matlab_compat import im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
@@ -60,7 +68,8 @@ from .setops import complement, difference, gray_complement, gray_intersection, 
 
 __all__ = [
     "chaincode", "clustering", "color", "connectivity", "distance", "edges", "filters", "histogram", "interp", "io",
-    "matlab_compat", "morphology", "plotting", "setops", "synth", "threshold",
+    "matlab_compat", "morphology", "plotting", "setops", "synth", "threshold", "watershed",
+    "watershed_transform", "watershed_skimage", "imregionalmin", "imregionalmax", "imimposemin",
     "EdgeResult", "edge", "gradient_roberts", "gradient_sobel_prewitt", "log_zero_crossings", "thin_gradient",
     "fspecial",
     "disk_decomposition", "geodesic_dilation", "geodesic_erosion", "imclose", "imdilate", "imerode", "imopen",

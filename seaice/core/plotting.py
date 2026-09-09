@@ -96,3 +96,90 @@ def finish_figure(fig: plt.Figure, path: str | Path, show: bool = False, dpi: in
         plt.show(block=False)
     plt.close(fig)
     return path
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Chapter 5 display helpers (label2rgb, surf, imcontour) — display only, never compared numerically
+# ---------------------------------------------------------------------------------------------------------------
+
+
+def label2rgb(L: np.ndarray, cmap: str = "jet", background: str | tuple = "k", shuffle: bool = True,
+              seed: int = 0) -> np.ndarray:
+    """MATLAB ``label2rgb(L, 'jet', 'k', 'shuffle')`` — colour a label image (uint8 RGB).
+
+    Used by ``direct_watershed.m``, ``distance_watershed.m``, ``marker_watershed.m`` to display ``bwlabel``
+    results.  MATLAB samples the colormap at ``max(L)`` levels and, with ``'shuffle'``, permutes the colours with a
+    private fixed-seed stream; here the permutation comes from ``numpy.random.default_rng(seed)`` - the assignment
+    of colours to labels is therefore *not* MATLAB's (display only).
+    """
+    import matplotlib.colors as mcolors
+
+    L = np.asarray(L).astype(np.int64)
+    n = int(L.max()) if L.size else 0
+    out = np.zeros(L.shape + (3,), dtype=np.uint8)
+    bg = np.asarray(mcolors.to_rgb(background)) if isinstance(background, str) else np.asarray(background, float)
+    out[...] = np.clip(matlab_round(bg * 255.0), 0, 255).astype(np.uint8)
+    if n == 0:
+        return out
+    colours = plt.get_cmap(cmap)(np.linspace(0.0, 1.0, n))[:, :3]
+    if shuffle:
+        colours = colours[np.random.default_rng(seed).permutation(n)]
+    lut = np.clip(matlab_round(colours * 255.0), 0, 255).astype(np.uint8)
+    fg = L > 0
+    out[fg] = lut[L[fg] - 1]
+    return out
+
+
+def surface_plot(Z: np.ndarray, path: str | Path | None = None, cmap: str = "copper",
+                 xlim: tuple[float, float] | None = None, title: str | None = None, show: bool = False,
+                 elev: float = 30.0, azim: float = -60.0, dpi: int = 120):
+    """MATLAB ``h = surf(double(Z)); set(h, 'FaceColor', 'texturemap', 'EdgeColor', 'none'); colormap(copper);
+    xlim([...])`` (``topological_surface.m``, Figs. 5.1(c), 5.5(b), 5.8(c)) with matplotlib ``plot_surface``.
+
+    ``x`` = column index (1-based like MATLAB's ``surf``), ``y`` = row index, ``z`` = value.  Returns the figure
+    (closed after saving when ``path`` is given).
+    """
+    Z = np.asarray(Z, dtype=np.float64)
+    M, N = Z.shape
+    X, Y = np.meshgrid(np.arange(1, N + 1), np.arange(1, M + 1))
+    fig = plt.figure(figsize=(7.5, 6))
+    ax = fig.add_subplot(111, projection="3d")
+    ax.plot_surface(X, Y, Z, cmap=cmap, linewidth=0, antialiased=False, shade=False, rstride=1, cstride=1)
+    ax.view_init(elev=elev, azim=azim)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    ax.set_ylim(M, 1)  # MATLAB's surf of an image keeps the row axis increasing away from the viewer
+    ax.set_xlabel("column")
+    ax.set_ylabel("row")
+    if title:
+        ax.set_title(title)
+    if path is not None:
+        finish_figure(fig, path, show, dpi=dpi)
+    return fig
+
+
+def contour_overlay(img: np.ndarray, Z: np.ndarray, path: str | Path | None = None, levels: int = 10,
+                    cmap: str = "viridis", title: str | None = None, show: bool = False,
+                    xlim: tuple[float, float] | None = None, ylim: tuple[float, float] | None = None,
+                    dpi: int = 120):
+    """MATLAB ``image(dist, 'CDataMapping', 'scaled'); hold all; imcontour(imgDist)`` (``distance_propagation.m``,
+    Fig. 5.10): the scaled image with the iso-distance contours of ``Z`` drawn on top.  ``imcontour``'s automatic
+    level count is display-only; ``levels`` chooses matplotlib's.  Axes are 1-based pixel centres like MATLAB.
+    """
+    img = np.asarray(img)
+    Z = np.asarray(Z, dtype=np.float64)
+    M, N = Z.shape
+    fig, ax = plt.subplots(figsize=(6.5, 6.5 * M / N))
+    ax.imshow(imshow_scale(img, autoscale=True), cmap="gray", vmin=0, vmax=1, extent=(0.5, N + 0.5, M + 0.5, 0.5),
+              interpolation="nearest")
+    X, Y = np.meshgrid(np.arange(1, N + 1), np.arange(1, M + 1))
+    ax.contour(X, Y, Z, levels=levels, cmap=cmap, linewidths=0.8)
+    if xlim is not None:
+        ax.set_xlim(*xlim)
+    if ylim is not None:
+        ax.set_ylim(max(ylim), min(ylim))
+    if title:
+        ax.set_title(title)
+    if path is not None:
+        finish_figure(fig, path, show, dpi=dpi)
+    return fig

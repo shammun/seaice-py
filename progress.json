@@ -34,13 +34,13 @@
     },
     "ch05": {
       "analyze": "pass",
-      "port": "in_progress",
-      "verify": "todo",
+      "port": "pass",
+      "verify": "in_progress",
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
       "publish": "todo",
-      "notes": "analysis/ch05.md written 2026-09-09: 15/15 .m mapped (3 byte-identical duplicates in watershed_based/), new core primitives watershed (eml twin port), imregionalmin/max, imimposemin"
+      "notes": "analysis/ch05.md written 2026-09-09: 15/15 .m mapped (3 byte-identical duplicates in watershed_based/), new core primitives watershed (eml twin port), imregionalmin/max, imimposemin; port 2026-09-09: 9 scripts exit 0 (116 PNGs), core.watershed eml twin port 0 px vs analyst pre-checks (27 cases + main/cc), imimposemin bit-identical float32"
     },
     "ch06": {
       "analyze": "todo",
