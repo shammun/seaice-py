@@ -35,12 +35,19 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `histeq(I)` | `skimage.exposure.equalize_hist` / re-implement 64-bin | A/R | |
 | `imadjust(I,[lo hi],[0 1],gamma)` | `skimage.exposure.rescale_intensity` + `adjust_gamma` | N | |
 | `stretchlim` | `np.percentile(I, [1, 99])` | N | |
-| `graythresh(I)` | `skimage.filters.threshold_otsu(I, nbins=256)/255` | N | |
-| `im2bw(I, t)` | `I > t*255` | E | |
+| `[level, em] = graythresh(I)` | `core.threshold.graythresh(I) -> (level, em)` | E | tie averaging → half-integer `255·level`; `em` = η(t*); RGB not converted — verified ch03 (bit-identical). `skimage.filters.threshold_otsu` is only N |
+| `[t, em] = otsuthresh(counts)` | `core.threshold.otsuthresh(counts)` | E | verified ch03 |
+| `im2bw(I, t)` / `im2bw(I)` | `core.threshold.im2bw(I, level=0.5)` (`I > t*255` in double, strict) | E | uint8/uint16/int16/float/RGB/logical — verified ch03 |
+| `multithresh(I, N)`, N ≤ 2 | `core.threshold.multithresh(I, N)` | E | single-precision `getpdf` + `grayto8` product emulated; output in input class — verified ch03 |
+| `multithresh(I, N)`, N ≥ 3 | `core.threshold.multithresh(I, 3)` (exhaustive; N > 3 raises) | R | MATLAB `fminsearch` is local → never E — verified ch03 |
+| `imquantize(A, levels[, values])` | `core.threshold.imquantize(A, levels, values)` | E | `1 + Σ(A > level_i)` — verified ch03 |
+| `local_Otsu.m` / `block_threshold.m` block Otsu | `core.threshold.block_otsu(gray, n_r, n_c)` | E | verified ch03 |
+| `num2str(x)` scalar | `ch03_ice_pixel_detection._num2str(x)` | E | `%d` / `%.{max(floor(log10|x|)+5,5)}g` — verified ch03 |
 | `imbinarize(I,'adaptive','Sensitivity',s)` | `skimage.filters.threshold_local` | A | different local statistic; consider re-implementing MATLAB's (local mean × (1−s) style) |
 | `adaptthresh` | same as above | A | |
-| `multithresh` | `skimage.filters.threshold_multiotsu` | N | |
-| `kmeans(X,k)` | `sklearn.cluster.KMeans(k, n_init=10, random_state=0)` | A | random init; compare centres |
+| authors' `kmeans.m` (histogram k-means, shadows the toolbox) | `core.clustering.kmeans_gray(gray, k, shift_bug=True)` | E | deterministic equal-division init; `shift_bug=True` = script's units bug — verified ch03 |
+| Statistics Toolbox `kmeans(X,k)` | `sklearn.cluster.KMeans(k, n_init=10, random_state=0)` or `core.clustering.kmeans_lloyd(init='kmeans++')` | A | random init; compare centres (mapping to be decided in ch06) |
+| `pdist2(a, b, metric)` / distance formulas | `core.clustering.pairwise_distance(X, Y, metric)` | E | closed forms; L1 only — ch03 |
 
 ## Neighbourhoods, connectivity, distance (Ch2 §2.3–2.4, Ch5)
 | MATLAB | Python | P | Notes |
