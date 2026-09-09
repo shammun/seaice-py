@@ -17,8 +17,8 @@
       "port": "pass",
       "verify": "pass",
       "review": "pass",
-      "notebook": "in_progress",
-      "knowledge": "todo",
+      "notebook": "pass",
+      "knowledge": "in_progress",
       "publish": "todo",
       "notes": ""
     },
