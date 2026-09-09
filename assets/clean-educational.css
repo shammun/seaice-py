@@ -1,0 +1,554 @@
+/* ============================================================
+   Clean Educational Theme — shared by Shammunul's fast.ai notes and seaice-py
+   Editorial typography (Fraunces + Inter + JetBrains Mono),
+   soft gradient page, layered shadows, accented headings,
+   distinct input/output cells.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  /* Backgrounds */
+  --ce-bg-top: #f7f8fc;
+  --ce-bg-bot: #eef1f8;
+  --ce-card: #ffffff;
+
+  /* Text */
+  --ce-text: #1a1f36;
+  --ce-text-soft: #3c4257;
+  --ce-text-muted: #697386;
+  --ce-text-faint: #8792a2;
+
+  /* Lines */
+  --ce-border: #e6e8ee;
+  --ce-border-soft: #f0f2f6;
+
+  /* Layered shadow — gives the card real depth */
+  --ce-shadow:
+    0 0 0 1px rgba(108, 92, 231, 0.05),
+    0 1px 3px rgba(15, 23, 42, 0.04),
+    0 12px 32px rgba(108, 92, 231, 0.07),
+    0 24px 48px -16px rgba(108, 92, 231, 0.09);
+
+  /* Accents */
+  --ce-purple: #6c5ce7;
+  --ce-purple-dark: #4f3dd0;
+  --ce-purple-soft: #f3f1fd;
+  --ce-orange: #ff8a3c;
+  --ce-teal: #0fb9b1;
+  --ce-rose: #ec4899;
+  --ce-amber: #f59e0b;
+
+  /* Typography */
+  --ce-font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --ce-font-heading: "Fraunces", Georgia, "Times New Roman", serif;
+  --ce-font-mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, monospace;
+
+  /* Shapes */
+  --ce-radius: 14px;
+  --ce-radius-sm: 6px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+::selection {
+  background: rgba(108, 92, 231, 0.18);
+  color: var(--ce-text);
+}
+
+body {
+  margin: 0;
+  padding: 48px 16px 96px;
+  background:
+    radial-gradient(ellipse at 20% -10%, rgba(108, 92, 231, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 100% 100%, rgba(15, 185, 177, 0.06) 0%, transparent 50%),
+    linear-gradient(180deg, var(--ce-bg-top) 0%, var(--ce-bg-bot) 100%);
+  background-attachment: fixed;
+  color: var(--ce-text);
+  font-family: var(--ce-font-body);
+  font-size: 17px;
+  line-height: 1.72;
+  font-feature-settings: "ss01", "cv11", "kern";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ce-container, .ce-post {
+  max-width: 860px;
+  margin: 0 auto;
+  background: var(--ce-card);
+  border-radius: var(--ce-radius);
+  box-shadow: var(--ce-shadow);
+  padding: 56px 64px;
+}
+
+/* ---------- Headings ---------- */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--ce-font-heading);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: 1.22;
+  color: var(--ce-text);
+  margin: 2em 0 0.5em;
+}
+
+h1 {
+  font-size: 2.4em;
+  font-weight: 700;
+  margin-top: 0;
+  padding-bottom: 0.4em;
+  border-bottom: none;
+  background: linear-gradient(135deg, #1a1f36 0%, #4f3dd0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+h2 {
+  font-size: 1.65em;
+  position: relative;
+  padding-left: 20px;
+  margin-top: 2.4em;
+}
+h2::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.25em;
+  bottom: 0.25em;
+  width: 4px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--ce-purple) 0%, var(--ce-teal) 100%);
+}
+
+h3 {
+  font-size: 1.28em;
+  color: var(--ce-purple-dark);
+}
+
+h4 { font-size: 1.08em; color: var(--ce-text-soft); }
+
+/* ---------- Body text ---------- */
+p { margin: 0 0 1.15em 0; }
+
+strong { color: var(--ce-text); font-weight: 600; }
+em     { color: var(--ce-text-soft); }
+
+/* ---------- Inline code ---------- */
+code {
+  font-family: var(--ce-font-mono);
+  font-size: 0.88em;
+  background: var(--ce-purple-soft);
+  color: var(--ce-purple-dark);
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 500;
+  border: 1px solid rgba(108, 92, 231, 0.12);
+}
+
+/* Inline code inside headings — must reset the H1 gradient text-fill,
+   otherwise the <code> inherits -webkit-text-fill-color: transparent
+   and disappears. Also scale down a touch and de-emphasize the chip. */
+h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
+  -webkit-text-fill-color: initial;
+  background-clip: border-box;
+  -webkit-background-clip: border-box;
+  background: rgba(108, 92, 231, 0.10);
+  color: var(--ce-purple-dark);
+  border: 1px solid rgba(108, 92, 231, 0.18);
+  font-size: 0.82em;
+  font-weight: 600;
+  padding: 1px 7px;
+  vertical-align: 0.04em;
+}
+
+/* ---------- Code blocks ---------- */
+pre {
+  background: #f9fafb;
+  color: #1a1f36;
+  padding: 20px 24px;
+  border-radius: var(--ce-radius);
+  border: 1px solid var(--ce-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
+  overflow-x: auto;
+  font-family: var(--ce-font-mono);
+  font-size: 13.5px;
+  line-height: 1.7;
+  font-feature-settings: "calt", "liga";
+}
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border: none;
+  font-weight: 400;
+}
+
+/* Pygments syntax highlighting — readable on the light pre bg */
+.highlight, .highlight pre { background: #f9fafb; color: #1a1f36; }
+.highlight .c, .highlight .c1, .highlight .cm, .highlight .cp,
+.highlight .cpf, .highlight .ch, .highlight .cs { color: #8792a2; font-style: italic; }   /* comments */
+.highlight .k, .highlight .kc, .highlight .kd, .highlight .kn,
+.highlight .kp, .highlight .kr, .highlight .kt { color: #d63384; font-weight: 600; }      /* keywords */
+.highlight .s, .highlight .s1, .highlight .s2, .highlight .sa, .highlight .sb,
+.highlight .sc, .highlight .sd, .highlight .se, .highlight .sh, .highlight .si,
+.highlight .sx, .highlight .sr, .highlight .ss, .highlight .dl { color: #0f766e; }        /* strings */
+.highlight .m, .highlight .mi, .highlight .mf, .highlight .mh, .highlight .mo,
+.highlight .il { color: #1d4ed8; }                                                         /* numbers */
+.highlight .nf, .highlight .nc { color: #6c5ce7; font-weight: 600; }                       /* functions / classes */
+.highlight .nb, .highlight .bp { color: #7c3aed; }                                         /* builtins */
+.highlight .nn { color: #1a1f36; }                                                         /* namespaces */
+.highlight .nd { color: #d97706; }                                                         /* decorators */
+.highlight .o, .highlight .ow { color: #be185d; }                                          /* operators */
+.highlight .p { color: #475569; }                                                          /* punctuation */
+.highlight .err { color: #dc2626; background: transparent; }
+
+/* ---------- Links ---------- */
+a {
+  color: var(--ce-purple);
+  text-decoration: none;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-size: 100% 1px;
+  background-position: 0 100%;
+  transition: color 0.18s, background-size 0.25s ease;
+  border-bottom: none;
+}
+a:hover {
+  color: var(--ce-purple-dark);
+  background-size: 100% 2px;
+}
+
+/* ---------- Tables ---------- */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  margin: 1.8em 0;
+  font-size: 0.94em;
+  border: 1px solid var(--ce-border);
+  border-radius: var(--ce-radius);
+  overflow: hidden;
+}
+thead { background: linear-gradient(180deg, #f8f9fc 0%, #f1f3fa 100%); }
+th, td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--ce-border-soft);
+}
+th {
+  font-family: var(--ce-font-body);
+  font-weight: 600;
+  color: var(--ce-text);
+  font-size: 0.9em;
+  letter-spacing: 0.005em;
+}
+tbody tr { transition: background 0.15s; }
+tbody tr:hover { background: rgba(108, 92, 231, 0.028); }
+tbody tr:last-child td { border-bottom: none; }
+
+/* ---------- Blockquotes ---------- */
+blockquote {
+  margin: 1.8em 0;
+  padding: 18px 24px 18px 28px;
+  border-left: 3px solid var(--ce-purple);
+  background: linear-gradient(90deg, rgba(108, 92, 231, 0.07) 0%, rgba(108, 92, 231, 0) 100%);
+  border-radius: 0 var(--ce-radius) var(--ce-radius) 0;
+  color: var(--ce-text-soft);
+  font-style: italic;
+}
+blockquote p:last-child { margin-bottom: 0; }
+
+/* ---------- Lists ---------- */
+ul, ol { margin: 0 0 1.2em 0; padding-left: 1.4em; }
+li { margin-bottom: 0.5em; }
+li::marker { color: var(--ce-purple); }
+
+/* ---------- Images ---------- */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--ce-radius-sm);
+  margin: 1em 0;
+}
+
+/* ---------- Horizontal rule ---------- */
+hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--ce-border) 20%, var(--ce-border) 80%, transparent 100%);
+  margin: 2.8em 0;
+}
+
+/* ---------- Action bar (Download .ipynb / Open in Colab) ---------- */
+.ce-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 28px 0;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.05) 0%, rgba(15, 185, 177, 0.04) 100%);
+  border: 1px solid var(--ce-border-soft);
+  border-radius: var(--ce-radius);
+  align-items: center;
+}
+.ce-actions-label {
+  font-size: 0.82em;
+  color: var(--ce-text-muted);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin-right: 4px;
+}
+.ce-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--ce-card);
+  color: var(--ce-text);
+  border: 1px solid var(--ce-border);
+  border-radius: 8px;
+  font-size: 0.88em;
+  font-weight: 500;
+  font-family: var(--ce-font-body);
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.08s, color 0.15s, filter 0.15s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.ce-action-btn:hover {
+  border-color: var(--ce-purple);
+  color: var(--ce-purple-dark);
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.12);
+}
+.ce-action-btn:active { transform: translateY(1px); }
+
+/* Colab button — strong orange gradient with white text. The !important on
+   the background shorthand defeats any later cascade noise from generic
+   <a> rules; color is locked white in both states. */
+.ce-action-btn.ce-action-colab,
+.ce-action-btn.ce-action-colab:hover,
+.ce-action-btn.ce-action-colab:visited {
+  background: linear-gradient(135deg, #f9ab00 0%, #ff6f3c 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(255, 111, 60, 0.32);
+}
+.ce-action-btn.ce-action-colab:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 4px 14px rgba(255, 111, 60, 0.45);
+}
+.ce-action-btn .ce-action-icon { font-size: 1.05em; line-height: 1; }
+
+/* ---------- Breadcrumb header ---------- */
+.ce-breadcrumb {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 20px;
+  margin-bottom: 36px;
+  border-bottom: 1px solid var(--ce-border-soft);
+  font-size: 0.88em;
+  color: var(--ce-text-muted);
+  font-family: var(--ce-font-body);
+}
+.ce-breadcrumb a { font-weight: 500; color: var(--ce-text-muted); }
+.ce-breadcrumb a:hover { color: var(--ce-purple); }
+.ce-source code {
+  font-size: 0.82em;
+  background: transparent;
+  color: var(--ce-text-faint);
+  padding: 0;
+  border: none;
+}
+
+/* ---------- Blog post specific ---------- */
+.ce-post-header { margin-bottom: 44px; }
+.ce-post-meta {
+  color: var(--ce-text-muted);
+  font-size: 0.9em;
+  margin-bottom: 8px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+.ce-post-subtitle {
+  font-size: 1.18em;
+  color: var(--ce-text-soft);
+  font-style: italic;
+  margin-top: -0.3em;
+  font-family: var(--ce-font-heading);
+  font-weight: 400;
+}
+.ce-section { margin: 44px 0; }
+
+/* ---------- Interactive widgets ---------- */
+.ce-interactive {
+  margin: 32px 0;
+  padding: 28px;
+  background: linear-gradient(135deg, rgba(15, 185, 177, 0.05) 0%, rgba(108, 92, 231, 0.03) 100%);
+  border: 1px solid rgba(15, 185, 177, 0.2);
+  border-radius: var(--ce-radius);
+}
+.ce-interactive h3 { color: var(--ce-teal); margin-top: 0; }
+.ce-interactive input[type="range"] { width: 100%; accent-color: var(--ce-purple); }
+.ce-interactive button {
+  background: var(--ce-purple);
+  color: white;
+  border: none;
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-family: var(--ce-font-body);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  box-shadow: 0 2px 6px rgba(108, 92, 231, 0.25);
+}
+.ce-interactive button:hover { background: var(--ce-purple-dark); }
+.ce-interactive button:active { transform: translateY(1px); }
+
+/* ---------- Callouts ---------- */
+.ce-callout-input  { border-left-color: var(--ce-orange); background: rgba(255, 138, 60, 0.05); }
+.ce-callout-output { border-left-color: var(--ce-teal);   background: rgba(15, 185, 177, 0.05); }
+
+.ce-summary {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.06) 0%, rgba(108, 92, 231, 0.02) 100%);
+  border: 1px solid rgba(108, 92, 231, 0.15);
+  border-radius: var(--ce-radius);
+  padding: 28px;
+  margin-top: 44px;
+}
+
+.ce-post-footer {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--ce-border-soft);
+  font-size: 0.9em;
+  color: var(--ce-text-muted);
+}
+
+/* Per-interactive hint line above a widget */
+.ce-interactive-hint {
+  font-size: 0.92em;
+  color: var(--ce-text-muted);
+  margin-top: -4px;
+  margin-bottom: 14px;
+}
+
+/* Source-notebooks footer block on blog posts */
+.ce-source-notebooks {
+  margin-top: 56px;
+  padding: 24px 28px;
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.04) 0%, rgba(15, 185, 177, 0.03) 100%);
+  border: 1px solid var(--ce-border-soft);
+  border-radius: var(--ce-radius);
+}
+.ce-source-notebooks h3 {
+  margin-top: 0;
+  font-size: 1.05em;
+  color: var(--ce-text-soft);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-family: var(--ce-font-body);
+  font-weight: 600;
+}
+.ce-source-notebooks ul { margin: 8px 0 0; padding-left: 1.2em; }
+.ce-source-notebooks li { margin-bottom: 6px; }
+
+/* ---------- Jupyter cell remnants ---------- */
+.jp-Cell, .jp-Notebook { background: transparent !important; }
+.jp-Cell { margin: 1.4em 0 !important; }
+
+.jp-InputArea-editor, .jp-OutputArea-output { font-family: var(--ce-font-mono); }
+.jp-RenderedHTMLCommon { font-family: var(--ce-font-body); }
+
+.jp-CodeMirrorEditor {
+  background: #f9fafb !important;
+  border-radius: var(--ce-radius) !important;
+}
+.jp-InputArea-editor { border: none !important; box-shadow: none !important; }
+
+/* Prompts (In [ ]: / Out [ ]:) — quieter, monospace, slightly faded */
+.jp-InputPrompt, .jp-OutputPrompt {
+  color: var(--ce-text-faint) !important;
+  font-family: var(--ce-font-mono) !important;
+  font-size: 0.78em !important;
+  font-weight: 500;
+  padding-top: 6px !important;
+}
+.jp-InputPrompt  { color: var(--ce-purple) !important; opacity: 0.55; }
+.jp-OutputPrompt { color: var(--ce-teal)   !important; opacity: 0.65; }
+
+/* Output area — cream/amber tint so input vs output is unmistakable */
+.jp-OutputArea-output {
+  background: transparent !important;
+}
+.jp-OutputArea-output pre {
+  background: #fffbeb !important;
+  border: 1px solid #fde68a !important;
+  color: #422006 !important;
+  font-size: 13px;
+}
+.jp-RenderedImage img,
+.jp-OutputArea-output img {
+  background: white;
+  padding: 8px;
+  border-radius: var(--ce-radius-sm);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+/* Anchor links beside headings — show on hover */
+.anchor-link {
+  opacity: 0;
+  margin-left: 0.5em;
+  font-size: 0.7em;
+  transition: opacity 0.2s;
+  color: var(--ce-text-faint) !important;
+  background: none !important;
+  border: none !important;
+}
+h1:hover .anchor-link,
+h2:hover .anchor-link,
+h3:hover .anchor-link,
+h4:hover .anchor-link { opacity: 1; }
+
+/* MathJax */
+.MathJax { font-size: 1.02em !important; }
+
+/* ---------- Mobile ---------- */
+@media (max-width: 700px) {
+  body { padding: 24px 8px 48px; font-size: 16px; line-height: 1.65; }
+  .ce-container, .ce-post { padding: 32px 22px; border-radius: 10px; }
+  h1 { font-size: 1.9em; }
+  h2 { font-size: 1.4em; padding-left: 14px; }
+  h2::before { width: 3px; }
+  h3 { font-size: 1.15em; }
+  pre { padding: 14px 16px; font-size: 12.5px; }
+  .ce-breadcrumb { flex-direction: column; align-items: flex-start; gap: 4px; }
+}
+
+/* === interactive blocks: prevent horizontal overflow + full-bleed variant === */
+body { overflow-x: hidden; }
+/* Widen an interactive beyond the text column without ever exceeding the
+   viewport. The block's parent (<main>) is centred in the viewport, so
+   left:50% + translateX(-50%) centres the block on screen. width is capped at
+   1320px and never larger than the viewport (minus gutters) -> no horizontal
+   scrollbar, no edge clipping. */
+.ce-interactive.ce-fullbleed {
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1320px, calc(100vw - 32px));
+  max-width: none;
+}
+/* Markdown cells: lay the input area out as a normal block, not a CSS table.
+   The original conversion sometimes left a cell's rendered markdown OUTSIDE its
+   RenderedHTMLCommon container, as a direct child of the display:table input
+   area -> it got squished into a narrow anonymous table-cell (tall empty-looking
+   gap). Block layout makes that content flow full-width. Code cells keep their
+   table layout so the In[ ]: prompt stays aligned with the code. */
+.jp-MarkdownCell .jp-InputArea { display: block; }
+

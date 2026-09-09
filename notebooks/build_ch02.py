@@ -83,7 +83,7 @@ import os, sys, subprocess, pathlib
 
 IN_COLAB = "google.colab" in sys.modules
 SOURCE = "github"          # "github" or "drive"  <- pick one when running on Colab
-REPO_URL = "https://github.com/<user>/seaice-py.git"   # <- set to your fork before using SOURCE = "github"
+REPO_URL = "https://github.com/shammun/seaice-py.git"   # <- change to your fork if you use one
 DRIVE_DIR = "/content/drive/MyDrive/seaice-py"          # where tools/sync_to_drive.ps1 mirrors the repo
 
 if IN_COLAB:
