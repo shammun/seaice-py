@@ -164,6 +164,36 @@ def count_components(bw: np.ndarray, conn: int = 8) -> int:
     return int(label_components(bw, conn).max())
 
 
+def bwareaopen(bw: np.ndarray, P: int, conn: int = 8) -> np.ndarray:
+    """MATLAB ``bwareaopen(BW, P, conn)`` — remove connected components with fewer than ``P`` pixels (default 8-conn).
+
+    Book: §2.3.4 connected components; first used by the commented line 8 of ``MATLAB_ROOT/ch4/derivative.m``
+    (``BW = bwareaopen(BW, 20)``) and reused by the later chapters (small-object removal before floe analysis).
+    Built on :func:`label_components` (= ``bwlabel``), so the semantics are MATLAB's by construction: components are
+    ``conn``-connected (4 or 8), a component survives iff its pixel count is ``>= P``
+    (``skimage.morphology.remove_small_objects`` changed its threshold parameter in 0.26 and is not used).
+
+    Parameters
+    ----------
+    bw : ndarray (M, N)
+        Binary image (nonzero = object).
+    P : int
+        Minimum number of pixels a component must have to be kept.
+    conn : {4, 8}, default 8
+
+    Returns
+    -------
+    bool array (M, N)
+
+    Parity: exact vs MATLAB R2025a (``reference/ch04`` ``ao_20`` / ``ao_20_4`` / ``ao_5``, 0 px).
+    """
+    bw = np.asarray(bw) != 0
+    labels = label_components(bw, conn)
+    sizes = np.bincount(labels.ravel())
+    sizes[0] = 0
+    return sizes[labels] >= int(P)
+
+
 def region_boundary_mask(bw: np.ndarray, conn: int = 8) -> np.ndarray:
     """Boundary of a region: object pixels with at least one ``conn``-neighbour outside the region.
 

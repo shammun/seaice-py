@@ -29,5 +29,11 @@
     "out": "imclose_pad.mat",
     "status": "ok",
     "note": "all 28 variables saved (file complete, verified by loadmat); matlab.exe did not exit within run_ref's 600 s subprocess timeout on a heavily loaded host (7 orphaned MATLABWindow processes), so run_ref raised after the save"
+  },
+  "review_followup": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "review_followup.mat",
+    "status": "ok"
   }
 }

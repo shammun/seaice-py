@@ -17,8 +17,11 @@ Conventions reproduced from MATLAB (none of them is stated in the book text):
 * ``imreconstruct`` uses 8-connectivity by default and requires ``marker <= mask``.
 
 Backend: OpenCV ``cv2.erode``/``cv2.dilate`` with ``BORDER_CONSTANT`` and the explicit MATLAB border value
-(fast on the 12-Mpx book images); ``scipy.ndimage`` for dtypes OpenCV does not support.  The two backends and a
-literal Eq. (4.20)/(4.21) loop were cross-checked on asymmetric and even-sized SEs (see the chapter report).
+(fast on the 12-Mpx book images) for bool/uint8/uint16/int16/float32/float64; for the other integer widths
+(int32/uint32/int64/uint64, e.g. ``skimage.measure.label`` images) an exact numpy shift-and-reduce on an array
+padded with the border value in the image's own dtype (``scipy.ndimage`` min/max filters accumulate in double and
+would corrupt int64/uint64 values above 2^53 and the intmax/intmin pads).  Both backends were cross-checked
+against a literal Eq. (4.20)/(4.21) loop on asymmetric and even-sized SEs for all seven dtypes (chapter report).
 """
 from __future__ import annotations
 
@@ -26,7 +29,6 @@ from collections.abc import Sequence
 
 import cv2
 import numpy as np
-from scipy import ndimage
 
 from .matlab_compat import matlab_round
 
@@ -181,6 +183,9 @@ def strel(shape, *params, n: int | None = None) -> np.ndarray:
         if not 1 <= len(params) <= 2:
             raise ValueError("strel('disk', R [, N])")
         r = int(params[0])
+        if len(params) == 2 and n is not None and int(params[1]) != int(n):
+            raise ValueError(f"strel('disk', R, N): N was given twice with different values "
+                             f"(positional {int(params[1])}, keyword n={int(n)})")
         if n is None:
             n = int(params[1]) if len(params) == 2 else 4
         if r < 0:
@@ -257,11 +262,23 @@ def _min_max_filter(x: np.ndarray, se: np.ndarray, origin: tuple[int, int], cval
         fn = cv2.erode if op == "min" else cv2.dilate
         return fn(np.ascontiguousarray(x), kernel, anchor=(int(c0), int(r0)), iterations=1,
                   borderType=cv2.BORDER_CONSTANT, borderValue=float(cval))
-    # scipy minimum_filter / maximum_filter are correlation-style too (no reflection); their centre is
-    # ``size // 2 + origin`` → shift to MATLAB's ``(M-1)//2`` (same trick as filters.imfilter)
-    org = (r0 - M // 2, c0 - N // 2)
-    fn = ndimage.minimum_filter if op == "min" else ndimage.maximum_filter
-    return fn(x, footprint=se, mode="constant", cval=cval, origin=org)
+    # Fallback for int32 / uint32 / int64 / uint64: pad explicitly with the MATLAB border value *in the image's own
+    # dtype* and reduce with np.minimum / np.maximum over the SE elements (shift-and-reduce), so every value is
+    # compared exactly.  scipy.ndimage.minimum_filter/maximum_filter were used before, but they route ``cval``
+    # through float64 (intmax of int64/uint64 overflowed to intmin → the erosion pad became the minimum instead of
+    # +∞, Eq. 4.20 border rule; chapter-4 review item 1) and also accumulate the pixel values in double, which
+    # still corrupts int64/uint64 values above 2^53 even on a pre-padded array.
+    top, bottom, left, right = r0, M - 1 - r0, c0, N - 1 - c0
+    xp = np.pad(x, ((top, bottom), (left, right)), mode="constant", constant_values=cval)
+    R, C = x.shape
+    reduce = np.minimum if op == "min" else np.maximum
+    out: np.ndarray | None = None
+    for s, t in zip(*np.nonzero(se)):  # out(i, j) = op_{(s,t)∈se} x(i + s - r0, j + t - c0) = xp(i + s, j + t)
+        view = xp[s:s + R, t:t + C]
+        out = view.copy() if out is None else reduce(out, view, out=out)
+    if out is None:  # SE without any true element: only the pad value is ever seen
+        out = np.full_like(x, cval)
+    return out
 
 
 def _as_sequence(se) -> list[np.ndarray]:
@@ -527,7 +544,20 @@ def _matlab_minus(A: np.ndarray, B: np.ndarray, dtype: np.dtype) -> np.ndarray:
     return A.astype(np.float64) - B.astype(np.float64)
 
 
-def morphological_gradient(I: np.ndarray, se, kind: str = "basic") -> np.ndarray:
+def _check_precomputed(arr: np.ndarray | None, I: np.ndarray, name: str) -> np.ndarray | None:
+    """Validate an optional precomputed erosion/dilation: must match ``I`` in shape and dtype (the class rule of
+    :func:`_matlab_minus` is keyed on ``I.dtype``, so a mismatch would silently change the arithmetic)."""
+    if arr is None:
+        return None
+    arr = np.asarray(arr)
+    if arr.shape != I.shape or arr.dtype != I.dtype:
+        raise ValueError(f"morphological_gradient: {name}= must have the shape and dtype of I "
+                         f"(got {arr.shape} {arr.dtype}, expected {I.shape} {I.dtype})")
+    return arr
+
+
+def morphological_gradient(I: np.ndarray, se, kind: str = "basic", *, eroded: np.ndarray | None = None,
+                           dilated: np.ndarray | None = None) -> np.ndarray:
     """Morphological gradients — Book Eq. (4.39) basic ``ρ = (A ⊕ B) − (A ⊖ B)``, Eq. (4.40) internal
     ``ρ_int = A − (A ⊖ B)``, Eq. (4.41) external ``ρ_ext = (A ⊕ B) − A``; identity Eq. (4.42) ``ρ_int + ρ_ext = ρ``.
 
@@ -538,14 +568,24 @@ def morphological_gradient(I: np.ndarray, se, kind: str = "basic") -> np.ndarray
 
     ``kind`` ∈ {'basic' (alias 'standard'), 'internal', 'external'}.  dtype rule (MATLAB's): bool in → float64
     0/1 out; integer in → same integer class, computed in int64 and saturated; float in → float64.
+
+    ``eroded`` / ``dilated`` (keyword-only, optional): precomputed ``imerode(I, se)`` / ``imdilate(I, se)`` — same
+    shape and dtype as ``I`` — reused instead of recomputing them (``morphology.m`` keeps ``J``, ``K``, ``X``, ``Y``
+    and subtracts those; the result is identical, only the redundant 12-Mpx erosions/dilations are skipped).
     Parity: exact (0 px / 0 levels vs MATLAB's six arrays).
     """
     I = np.asarray(I)
     k = _GRADIENT_KINDS.get(str(kind).lower())
     if k is None:
         raise ValueError(f"kind must be one of {sorted(set(_GRADIENT_KINDS))}")
+    eroded = _check_precomputed(eroded, I, "eroded")
+    dilated = _check_precomputed(dilated, I, "dilated")
     if k == "basic":
-        return _matlab_minus(imdilate(I, se), imerode(I, se), I.dtype)  # Eq. (4.39)
+        E = imerode(I, se) if eroded is None else eroded
+        D = imdilate(I, se) if dilated is None else dilated
+        return _matlab_minus(D, E, I.dtype)  # Eq. (4.39)
     if k == "internal":
-        return _matlab_minus(I, imerode(I, se), I.dtype)  # Eq. (4.40)
-    return _matlab_minus(imdilate(I, se), I, I.dtype)  # Eq. (4.41)
+        E = imerode(I, se) if eroded is None else eroded
+        return _matlab_minus(I, E, I.dtype)  # Eq. (4.40)
+    D = imdilate(I, se) if dilated is None else dilated
+    return _matlab_minus(D, I, I.dtype)  # Eq. (4.41)

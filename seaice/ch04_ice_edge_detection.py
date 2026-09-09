@@ -29,6 +29,7 @@ import numpy as np
 from scipy import ndimage
 
 from .core import synth
+from .core.connectivity import bwareaopen as _bwareaopen
 from .core.edges import EdgeResult, edge
 from .core.filters import conv2, fspecial, imfilter
 from .core.matlab_compat import rgb2gray_matlab
@@ -174,13 +175,20 @@ def laplacian(f: np.ndarray, neighbors: int = 4, padding: str = "replicate") -> 
     kernel of Fig. 4.4(b).  Both kernels are symmetric, so correlation and convolution coincide.
     Parity: reimplemented (vs hand-coded MATLAB ``imfilter`` with the same kernels)."""
     f = np.asarray(f, dtype=np.float64)
+    # PARITY: reimplemented — Eq. (4.13) / Fig. 4.4 kernels applied with imfilter; no .m file of the chapter computes
+    # a bare Laplacian (fspecial('laplacian') uses the alpha-weighted form), so the only reference is hand-coded
+    # MATLAB imfilter with the same kernels and replicate padding.
     return imfilter(f, LAPLACIAN_KERNELS[int(neighbors)], padding)
 
 
 def second_difference_forward(f: np.ndarray, axis: int = 0) -> np.ndarray:
     """Eq. (4.10): ``∂²f/∂x² ≈ f(x+2, y) − 2 f(x+1, y) + f(x, y)`` (differencing Eq. 4.6a; centred at ``x+1``), or the
-    same along ``y`` (``axis=1``).  Replicate padding at the far border."""
+    same along ``y`` (``axis=1``).  Replicate padding at the far border.
+    Parity: reimplemented (text-only equation)."""
     f = np.asarray(f, dtype=np.float64)
+    # PARITY: reimplemented — Eq. (4.10) is text only (no MATLAB builtin computes the one-sided second difference);
+    # the 5-tap kernel places f(x), f(x+1), f(x+2) at offsets 0, +1, +2 from the centre, and the replicate padding
+    # at the far border is a choice the text does not make.
     k = np.array([[0.0], [0.0], [1.0], [-2.0], [1.0]]) if axis == 0 else np.array([[0.0, 0.0, 1.0, -2.0, 1.0]])
     return imfilter(f, k, "replicate")
 
@@ -211,6 +219,9 @@ def gaussian_kernel(size: int = 5, sigma: float = 1.0, normalize: bool = True) -
     """
     h = (size - 1) / 2.0
     y, x = np.mgrid[-h:h + 1, -h:h + 1]
+    # PARITY: reimplemented — Eq. (4.14) sampled literally (with the 1/(2πσ²) factor and no eps clipping);
+    # fspecial('gaussian') is the exact MATLAB kernel (core.filters.fspecial), this is the book-equation form and
+    # coincides with it only after normalisation.
     g = np.exp(-(x * x + y * y) / (2.0 * sigma * sigma)) / (2.0 * np.pi * sigma * sigma)  # Eq. (4.14)
     return g / g.sum() if normalize else g
 
@@ -233,6 +244,9 @@ def log_kernel(size: int = 5, sigma: float = 1.0, mode: str = "matlab") -> np.nd
     y, x = np.mgrid[-h:h + 1, -h:h + 1]
     s2 = sigma * sigma
     if mode in ("analytic", "book"):
+        # PARITY: reimplemented — Eq. (4.15) sampled literally (1/(2πσ⁶) factor, not mean-subtracted, does not sum
+        # to zero); fspecial('log') (mode='matlab') is the MATLAB-exact kernel and the one the printed Fig. 4.5(b)
+        # shows, so the analytic form has no MATLAB reference by construction.
         return (x * x + y * y - 2.0 * s2) / (2.0 * np.pi * s2 ** 3) * np.exp(-(x * x + y * y) / (2.0 * s2))  # Eq. (4.15)
     if mode == "gauss_conv_laplacian":
         return conv2(gaussian_kernel(size, sigma, normalize=True), LAPLACIAN_KERNELS[4], "same")
@@ -244,20 +258,10 @@ def log_kernel(size: int = 5, sigma: float = 1.0, mode: str = "matlab") -> np.nd
 # ---------------------------------------------------------------------------------------------------------------
 
 
-def bwareaopen(bw: np.ndarray, P: int, conn: int = 8) -> np.ndarray:
-    """MATLAB ``bwareaopen(BW, P, conn)`` — remove connected components with fewer than ``P`` pixels (default 8-conn).
-
-    Used by the commented line 8 of ``derivative.m`` (``bwareaopen(BW, 20)``).  Built on
-    :func:`seaice.core.connectivity.label_components` (= ``bwlabel``), so the semantics are MATLAB's by construction
-    (``skimage.morphology.remove_small_objects`` changed its threshold parameter in 0.26 and is not used).
-    """
-    from .core.connectivity import label_components
-
-    bw = np.asarray(bw) != 0
-    labels = label_components(bw, conn)
-    sizes = np.bincount(labels.ravel())
-    sizes[0] = 0
-    return sizes[labels] >= int(P)
+# ``bwareaopen`` (commented line 8 of derivative.m) is a general toolbox function reused by ch5/ch7, so it now lives
+# in :mod:`seaice.core.connectivity` next to ``label_components``; it is re-exported here so that
+# ``seaice.ch04_ice_edge_detection.bwareaopen`` keeps working (chapter-4 review item 6).
+bwareaopen = _bwareaopen
 
 
 def sobel_edges_script(gray: np.ndarray, T: float | None = 0.05, method: str = "sobel", sigma: float = 2.0,
@@ -332,16 +336,19 @@ def morphological_edges(gray: np.ndarray, se: np.ndarray | None = None, radius: 
     SE = strel("dis", radius) if se is None else (np.asarray(se) != 0)  # line 6: 'dis' → 'disk' (prefix match)
     level, _ = graythresh(im)
     I = im2bw(im, level)  # line 10
+    # Like the script, each erosion/dilation is computed once (J, K, X, Y) and the gradients subtract those arrays
+    # (``eroded=``/``dilated=`` reuse them through the same ``_matlab_minus`` class rule → bit-identical results,
+    # six fewer 12-Mpx erosions/dilations on the full image).
     J = imerode(I, SE)  # line 13
-    BW1 = morphological_gradient(I, SE, "internal")  # line 14: I - J   (Eq. 4.40)
+    BW1 = morphological_gradient(I, SE, "internal", eroded=J)  # line 14: I - J   (Eq. 4.40)
     K = imdilate(I, SE)  # line 16
-    BW2 = morphological_gradient(I, SE, "external")  # line 17: K - I   (Eq. 4.41)
-    BW = morphological_gradient(I, SE, "basic")  # line 19: K - J   (Eq. 4.39)
+    BW2 = morphological_gradient(I, SE, "external", dilated=K)  # line 17: K - I   (Eq. 4.41)
+    BW = morphological_gradient(I, SE, "basic", eroded=J, dilated=K)  # line 19: K - J   (Eq. 4.39)
     X = imerode(im, SE)  # line 31
     Y = imdilate(im, SE)  # line 32
-    internal = morphological_gradient(im, SE, "internal")  # line 34: im - X
-    external = morphological_gradient(im, SE, "external")  # line 35: Y - im
-    basic = morphological_gradient(im, SE, "basic")  # line 36: Y - X
+    internal = morphological_gradient(im, SE, "internal", eroded=X)  # line 34: im - X
+    external = morphological_gradient(im, SE, "external", dilated=Y)  # line 35: Y - im
+    basic = morphological_gradient(im, SE, "basic", eroded=X, dilated=Y)  # line 36: Y - X
     return {"im": im, "SE": SE, "level": level, "threshold": 255.0 * level, "ic": ice_concentration(I),
             "I": I, "J": J, "K": K, "BW1": BW1, "BW2": BW2, "BW": BW,
             "X": X, "Y": Y, "internal": internal, "external": external, "basic": basic}

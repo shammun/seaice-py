@@ -7,7 +7,8 @@ Chapter 2 primitives:
 * :mod:`~seaice.core.plotting` — MATLAB-style ``imshow`` scaling and PNG saving
 * :mod:`~seaice.core.color` — ``rgb2cmy``, ``rgb2cmyk``, ``rgb2hsi``, ``indexed_to_rgb`` (§2.1)
 * :mod:`~seaice.core.histogram` — ``imhist``, ``normalized_histogram`` (§2.2)
-* :mod:`~seaice.core.connectivity` — neighbourhoods, adjacency, ``label_components`` (= ``bwlabel``) (§2.3)
+* :mod:`~seaice.core.connectivity` — neighbourhoods, adjacency, ``label_components`` (= ``bwlabel``),
+  ``bwareaopen`` (§2.3; ``bwareaopen`` first used in ch4 ``derivative.m``)
 * :mod:`~seaice.core.distance` — ``distance_transform``, ``bwdist``, ``pixel_distance`` (§2.4)
 * :mod:`~seaice.core.filters` — ``conv2``, ``imfilter`` (§2.5)
 * :mod:`~seaice.core.setops` — set / logical operations, ``reflect``, ``translate`` (§2.6)
@@ -39,8 +40,8 @@ from .chaincode import ChainCode, bound2im, boundaries, code_reverse, fchcode, f
     normalized_first_difference
 from .clustering import KMeansGray, KMeansResult, kmeans_gray, kmeans_lloyd, objective_J, pairwise_distance
 from .color import indexed_to_rgb, rgb2cmy, rgb2cmyk, rgb2hsi, split_rgb
-from .connectivity import count_components, find_paths, is_adjacent, is_m_adjacent, label_components, n4, n8, nd, \
-    region_boundary_mask
+from .connectivity import bwareaopen, count_components, find_paths, is_adjacent, is_m_adjacent, label_components, \
+    n4, n8, nd, region_boundary_mask
 from .distance import bwdist, center_distance_map, distance_transform, pixel_distance, quasi_euclidean_dt
 from .edges import EdgeResult, edge, gradient_roberts, gradient_sobel_prewitt, log_zero_crossings, thin_gradient
 from .filters import conv2, conv_at, fspecial, imfilter
@@ -71,8 +72,8 @@ __all__ = [
     "ChainCode", "bound2im", "boundaries", "code_reverse", "fchcode", "first_difference", "min_magnitude",
     "normalized_first_difference",
     "indexed_to_rgb", "rgb2cmy", "rgb2cmyk", "rgb2hsi", "split_rgb",
-    "count_components", "find_paths", "is_adjacent", "is_m_adjacent", "label_components", "n4", "n8", "nd",
-    "region_boundary_mask",
+    "bwareaopen", "count_components", "find_paths", "is_adjacent", "is_m_adjacent", "label_components", "n4", "n8",
+    "nd", "region_boundary_mask",
     "bwdist", "center_distance_map", "distance_transform", "pixel_distance", "quasi_euclidean_dt",
     "conv2", "conv_at", "imfilter",
     "imhist", "normalized_histogram",

@@ -149,16 +149,19 @@ FIG_4_7C = np.array([[0, 0, 1, 1, 1, 1, 1, 0, 0],
 
 
 def _literal_erode(I: np.ndarray, se: np.ndarray, pad_val) -> np.ndarray:
-    """Eq. (4.20) written out: min over the SE placed at each pixel, outside pixels = ``pad_val``."""
+    """Eq. (4.20) written out: min over the SE placed at each pixel, outside pixels = ``pad_val``.
+
+    Computed in ``I.dtype`` (the pad is cast to it) so int64/uint64 values above 2^53 are compared exactly."""
     M, N = se.shape
     r0, c0 = se_origin(se)
-    out = np.empty(I.shape, dtype=np.float64)
+    pad = I.dtype.type(pad_val)
+    out = np.empty(I.shape, dtype=I.dtype)
     for r in range(I.shape[0]):
         for c in range(I.shape[1]):
             vals = []
             for i, j in zip(*np.nonzero(se)):
                 rr, cc = r + i - r0, c + j - c0
-                vals.append(I[rr, cc] if 0 <= rr < I.shape[0] and 0 <= cc < I.shape[1] else pad_val)
+                vals.append(I[rr, cc] if 0 <= rr < I.shape[0] and 0 <= cc < I.shape[1] else pad)
             out[r, c] = min(vals)
     return out
 
@@ -167,15 +170,47 @@ def _literal_dilate(I: np.ndarray, se: np.ndarray, pad_val) -> np.ndarray:
     """Eq. (4.21) written out: max of ``f(x-s, y-t)`` over the SE (reflected placement), outside = ``pad_val``."""
     M, N = se.shape
     r0, c0 = se_origin(se)
-    out = np.empty(I.shape, dtype=np.float64)
+    pad = I.dtype.type(pad_val)
+    out = np.empty(I.shape, dtype=I.dtype)
     for r in range(I.shape[0]):
         for c in range(I.shape[1]):
             vals = []
             for i, j in zip(*np.nonzero(se)):
                 rr, cc = r - (i - r0), c - (j - c0)
-                vals.append(I[rr, cc] if 0 <= rr < I.shape[0] and 0 <= cc < I.shape[1] else pad_val)
+                vals.append(I[rr, cc] if 0 <= rr < I.shape[0] and 0 <= cc < I.shape[1] else pad)
             out[r, c] = max(vals)
     return out
+
+
+#: review item 8: every dtype the port routes through OpenCV (uint8, int16, float64) or the numpy shift-and-reduce
+#: fallback (int32, uint32, int64, uint64), with the border values of Eq. (4.20)/(4.21): intmax/intmin, +Inf/-Inf.
+_DTYPES_ALL = [np.uint8, np.int16, np.float64, np.int32, np.uint32, np.int64, np.uint64]
+
+
+def _dtype_fixture(dt, shape=(9, 11), seed=0) -> np.ndarray:
+    """Random field of the full dtype range with intmax / intmin (or +-realmax) planted on the border and inside, so
+    an overflowing pad (the old scipy fallback: intmax(int64) -> float64 -> intmin) or a float64 accumulation of
+    values > 2^53 changes the result."""
+    rng = np.random.default_rng(seed)
+    if dt is np.float64:
+        a = (rng.random(shape) - 0.5) * 1e6
+        hi, lo = np.finfo(np.float64).max, -np.finfo(np.float64).max
+    else:
+        info = np.iinfo(dt)
+        a = rng.integers(info.min, info.max, size=shape, dtype=dt, endpoint=True)
+        hi, lo = info.max, info.min
+    a[0, 0] = hi; a[0, -1] = lo; a[-1, 0] = lo; a[-1, -1] = hi  # corners
+    a[4, 5] = hi; a[6, 8] = lo; a[2, 7] = hi; a[7, 2] = lo  # interior
+    a[4, 0] = hi; a[0, 5] = lo  # border, non-corner
+    return a
+
+
+def _cross_backend_se(name: str) -> np.ndarray:
+    """The 9 compat SEs without touching inputs.mat (AsymSE / EvenSE are the printed 3x3 / 2x3 arrays)."""
+    return {"disk7": strel("disk", 7), "asym": np.array([[1, 1, 0], [0, 1, 0], [0, 0, 0]], dtype=bool),
+            "even": np.array([[1, 1, 1], [1, 0, 1]], dtype=bool),
+            "line5": strel("line", 5, 0), "line7_45": strel("line", 7, 45), "sq3": strel("square", 3),
+            "dia3": strel("diamond", 3), "disk2": strel("disk", 2), "pair": strel("pair", [2, -1])}[name]
 
 
 # ================================================================================================================
@@ -259,6 +294,14 @@ class TestL1Strel:
                                                           [0, 1, 1, 1, 0], [0, 0, 1, 0, 0]], dtype=bool))
         assert np.array_equal(strel("disk", 0), np.ones((1, 1), bool))
 
+    def test_disk_n_given_twice_conflict_raises(self):
+        """Review item 12: positional N and keyword n must agree, else ValueError (they used to silently disagree)."""
+        with pytest.raises(ValueError, match="N was given twice"):
+            strel("disk", 5, 4, n=6)
+        assert np.array_equal(strel("disk", 5, 6, n=6), strel("disk", 5, 6))  # equal values are accepted
+        assert np.array_equal(strel("disk", 5, n=6), strel("disk", 5, 6))
+        assert np.array_equal(strel("disk", 5, n=0), strel("disk", 5, 0)) and int(strel("disk", 5, n=0).sum()) == 81
+
     def test_prefix_matching_like_matlab(self):
         assert np.array_equal(strel("dis", 7), strel("disk", 7))  # morphology.m line 6
         assert np.array_equal(strel("DISK", 7), strel("disk", 7))
@@ -341,24 +384,68 @@ class TestL1ErodeDilate:
         i16 = np.full((5, 5), -1000, dtype=np.int16)
         assert (imerode(i16, se) == -1000).all() and imerode(i16, se).dtype == np.int16
 
-    def test_reflection_with_asymmetric_se_literal_eqs_4_20_4_21(self):
+    @pytest.mark.parametrize("dt", _DTYPES_ALL, ids=lambda d: np.dtype(d).name)
+    def test_reflection_with_asymmetric_se_literal_eqs_4_20_4_21(self, dt):
+        """Review item 8: the literal Eq. (4.20)/(4.21) loops with the intmax/intmin (+Inf/-Inf) border values, for
+        the OpenCV dtypes AND the numpy-fallback dtypes (int32/uint32/int64/uint64); the fixture carries intmax /
+        intmin on the border and inside (review item 1: the old scipy fallback padded int64/uint64 with intmin)."""
+        I = _dtype_fixture(dt)
+        hi, lo = _border_values(I.dtype)
+        assert I.dtype == dt
+        B = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 0]], dtype=bool)  # asymmetric: reflection is load-bearing
+        E = np.array([[1, 1, 1], [1, 0, 1]], dtype=bool)  # even-sized: origin floor((size+1)/2) -> (0, 1)
+        D = strel("disk", 2)  # disk 2 = the review's reproduction case
+        for se in (B, E, D, strel("diamond", 1)):
+            er, di = imerode(I, se), imdilate(I, se)
+            assert er.dtype == dt and di.dtype == dt
+            assert np.array_equal(er, _literal_erode(I, se, hi)), f"{np.dtype(dt).name} erosion"
+            assert np.array_equal(di, _literal_dilate(I, se, lo)), f"{np.dtype(dt).name} dilation"
+        # the non-reflected ("correlation") dilation is a different image -> the reflection is load-bearing
+        assert not np.array_equal(imdilate(I, B), imdilate(I, B[::-1, ::-1]))
+        # border pixels: erosion never sees a value below the image's own (pad = +max), dilation never above
+        assert (imerode(I, D) <= I).all() and (imdilate(I, D) >= I).all()
+        if dt in (np.int64, np.uint64):
+            info = np.iinfo(dt)
+            assert int(imerode(I, D)[0, 0]) != info.min or int(I[0, 0]) == info.min  # the old overflow put intmin here
+            assert int(I.max()) > 2 ** 53  # the fixture really exercises values float64 cannot represent
+        bw = I > np.median(I) if dt is np.float64 else I > np.array(I.max() // 2, dtype=dt)
+        assert np.array_equal(imerode(bw, B), _literal_erode(bw, B, True))
+        assert np.array_equal(imdilate(bw, B), _literal_dilate(bw, B, False))
+
+    def test_uint8_double_literal_loops_original_case(self):
+        """The original (pre-review) case, kept verbatim: uint8 0..255 and a double field in [-0.5, 0.5)."""
         rng = np.random.default_rng(0)
         I = rng.integers(0, 256, size=(9, 11)).astype(np.uint8)
         B = np.array([[1, 1, 0], [0, 1, 0], [0, 0, 0]], dtype=bool)
-        assert np.array_equal(imerode(I, B), _literal_erode(I, B, 255).astype(np.uint8))
-        assert np.array_equal(imdilate(I, B), _literal_dilate(I, B, 0).astype(np.uint8))
-        # the non-reflected ("correlation") dilation is a different image → the reflection is load-bearing
-        assert not np.array_equal(imdilate(I, B), imdilate(I, B[::-1, ::-1]))
-        bw = I > 128
-        assert np.array_equal(imerode(bw, B), _literal_erode(bw, B, True).astype(bool))
-        assert np.array_equal(imdilate(bw, B), _literal_dilate(bw, B, False).astype(bool))
-        # even-sized SE: origin floor((size+1)/2) → (0, 1)
-        E = np.array([[1, 1, 1], [1, 0, 1]], dtype=bool)
-        assert np.array_equal(imerode(I, E), _literal_erode(I, E, 255).astype(np.uint8))
-        assert np.array_equal(imdilate(I, E), _literal_dilate(I, E, 0).astype(np.uint8))
+        assert np.array_equal(imerode(I, B), _literal_erode(I, B, 255))
+        assert np.array_equal(imdilate(I, B), _literal_dilate(I, B, 0))
         F = rng.random((9, 11)) - 0.5
         assert np.array_equal(imerode(F, B), _literal_erode(F, B, np.inf))
         assert np.array_equal(imdilate(F, B), _literal_dilate(F, B, -np.inf))
+
+    @pytest.mark.parametrize("se_name", ["disk7", "asym", "even", "line5", "line7_45", "sq3", "dia3", "disk2", "pair"])
+    def test_open_close_cross_backend_int16_int32_int64(self, se_name):
+        """Review item 8: the same values as int16 (OpenCV), int32 and int64 (numpy fallback) must open / close /
+        erode / dilate identically for all 9 compat SEs (imclose's pad is the class minimum on the Halide route and 0
+        on the imclose.m route — both are order-preserving across the three classes, so the results must agree)."""
+        rng = np.random.default_rng(16)
+        base = rng.integers(-32768, 32767, size=(24, 31), dtype=np.int16, endpoint=True)
+        base[0, 0] = -32768; base[5, 7] = 32767; base[-1, -1] = 32767; base[10, 0] = -32768
+        se = _cross_backend_se(se_name)
+        ref_ops = {f.__name__: f(base, se) for f in (imerode, imdilate, imopen, imclose)}
+        for dt in (np.int32, np.int64):
+            wide = base.astype(dt)
+            for f in (imerode, imdilate, imopen, imclose):
+                out = f(wide, se)
+                assert out.dtype == dt
+                assert np.array_equal(out.astype(np.int64), ref_ops[f.__name__].astype(np.int64)), \
+                    f"{f.__name__} {se_name}: int16 vs {np.dtype(dt).name} differ at {int((out != ref_ops[f.__name__]).sum())} px"
+        # uint16 (OpenCV) vs uint32 / uint64 (numpy) on the shifted (non-negative) values
+        ub = (base.astype(np.int64) + 32768).astype(np.uint16)
+        for dt in (np.uint32, np.uint64):
+            for f in (imerode, imdilate, imopen, imclose):
+                assert np.array_equal(f(ub.astype(dt), se).astype(np.uint64), f(ub, se).astype(np.uint64)), \
+                    f"{f.__name__} {se_name}: uint16 vs {np.dtype(dt).name}"
 
     def test_decomposed_sequence_equals_full_neighbourhood(self):
         rng = np.random.default_rng(1)
@@ -844,6 +931,38 @@ class TestL2ImcloseBorderRule:
             assert np.array_equal(demo[key], d[mkey].ravel()), key
 
 
+@needs_ref("review_followup")
+class TestL2WideIntegerMorphology:
+    """Review items 1/8: MATLAB references for the dtypes that leave the port's OpenCV path (int32 / uint32; the
+    fixtures carry intmax / intmin on the border and inside).  int64 / uint64 are compared only if MATLAB accepted
+    them (flags i64_ok / u64_ok), otherwise the L1 literal-loop test is the evidence for those two."""
+
+    @pytest.mark.parametrize("img", ["I32", "U32"])
+    @pytest.mark.parametrize("se_name", ["disk7", "asym", "even", "dia3", "pair"])
+    def test_erode_dilate_open_close(self, img, se_name):
+        d = ref("review_followup")
+        I = inputs()[img]
+        assert I.dtype == (np.int32 if img == "I32" else np.uint32) and ref_str(d, f"cls_{img}") == I.dtype.name
+        info = np.iinfo(I.dtype)
+        assert int(I.max()) == info.max and int(I.min()) == info.min
+        se = se_by_name(se_name)
+        for f, key in ((imerode, "er"), (imdilate, "di"), (imopen, "op"), (imclose, "cl")):
+            out = f(I, se)
+            m = d[f"{key}_{img}_{se_name}"]
+            assert m.dtype == I.dtype, (key, m.dtype)
+            _assert_same(out, m, I.dtype, f"{key}_{img}_{se_name}")
+
+    @pytest.mark.parametrize("img, flag", [("I64", "i64_ok"), ("U64", "u64_ok")])
+    def test_int64_uint64_if_matlab_accepts(self, img, flag):
+        d = ref("review_followup")
+        I = inputs()[img]
+        if sc(d[flag]) != 1:
+            pytest.skip(f"MATLAB R2025a rejected imerode on {I.dtype.name}: {ref_str(d, flag + '_msg')}")
+        se = se_by_name("asym")
+        _assert_same(imerode(I, se), d[f"er_{img}_asym"], I.dtype, f"er_{img}_asym")
+        _assert_same(imdilate(I, se), d[f"di_{img}_asym"], I.dtype, f"di_{img}_asym")
+
+
 @needs_ref("compat")
 class TestL2Reconstruction:
     def test_binary_and_grayscale(self):
@@ -888,21 +1007,57 @@ class TestL2Gradients:
         assert np.array_equal(_matlab_minus(inp["A8"], inp["B8"], np.dtype(np.uint8)), d["sat_ab"])
         assert np.array_equal(_matlab_minus(inp["B8"], inp["A8"], np.dtype(np.uint8)), d["sat_ba"])
 
+    def test_precomputed_eroded_dilated_equal_recompute_and_matlab(self):
+        """Review item 11: morphological_gradient(..., eroded=J, dilated=K) (morphology.m keeps J/K/X/Y) must equal the
+        recompute path and MATLAB's arrays; a wrong shape/dtype for the precomputed arrays raises."""
+        d = ref("compat")
+        inp = inputs()
+        se = strel("disk", 7)
+        for img, keys in (("Bw", ("mg_b_Bw", "mg_i_Bw", "mg_e_Bw")), ("Rnd8", ("mg_b_Rnd8", "mg_i_Rnd8", "mg_e_Rnd8"))):
+            I = inp[img]
+            E, D = imerode(I, se), imdilate(I, se)
+            assert np.array_equal(E, d[f"er_{img}_disk7"].astype(E.dtype)) and np.array_equal(D, d[f"di_{img}_disk7"].astype(D.dtype))
+            for kind, key in zip(("basic", "internal", "external"), keys):
+                plain = morphological_gradient(I, se, kind)
+                pre = morphological_gradient(I, se, kind, eroded=E, dilated=D)
+                only_needed = morphological_gradient(I, se, kind, eroded=E if kind != "external" else None,
+                                                     dilated=D if kind != "internal" else None)
+                assert pre.dtype == plain.dtype and np.array_equal(pre, plain), key
+                assert np.array_equal(only_needed, plain), key
+                assert np.array_equal(pre, d[key].astype(pre.dtype)), key
+        I = inp["I16"]
+        E = imerode(I, se)
+        assert np.array_equal(morphological_gradient(I, se, "internal", eroded=E), d["mg_i_I16"])
+        with pytest.raises(ValueError, match="eroded="):
+            morphological_gradient(I, se, "internal", eroded=E.astype(np.int32))
+        with pytest.raises(ValueError, match="dilated="):
+            morphological_gradient(I, se, "basic", dilated=np.zeros((3, 3), np.int16))
+
 
 _EDGE_CASES = []
 for _img, _T in (("Rnd", 0.2), ("Ramp", 0.1), ("RampD", 0.1), ("Step", 0.1), ("StepH", 0.1), ("Diag", 0.1),
                  ("Cst", 0.1)):
     for _m in ("sobel", "prewitt", "roberts"):
-        for _d in (("both", "horizontal", "vertical") if _m != "roberts" else ("both",)):
+        for _d in ("both", "horizontal", "vertical"):  # review item 5: Roberts in all three directions too
             for _thin in ("thin", "nothin"):
                 _EDGE_CASES.append((_img, _T, _m, _d, _thin))
+
+
+def _edge_ref(m: str, d: str) -> dict:
+    """compat.mat holds sobel/prewitt (3 directions) and roberts 'both'; roberts 'horizontal'/'vertical' were added
+    by the review follow-up in review_followup.mat (edge.m line 416: b = kx*bx.^2 + ky*by.^2 applies to Roberts)."""
+    if m == "roberts" and d != "both":
+        if not (REF / "review_followup.mat").exists():
+            pytest.skip("reference/ch04/review_followup.mat missing — run make_refs.py review_followup (MATLAB)")
+        return ref("review_followup")
+    return ref("compat")
 
 
 @needs_ref("compat")
 class TestL2Edge:
     @pytest.mark.parametrize("img, T, m, d, thin", _EDGE_CASES)
     def test_gradient_methods(self, img, T, m, d, thin):
-        r = ref("compat")
+        r = _edge_ref(m, d)
         I = inputs()[img]
         base = f"e_{m}_{img}_{d}_{thin}"
         given = edge(I, m, T, d, thinning=thin == "thin")
@@ -1217,3 +1372,54 @@ def test_script_runs(name: str, tmp_path: Path):
             pytest.skip(f"{script.name}: data/book/ch04 absent — graceful SKIP verified")
     files = list(out.glob("*.png"))
     assert files, f"{script.name} wrote nothing to {out}"
+
+
+#: review item 7: one run per script on the crop with the non-default flags (id, script, extra args, expected files).
+CLI_CASES = [
+    ("derivative-log-auto-median-area-smooth", "derivative",
+     ["--crop", "fig4_3a", "--method", "log", "--thresh", "-1", "--median", "--min-area", "20", "--smooth", "--no-book-figures"],
+     ["sec_4_1_1_derivative_log_Tauto_crop.png", "sec_4_1_1_derivative_log_Tauto_crop_conv2_full.png"]),
+    ("derivative-roberts-T0.05", "derivative",
+     ["--crop", "fig4_3a", "--method", "roberts", "--thresh", "0.05", "--no-book-figures"],
+     ["sec_4_1_1_derivative_roberts_T0.05_crop.png"]),
+    ("derivative-prewitt-T0.03-area-median", "derivative",
+     ["--crop", "fig4_3a", "--method", "prewitt", "--thresh", "0.03", "--min-area", "20", "--median", "--no-book-figures"],
+     ["sec_4_1_1_derivative_prewitt_T0.03_crop.png"]),
+    ("derivative-log-sigma1.5-bookfigs", "derivative",
+     ["--crop", "fig4_3a", "--method", "log", "--sigma", "1.5", "--thresh", "0.01"],
+     ["sec_4_1_1_derivative_log_T0.01_crop.png", "fig_4_03b_sobel_T0.05.png", "fig_4_06_log_s2_T0.005.png"]),
+    ("morphology-crop-r15-nodemo", "morphology",
+     ["--crop", "fig4_3a", "--radius", "15", "--demo", "none"],
+     ["fig_4_09a_bw.png", "fig_4_09b_erosion.png", "fig_4_09c_dilation.png", "fig_4_10a_gray_erosion.png",
+      "fig_4_15a_basic.png", "fig_4_16c_gray_external.png", "fig_4_09_panels.png", "fig_4_16_panels.png",
+      "sec_4_2_crop_gray.png"]),
+    ("morphology-crop-r5-strels-nobook", "morphology",
+     ["--crop", "fig4_3a", "--radius", "5", "--demo", "strels", "--no-book-figures"],
+     ["sec_4_2_crop_erosion_r5.png", "sec_4_2_crop_gray_basic_r5.png", "sec_4_2_crop_binary_panels_r5.png",
+      "sec_4_2_fig4_7_strels.png"]),
+    ("experiments-crop-thresholds-radii", "experiments",
+     ["--crop", "0:200,0:300", "--thresholds", "0.05", "0.08", "--radii", "3", "5"],
+     ["sec_4_3_fig4_19_sobel_T0.05_crop.png", "sec_4_3_fig4_19_sobel_T0.08_crop.png", "sec_4_3_fig4_19_sobel_T0.05_vs_T0.08.png",
+      "sec_4_3_fig4_20_internal_r3_crop.png", "sec_4_3_fig4_20_internal_r5_crop.png", "sec_4_3_fig4_20_internal_r3_vs_r5.png",
+      "sec_4_3_fig4_17b_sobel_T0.05_full.png", "sec_4_3_fig4_17c_internal_r3_full.png"]),
+]
+
+
+@needs_image
+@pytest.mark.parametrize("case_id, name, extra, expected", CLI_CASES, ids=[c[0] for c in CLI_CASES])
+def test_script_cli_flags(case_id: str, name: str, extra: list[str], expected: list[str]):
+    """Review item 7: the non-default CLI flags run to completion on the Fig. 4.3(a) crop / a small experiments crop
+    and write the expected figure files (into outputs/ch04/verify/cli/<case>, git-ignored, so the canonical
+    outputs/ch04 figures are not overwritten)."""
+    script = ROOT / "scripts" / f"ch04_{name}.py"
+    out = VERIFY / "cli" / case_id
+    out.mkdir(parents=True, exist_ok=True)
+    for f in expected:
+        (out / f).unlink(missing_ok=True)
+    proc = subprocess.run([sys.executable, str(script), "--no-show", "--out", str(out), *extra], capture_output=True,
+                          text=True, cwd=str(ROOT), timeout=900)
+    assert proc.returncode == 0, f"{script.name} {' '.join(extra)} failed:\n{proc.stdout[-2000:]}\n{proc.stderr[-4000:]}"
+    assert "SKIP" not in proc.stdout
+    missing = [f for f in expected if not (out / f).exists()]
+    assert not missing, f"{case_id}: missing {missing}; wrote {sorted(p.name for p in out.glob('*.png'))}"
+    (out / "stdout.txt").write_text(proc.stdout, encoding="utf-8")

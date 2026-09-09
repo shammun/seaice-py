@@ -6,7 +6,8 @@ Runs the ORIGINAL ``.m`` files of ``MATLAB_ROOT/ch4`` (``derivative.m``, ``morph
 (``imwrite``) into ``outputs/ch04/verify/matlab/`` for the side-by-side figure comparisons (L3).
 
 Usage:  .venv/Scripts/python.exe reference/ch04/make_refs.py [name ...]
-        (no arguments = all references; names = derivative, morphology, crop_fig4_3, compat, imclose_pad)
+        (no arguments = all references; names = derivative, morphology, crop_fig4_3, compat, imclose_pad,
+         review_followup)
 
 Notes
 -----
@@ -133,7 +134,24 @@ def make_inputs() -> dict[str, np.ndarray]:
         "H8": np.array([[1, 1, 1], [1, -8, 1], [1, 1, 1]], dtype=np.float64),
         "A8": rng.integers(0, 256, size=(10, 12)).astype(np.uint8),
         "B8": rng.integers(0, 256, size=(10, 12)).astype(np.uint8),
+        # review follow-up (item 1/8): 32-/64-bit integer fixtures carrying intmax / intmin values so a border pad
+        # that overflows (the old scipy fallback) or a float64 accumulation (values > 2^53) is detected.  A separate
+        # generator keeps every array above bit-identical to the first reference run.
+        **_wide_int_fixtures(),
     }
+
+
+def _wide_int_fixtures() -> dict[str, np.ndarray]:
+    rng = np.random.default_rng(44)
+    out: dict[str, np.ndarray] = {}
+    for key, dt in (("I32", np.int32), ("U32", np.uint32), ("I64", np.int64), ("U64", np.uint64)):
+        info = np.iinfo(dt)
+        a = rng.integers(info.min, info.max, size=(20, 30), dtype=dt, endpoint=True)
+        a[0, 0] = info.max; a[0, 29] = info.min; a[19, 0] = info.min; a[19, 29] = info.max  # corners
+        a[7, 11] = info.max; a[12, 18] = info.min; a[3, 15] = info.max; a[16, 5] = info.min  # interior
+        a[9, 0] = info.max; a[0, 14] = info.min  # border, non-corner
+        out[key] = a
+    return out
 
 
 def _prepare() -> None:
@@ -427,12 +445,57 @@ def ref_imclose_pad():
     return run_ref(code, vars_, REF / "imclose_pad.mat", timeout=600)
 
 
+#: Review follow-up references (small, separate launch): (a) Roberts with 'horizontal' / 'vertical' (review item 5 —
+#: edge.m line 416 applies kx/ky to the Roberts squares, so the directions are meaningful); (b) imerode / imdilate /
+#: imopen / imclose on int32 / uint32 fixtures with intmax / intmin values (review items 1/8: the dtypes that leave
+#: the OpenCV path in the port).  int64 / uint64 are attempted in try/catch — MATLAB's morphology may not accept
+#: them; the flags i64_ok / u64_ok record what happened.
+FOLLOWUP_SES = {"disk7": "strel('disk', 7)", "asym": "strel(AsymSE)", "even": "strel(EvenSE)",
+                "dia3": "strel('diamond', 3)", "pair": "strel('pair', [2 -1])"}
+
+
+def _review_followup_code() -> tuple[str, list[str]]:
+    lines: list[str] = [f"load({q(REF / 'inputs.mat')});"]
+    v: list[str] = []
+
+    def add(line: str, *names: str) -> None:
+        lines.append(line)
+        v.extend(names)
+
+    for img, T in EDGE_IMAGES.items():
+        for d in ("horizontal", "vertical"):
+            for thin in ("thin", "nothin"):
+                opt = "'thinning'" if thin == "thin" else "'nothinning'"
+                base = f"e_roberts_{img}_{d}_{thin}"
+                add(f"[{base}_auto, t_roberts_{img}_{d}_{thin}_auto] = edge({img}, 'roberts', [], '{d}', {opt});",
+                    f"{base}_auto", f"t_roberts_{img}_{d}_{thin}_auto")
+                add(f"{base}_T = edge({img}, 'roberts', {T}, '{d}', {opt});", f"{base}_T")
+    for img in ("I32", "U32"):
+        add(f"cls_{img} = class({img});", f"cls_{img}")
+        for se_name, se_expr in FOLLOWUP_SES.items():
+            add(f"er_{img}_{se_name} = imerode({img}, {se_expr}); di_{img}_{se_name} = imdilate({img}, {se_expr}); "
+                f"op_{img}_{se_name} = imopen({img}, {se_expr}); cl_{img}_{se_name} = imclose({img}, {se_expr});",
+                f"er_{img}_{se_name}", f"di_{img}_{se_name}", f"op_{img}_{se_name}", f"cl_{img}_{se_name}")
+    for img, flag in (("I64", "i64_ok"), ("U64", "u64_ok")):
+        add(f"try, er_{img}_asym = imerode({img}, strel(AsymSE)); di_{img}_asym = imdilate({img}, strel(AsymSE)); "
+            f"{flag} = 1; {flag}_msg = ''; catch e__, er_{img}_asym = []; di_{img}_asym = []; {flag} = 0; {flag}_msg = e__.message; end",
+            f"er_{img}_asym", f"di_{img}_asym", flag, f"{flag}_msg")
+    return "\n".join(lines) + "\n", v
+
+
+def ref_review_followup():
+    code, vars_ = _review_followup_code()
+    (VERIFY / "review_followup_code.m").write_text(code, encoding="utf-8")
+    return run_ref(code, vars_, REF / "review_followup.mat", timeout=900)
+
+
 ALL = {
     "derivative": ref_derivative,
     "morphology": ref_morphology,
     "crop_fig4_3": ref_crop,
     "compat": ref_compat,
     "imclose_pad": ref_imclose_pad,
+    "review_followup": ref_review_followup,
 }
 
 

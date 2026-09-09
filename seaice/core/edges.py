@@ -195,16 +195,23 @@ def edge(a: np.ndarray, method: str = "sobel", thresh: float | None = None, dire
         ``(bw, thresh, gv, gh)``; ``thresh`` mirrors MATLAB's second output (the automatic value when ``thresh``
         was ``None``).  ``gv``/``gh`` are ``bx``/``by`` for the gradient methods, ``None`` otherwise.
 
-    Parity: exact vs MATLAB R2025a — 0 differing pixels for sobel / prewitt / roberts (with and without thinning,
-    automatic and given ``T``, all three directions), log (auto and given ``T``, σ = 1.5 / 2) and zerocross, on
-    ``test.jpg`` and on ramp / step / diagonal-tie / random fixtures; thresholds and ``gv``/``gh`` bit-identical.
+    Parity: exact vs MATLAB R2025a — 0 differing pixels for sobel / prewitt (with and without thinning, automatic
+    and given ``T``, all three directions), roberts (``direction='both'``, with and without thinning, automatic and
+    given ``T``), log (auto and given ``T``, σ = 1.5 / 2) and zerocross, on ``test.jpg`` and on ramp / step /
+    diagonal-tie / random fixtures; thresholds and ``gv``/``gh`` bit-identical.  Roberts with
+    ``direction='horizontal'`` / ``'vertical'`` follows ``edge.m``'s ``offset = [-1 1 1 -1]`` and ``kx``/``ky`` rule
+    and is likewise verified (``reference/ch04/review_followup.mat``: 56 maps 0 px, thresholds rel ≤ 1e-12).
+
+    Precision: the computation is always float64.  A ``float32`` input is promoted (MATLAB would run the same
+    arithmetic in ``single`` on a ``single`` image), so results on float32 inputs can differ from MATLAB at the
+    single-precision rounding level; pass float64 (``double(im)/256``) for bit-exact parity.
     """
     a = np.asarray(a)
     if a.ndim != 2:
         raise ValueError("edge: I must be 2-D")
     if not np.issubdtype(a.dtype, np.floating):
         raise TypeError("edge: pass a float image (e.g. double(im)/256 as in derivative.m, or im2double)")
-    a = a.astype(np.float64, copy=False)
+    a = a.astype(np.float64, copy=False)  # float32 → float64 (MATLAB would stay in single; see the docstring)
     method = str(method).lower()
     if method not in _METHODS:
         raise ValueError(f"edge: unknown method {method!r}")
