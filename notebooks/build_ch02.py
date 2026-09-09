@@ -83,6 +83,10 @@ Run the two cells below first. On **Colab** the first cell mounts your Google Dr
 and where downloads are cached between sessions; readers without Drive get a temporary `/content/Sea_Ice_Colab`.
 The second cell clones (or updates) the public repository `seaice-py` there and installs its requirements.
 **Locally** both cells are no-ops that move to the repository root. No GPU is needed.
+
+> ⚠️ **If you run this with your own copy of the book image, do not use *File → Save a copy in GitHub*.** That saves
+> the cell outputs — figures rendered from the copyrighted book image — into the public repository. Save to Drive
+> instead (*File → Save a copy in Drive*). The repository's `_colab.ipynb` is always regenerated with outputs stripped.
 """)
 code(r'''
 import os

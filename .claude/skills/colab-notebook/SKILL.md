@@ -76,5 +76,14 @@ live in their own Drive (`MyDrive/Sea_Ice_Colab/data/book/chNN/`), never in the 
 3. commit `chNN: publish — …`, push, check `https://shammun.github.io/seaice-py/notebooks/chNN_<slug>.html`.
 Use `python -m nbconvert` (not `python -m jupyter nbconvert`, which can dispatch to Anaconda's binary on this host).
 
+**Colab "Save a copy in GitHub" hazard (happened 2026-09-09).** Saving from Colab writes the cell outputs into
+`notebooks/chNN_<slug>_colab.ipynb` on `main`; if the run used the reader's private book image those outputs are
+book-derived figures. Every notebook's setup markdown carries the warning; `tools/check_public.py` (also the
+`.githooks/pre-push` hook, install with `git config core.hooksPath .githooks`) fails on any tracked `.ipynb` with
+outputs or any HTML whose output area says `book (local)` / `book (private Drive)`. If such a commit lands on
+`origin/main`: inspect it, then replace the tip with the clean local branch
+(`git push --force-with-lease=main:<bad sha> origin main`) and tell the user the orphaned commit is still fetchable by
+SHA until GitHub garbage-collects it (support can purge it).
+
 ## Public-repo rule
 The repo is public. Never commit book text, book-shipped images, PDF page crops, or executed notebooks that contain them. Published notebooks load data through seaice.core.io.load_image(), which prefers the reader's private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in reports/**/figures/ (git-ignored).

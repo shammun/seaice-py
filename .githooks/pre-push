@@ -1,0 +1,5 @@
+#!/bin/sh
+# Refuse to push anything book-derived to the public repo (CLAUDE.md rule 12). Install once:
+#   git config core.hooksPath .githooks
+PY=".venv/Scripts/python.exe"; [ -x "$PY" ] || PY=python
+exec "$PY" tools/check_public.py
