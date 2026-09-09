@@ -29,8 +29,8 @@
       "review": "pass",
       "notebook": "pass",
       "knowledge": "done",
-      "publish": "todo",
-      "notes": "Complete: 2/2 .m exact vs MATLAB R2025a (derivative.m BW 0 px on 12.25 Mpx; morphology.m 12/12 arrays 0 px), 548 tests + 2 by-design skips (746 total pass, 1 xfail), parity 22 exact/1 near (edge 'log' on flat synthetic input)/0 approx/6 reimplemented/1 unverified (Figs 4.17-4.20 source image not shipped); 27/27 image pairs 0 px; MATLAB edge thinning reverse-engineered (252 maps 0 px), strel disk decomposition (116 nhoods), imclose pre-pad rule (72 closings), int64/uint64 morphology fixed; review 1 must-fix + 7 should-fix + 5 nits applied; notebook 38 cells/24 figures/37 s; knowledge/ch04.md + CUMULATIVE + function_map written (27 rows added + conv2 row edited), skill promoted (edge thinning rule, imclose pre-pad, strel octagon + prefix, scipy min/max filter int64, MATLAB int64 rejection, /256 vs im2double, nbconvert kernelspec); publish pending"
+      "publish": "pass",
+      "notes": "Complete: 2/2 .m exact vs MATLAB R2025a (derivative.m BW 0 px on 12.25 Mpx; morphology.m 12/12 arrays 0 px), 548 tests + 2 by-design skips (746 total pass, 1 xfail), parity 22 exact/1 near (edge 'log' on flat synthetic input)/0 approx/6 reimplemented/1 unverified (Figs 4.17-4.20 source image not shipped); 27/27 image pairs 0 px; MATLAB edge thinning reverse-engineered (252 maps 0 px), strel disk decomposition (116 nhoods), imclose pre-pad rule (72 closings), int64/uint64 morphology fixed; review 1 must-fix + 7 should-fix + 5 nits applied; notebook 38 cells/24 figures/37 s; knowledge/ch04.md + CUMULATIVE + function_map written (27 rows added + conv2 row edited), skill promoted (edge thinning rule, imclose pre-pad, strel octagon + prefix, scipy min/max filter int64, MATLAB int64 rejection, /256 vs im2double, nbconvert kernelspec); published 2026-09-09: _colab.ipynb + HTML from the public-domain run (NASA Worldview 4290x2856 substitute for test.jpg), Pages live"
     },
     "ch05": {
       "analyze": "todo",
