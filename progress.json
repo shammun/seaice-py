@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "current_chapter": "ch02",
+  "current_chapter": "ch03",
   "chapters": {
     "ch02": {
       "analyze": "pass",
@@ -13,8 +13,8 @@
       "notes": "Complete: 7/7 .m exact vs MATLAB R2025a, 86 tests, parity 23 exact/1 near/1 approx/4 reimplemented/1 unverified (Fig 2.7 image not shipped); knowledge/ch02.md + CUMULATIVE + function_map written; published 2026-09-09: _colab.ipynb + HTML from the public-domain run, Pages live"
     },
     "ch03": {
-      "analyze": "todo",
-      "port": "todo",
+      "analyze": "pass",
+      "port": "in_progress",
       "verify": "todo",
       "review": "todo",
       "notebook": "todo",
