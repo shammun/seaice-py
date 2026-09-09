@@ -49,41 +49,60 @@ def locate_book_pdf(book: dict) -> Path | None:
     return max(pdfs, key=lambda p: p.stat().st_size)
 
 
+def _clean_text(t: str) -> str:
+    """Drop NUL bytes that PDF text extraction sometimes emits (they make grep treat the .txt as binary)."""
+    return t.replace("\x00", "")
+
+
 def page_texts(pdf_path: Path) -> list[str]:
     if fitz is not None:
         doc = fitz.open(pdf_path)
-        return [p.get_text("text") for p in doc]
+        return [_clean_text(p.get_text("text")) for p in doc]
     reader = PdfReader(str(pdf_path))
-    return [(p.extract_text() or "") for p in reader.pages]
+    return [_clean_text(p.extract_text() or "") for p in reader.pages]
+
+
+def _has_printed_number(text: str, number: int, edge_lines: int = 3) -> bool:
+    """True if `number` appears as a standalone line among the first/last `edge_lines` non-empty lines.
+
+    In this book the running head puts the page number at the top of body pages and chapter openers put it
+    at the bottom; the table of contents (which also mentions every chapter title) carries roman numerals.
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    edge = lines[:edge_lines] + lines[-edge_lines:]
+    return any(ln == str(number) for ln in edge)
 
 
 def detect_offset(texts: list[str], chapters: list[dict]) -> int | None:
     """Find offset such that pdf_index (0-based) = printed_page + offset - 1.
 
-    Strategy: for each porting chapter, find the first page that contains the chapter title
-    (case-insensitive, whitespace-collapsed) *and* looks like a chapter opener (a line 'N' or 'Chapter N'
-    near the title). Compute candidate offsets and take the most common one.
+    Strategy: for each porting chapter, every page that contains the chapter title (case-insensitive,
+    whitespace-collapsed) *and* looks like a chapter opener (a line 'N' or 'Chapter N') is a candidate.
+    A candidate whose page also carries the chapter's printed start page number as a standalone line at the
+    top or bottom of the page text scores 10; one without scores 1 (ToC / cross-reference pages typically lack
+    it). The offset with the highest total score wins; ties go to the smallest |offset|.
     """
     from collections import Counter
 
-    cands: Counter[int] = Counter()
+    scores: Counter[int] = Counter()
     for ch in chapters:
         if not ch.get("do_port", False) or ch["number"] > 9:
             continue
         title = re.sub(r"\s+", " ", ch["title"]).lower()
-        key = title.split(" ")[:4]
-        key = " ".join(key)
+        key = " ".join(title.split(" ")[:4])
         for i, t in enumerate(texts):
             tt = re.sub(r"\s+", " ", t).lower()
-            if key in tt and re.search(rf"(chapter\s+{ch['number']}\b|^\s*{ch['number']}\s)", tt):
-                # skip the table of contents: it lists many chapters on one page
-                if tt.count("chapter") > 3:
-                    continue
-                cands[i - (ch["printed_page_start"] - 1)] += 1
-                break
-    if not cands:
+            if key not in tt or not re.search(rf"(chapter\s+{ch['number']}\b|^\s*{ch['number']}\s)", tt):
+                continue
+            # skip the table of contents: it lists many chapters on one page
+            if tt.count("chapter") > 3:
+                continue
+            offset = i - (ch["printed_page_start"] - 1)
+            scores[offset] += 10 if _has_printed_number(t, ch["printed_page_start"]) else 1
+    if not scores:
         return None
-    return cands.most_common(1)[0][0]
+    best = max(scores.values())
+    return min((o for o, sc in scores.items() if sc == best), key=abs)
 
 
 def main() -> int:
