@@ -71,3 +71,6 @@ Then also open the executed copy and check no cell output contains `Error` or an
 ## Delivering to Google Drive (see GUIDE.md §7)
 Either commit and let Colab `git clone`, or mirror `notebooks/ seaice/ data/ knowledge/ requirements-colab.txt`
 into `G:\My Drive\seaice-py\` with `tools/sync_to_drive.ps1` (robocopy). The notebook's `SOURCE` variable selects which.
+
+## Public-repo rule
+The repo is public. Never commit book text, book-shipped images, PDF page crops, or executed notebooks that contain them. Published notebooks load data through seaice.core.io.load_image(), which prefers the reader's private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in reports/**/figures/ (git-ignored).

@@ -99,3 +99,6 @@ Run with `python -m pytest tests/test_chNN.py -q -p no:cacheprovider` (add `-n a
 If a parity test fails: (1) confirm the *reference* is right (rerun MATLAB via `run_ref`, check dtype/complement/1-based issues);
 (2) fix the port; (3) rerun; max 3 rounds, then write the discrepancy in "Open items" with your best hypothesis and stop —
 do not loosen tolerances to make tests pass.
+
+## Public-repo rule
+The repo is public. Never commit book text, book-shipped images, PDF page crops, or executed notebooks that contain them. Published notebooks load data through seaice.core.io.load_image(), which prefers the reader's private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in reports/**/figures/ (git-ignored).

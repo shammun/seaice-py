@@ -66,6 +66,10 @@ App. A Geometric calibration · App. B Data structure. MATLAB folders `ch2`…`c
 10. **Data policy** (see skill `data-sources`): book-shipped images first, then free online data, then synthetic, then
     "manual download → Google Drive" instructions. Never fabricate results for data you do not have.
 11. **Commit after every phase** with message `chNN: <phase> — <one line>`.
+12. **The repo is public.** Never commit book text, book-shipped images, PDF page crops, or executed notebooks that
+    contain them. Published notebooks load data through `seaice.core.io.load_image()`, which prefers the reader's
+    private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in
+    `reports/**/figures/` (git-ignored).
 
 ## Python stack (pinned in requirements.txt)
 numpy · scipy · scikit-image · opencv-python-headless · matplotlib · scikit-learn · imageio · pillow · pandas · pytest ·

@@ -48,3 +48,6 @@ and make the code look in `data/manual/chNN/` with a helpful error.
 
 ## Never
 Fabricate an image's provenance, silently substitute a different image for a book figure, or embed base64 images in notebooks.
+
+## Public-repo rule
+The repo is public. Never commit book text, book-shipped images, PDF page crops, or executed notebooks that contain them. Published notebooks load data through seaice.core.io.load_image(), which prefers the reader's private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in reports/**/figures/ (git-ignored).

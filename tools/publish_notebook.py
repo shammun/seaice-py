@@ -331,11 +331,20 @@ jupyter notebook notebooks/ch02_preliminaries.ipynb  # the teaching notebook (ru
 | `notebooks/chNN_*.ipynb` (+ `_colab`, `.html`) | teaching notebooks; `tools/publish_notebook.py` builds the Colab and HTML versions |
 | `knowledge/` | what each chapter learned and what later chapters reuse |
 
-## Not in the repository
+## About the source material
 
-The book PDF and the authors' original MATLAB code archive are copyrighted and stay out of git; the port cites the
-book section, equation and source `.m` file in every docstring instead. The `.mat` reference files are regenerated
+This port follows Qin Zhang and Roger Skjetne, *Sea Ice Image Processing with MATLAB* (CRC Press, 2018). The book
+text, its figures and its image data are **not** included here and must be obtained from the publisher; the
+authors' MATLAB code archive is not redistributed either. Every Python function cites the book section, equation and
+source `.m` file it implements so you can follow along with your own copy. The notebooks run on public-domain NASA
+imagery unless you supply the book images privately (put them in `data/book/chNN/` locally, or in
+`MyDrive/seaice-py/data/book/chNN/` for Colab). The `.mat` reference files used by the parity tests are regenerated
 with `reference/chNN/make_refs.py` on a machine with MATLAB.
+
+## License
+
+The Python code, tests and documentation are released under the MIT License (see `LICENSE`). The license does not
+cover the book or the authors' MATLAB code.
 """,
         encoding="utf-8",
     )

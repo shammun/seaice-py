@@ -15,3 +15,12 @@ chapters/*.pdf
 *.pdf
 *.zip
 K30735_Sea Ice Image Processing with MATLAB_matlab codes/
+
+# --- PUBLIC REPO: nothing derived from the copyrighted book may be committed (CLAUDE.md rule 12) ---
+chapters/*.txt
+!chapters/_page_map.json
+data/book/
+data/manual/
+reports/**/figures/
+outputs/
+notebooks/executed_*.ipynb
