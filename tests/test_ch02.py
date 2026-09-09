@@ -23,7 +23,7 @@ from scipy.io import loadmat
 from seaice import ch02_preliminaries as ch2
 from seaice.core import chaincode as cc
 from seaice.core import color, connectivity as conn, distance as dist, filters, histogram as hist, interp, setops, synth
-from seaice.core.io import load_book_image
+from seaice.core.io import load_image
 from seaice.core.matlab_compat import im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
 from tools.compare_arrays import assert_parity
 
@@ -43,7 +43,7 @@ def needs_ref(name: str):
 def rgb() -> np.ndarray:
     if not RGB_PATH.exists():
         pytest.skip("rgb.JPG missing")
-    return load_book_image("ch02", "rgb.jpg")
+    return load_image("ch02", "rgb.jpg", allow_fallback=False, verbose=False)[0]
 
 
 def ref(name: str) -> dict:

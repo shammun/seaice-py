@@ -20,31 +20,28 @@ nbf.write(nb, "notebooks/ch02_preliminaries.ipynb")
 
 ## Mandatory cell order
 1. **Title + book mapping** (markdown): chapter, sections covered, which MATLAB files this replaces, link to `knowledge/chNN.md`.
-2. **Setup cell** (code, tagged `setup`) — detects Colab and prepares the package:
+2. **Cell 1 — Drive mount + working directory** (first code cell, copy verbatim from `notebooks/build_ch02.py`).
+   It mounts Google Drive and `chdir`s to `/content/drive/MyDrive/Sea_Ice_Colab` (the reader's private data lives
+   under it: `data/book/chNN/`); readers without Drive get `/content/Sea_Ice_Colab`; outside Colab it is a no-op
+   that `chdir`s to the repository root. The three lines
    ```python
-   import os, sys, subprocess, pathlib
-   IN_COLAB = "google.colab" in sys.modules
-   SOURCE = "github"          # "github" or "drive"  ← user picks
-   REPO_URL = "https://github.com/<user>/seaice-py.git"
-   DRIVE_DIR = "/content/drive/MyDrive/seaice-py"
-   if IN_COLAB:
-       if SOURCE == "drive":
-           from google.colab import drive; drive.mount("/content/drive")
-           os.chdir(DRIVE_DIR)
-       else:
-           if not pathlib.Path("seaice-py").exists():
-               subprocess.run(["git", "clone", "--depth", "1", REPO_URL], check=True)
-           os.chdir("seaice-py")
-       subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements-colab.txt"], check=True)
-   else:
-       os.chdir(pathlib.Path(__file__).resolve().parents[1] if "__file__" in globals() else pathlib.Path.cwd().parent if pathlib.Path.cwd().name == "notebooks" else pathlib.Path.cwd())
-   sys.path.insert(0, os.getcwd()); print("cwd:", os.getcwd())
+   import os
+   os.chdir('/content/drive/MyDrive/Sea_Ice_Colab')
+   print(os.getcwd())
    ```
-   `requirements-colab.txt` = requirements.txt minus oct2py/jupyter/pdf tools (create it in /setup-project).
-3. **Data cell** — obtains the chapter's images: first `data/book/chNN/` (already in the repo/Drive), else the download
-   function from `seaice/core/io.py` (`fetch(url, dest)` with caching), else a printed instruction block telling the user
-   what to download and where to put it in Drive (`MyDrive/seaice-py/data/manual/chNN/`). Never silently fail: if data is
-   missing, raise with the instruction text.
+   are kept unchanged, guarded so the `chdir` only runs when the mount succeeded.
+   **Cell 2 — repository**: on Colab `git -C seaice-py pull` if `./seaice-py` exists, else
+   `git clone --depth 1 https://github.com/shammun/seaice-py.git`; then `pip install -q -r seaice-py/requirements-colab.txt`
+   and `sys.path.insert(0, "seaice-py")`. Outside Colab: no-op (`sys.path.insert(0, os.getcwd())`).
+   `requirements-colab.txt` = requirements.txt minus oct2py/jupyter/pdf tools.
+3. **Cell 3 — data cell**: `I, SOURCE = seaice.core.io.load_image("chNN", "<book file name>")` — private copy first
+   (`<cwd>/data/book`, repo root, Drive), then the registered public-domain substitute (`seaice/core/public_images.py`,
+   downloaded into `data/online/chNN/`). `FROM_BOOK = SOURCE.startswith("book")`; when it is false the cell prints
+   the one-line banner *"Running on a public-domain substitute image; figures show the same operations, but values
+   quoted in the book only hold for the book's own image."* Every later cell that quotes a book value computes it
+   from the loaded image and appends `(book: …)` **only if `FROM_BOOK`** (use the `book(...)` helper defined here).
+   No image path is hard-coded anywhere else; all later cells call `seaice` functions. Never silently fail: a
+   missing image with no registered substitute raises with instructions.
 4. **One section per book section** (2.1, 2.2, …): markdown with the concept (2–6 sentences, key equation in LaTeX,
    cite the book figure numbers) → code that calls `seaice.chNN_*` functions (never re-implement algorithms inside
    the notebook) → figure reproduced with the same layout as the book figure → 1–2 sentence interpretation.

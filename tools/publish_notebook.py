@@ -114,21 +114,20 @@ COLAB_DRIVE = """# --- OPTIONAL: mount Google Drive for manually downloaded data
 
 
 def make_colab_variant(nb_path: Path) -> Path:
+    """``<name>_colab.ipynb``: the same cells (cells 1–3 are already Colab-aware, see the colab-notebook skill),
+    with every output stripped and Colab notebook metadata set.  Legacy notebooks that still carry a cell tagged
+    ``setup`` (the old local/Drive switch) get it replaced by the explicit Colab block."""
     nb = nbformat.read(nb_path, as_version=4)
     out = copy.deepcopy(nb)
     cells = out.cells
 
-    # Find the cell tagged `setup` (the local/Colab/Drive switch of build_chNN.py); fall back to "after the title".
     idx = next((i for i, c in enumerate(cells) if "setup" in c.metadata.get("tags", [])), None)
-    new_cells = [
-        nbformat.v4.new_markdown_cell(COLAB_MD),
-        nbformat.v4.new_code_cell(COLAB_SETUP),
-        nbformat.v4.new_code_cell(COLAB_DRIVE),
-    ]
-    if idx is None:
-        cells[1:1] = new_cells
-    else:
-        # Drop the "## Setup" markdown that precedes the setup cell, then replace the cell itself.
+    if idx is not None:  # legacy layout only
+        new_cells = [
+            nbformat.v4.new_markdown_cell(COLAB_MD),
+            nbformat.v4.new_code_cell(COLAB_SETUP),
+            nbformat.v4.new_code_cell(COLAB_DRIVE),
+        ]
         start = idx
         if idx > 0 and cells[idx - 1].cell_type == "markdown" and cells[idx - 1].source.lstrip().startswith("## Setup"):
             start = idx - 1

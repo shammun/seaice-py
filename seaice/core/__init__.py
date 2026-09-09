@@ -2,7 +2,7 @@
 
 Chapter 2 primitives:
 
-* :mod:`~seaice.core.io` — book data / output paths (``load_book_image``, ``output_dir``, ``fetch``)
+* :mod:`~seaice.core.io` — data paths, private-Drive / public-fallback loader (``load_image``, ``read_image``, ``data_roots``, ``output_dir``, ``fetch``)
 * :mod:`~seaice.core.matlab_compat` — ``rgb2gray_matlab``, ``imcomplement``, ``matlab_round``, ``im2double``, ``im2uint8``
 * :mod:`~seaice.core.plotting` — MATLAB-style ``imshow`` scaling and PNG saving
 * :mod:`~seaice.core.color` — ``rgb2cmy``, ``rgb2cmyk``, ``rgb2hsi``, ``indexed_to_rgb`` (§2.1)
@@ -28,7 +28,7 @@ from .distance import bwdist, center_distance_map, distance_transform, pixel_dis
 from .filters import conv2, conv_at, imfilter
 from .histogram import imhist, normalized_histogram
 from .interp import interp2, interp_bicubic, interp_bilinear, interp_nearest, keys_kernel, resize, warp_image
-from .io import REPO_ROOT, load_book_image, output_dir, repo_root
+from .io import REPO_ROOT, data_roots, load_image, output_dir, read_image, repo_root
 from .matlab_compat import im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
 from .plotting import finish_figure, imshow_matlab, imshow_scale, save_image, show_matrix, to_display_uint8
 from .setops import complement, difference, gray_complement, gray_intersection, gray_union, intersection, reflect, \
@@ -46,7 +46,7 @@ __all__ = [
     "conv2", "conv_at", "imfilter",
     "imhist", "normalized_histogram",
     "interp2", "interp_bicubic", "interp_bilinear", "interp_nearest", "keys_kernel", "resize", "warp_image",
-    "REPO_ROOT", "load_book_image", "output_dir", "repo_root",
+    "REPO_ROOT", "data_roots", "load_image", "output_dir", "read_image", "repo_root",
     "im2double", "im2uint8", "imcomplement", "matlab_round", "rgb2gray_matlab",
     "finish_figure", "imshow_matlab", "imshow_scale", "save_image", "show_matrix", "to_display_uint8",
     "complement", "difference", "gray_complement", "gray_intersection", "gray_union", "intersection", "reflect",

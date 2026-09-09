@@ -23,7 +23,7 @@ from matplotlib.colors import ListedColormap  # noqa: E402
 
 from seaice.ch02_preliminaries import channel_histograms, gray_histogram  # noqa: E402
 from seaice.core.cli import chapter_argparser, resolve_dirs  # noqa: E402
-from seaice.core.io import load_book_image  # noqa: E402
+from seaice.core.io import load_image  # noqa: E402
 from seaice.core.matlab_compat import rgb2gray_matlab  # noqa: E402
 from seaice.core.plotting import finish_figure, imshow_matlab, save_image  # noqa: E402
 
@@ -40,7 +40,11 @@ def _ramp(channel: int) -> ListedColormap:
 def main(argv: list[str] | None = None) -> int:
     args = chapter_argparser(CH, __doc__.splitlines()[0]).parse_args(argv)
     data, out = resolve_dirs(args)
-    I = load_book_image(CH, "rgb.jpg", data_dir=data)
+    try:
+        I, _ = load_image(CH, "rgb.jpg", allow_fallback=False, data_dir=data, verbose=False)
+    except FileNotFoundError as exc:  # private book image absent: scripts never use the public substitute
+        print(f"SKIP {Path(__file__).name}: {exc}")
+        return 0
     ch = channel_histograms(I)
     written: list[Path] = []
 

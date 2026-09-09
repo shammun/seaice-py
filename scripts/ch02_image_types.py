@@ -19,7 +19,7 @@ import numpy as np  # noqa: E402
 
 from seaice.ch02_preliminaries import image_type_examples  # noqa: E402
 from seaice.core.cli import chapter_argparser, resolve_dirs  # noqa: E402
-from seaice.core.io import load_book_image  # noqa: E402
+from seaice.core.io import load_image  # noqa: E402
 from seaice.core.plotting import finish_figure, imshow_matlab, save_image, show_matrix  # noqa: E402
 
 CH = "ch02"
@@ -28,7 +28,11 @@ CH = "ch02"
 def main(argv: list[str] | None = None) -> int:
     args = chapter_argparser(CH, __doc__.splitlines()[0]).parse_args(argv)
     data, out = resolve_dirs(args)
-    I = load_book_image(CH, "rgb.jpg", data_dir=data)
+    try:
+        I, _ = load_image(CH, "rgb.jpg", allow_fallback=False, data_dir=data, verbose=False)
+    except FileNotFoundError as exc:  # private book image absent: scripts never use the public substitute
+        print(f"SKIP {Path(__file__).name}: {exc}")
+        return 0
     ex = image_type_examples(I)
     written: list[Path] = []
 

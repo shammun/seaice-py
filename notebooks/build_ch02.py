@@ -1,7 +1,8 @@
 """Build ``notebooks/ch02_preliminaries.ipynb`` with nbformat (re-runnable; the notebook is never edited by hand).
 
 Chapter 2 — Digital Image Processing Preliminaries (Zhang & Skjetne 2018, pp. 11–36).
-Follows the ``colab-notebook`` skill: title → setup (Colab/Drive/local) → data → one section per book section
+Follows the ``colab-notebook`` skill: title → cell 1 (Drive mount / cwd) → cell 2 (clone or pull the public repo)
+→ cell 3 (``load_image``: private copy or public-domain substitute) → one section per book section
 (2.1 … 2.8) → optional parameter play → summary / feeds forward.  All algorithms are imported from ``seaice``.
 
 Run:  ``.venv/Scripts/python.exe notebooks/build_ch02.py``
@@ -62,62 +63,63 @@ Python port `seaice-py`, notebook `notebooks/ch02_preliminaries.ipynb`.
 The chapter's learned knowledge (concepts, primitives, pitfalls, what later chapters need) is in
 `knowledge/ch02.md` (written by the knowledge phase) and `knowledge/CUMULATIVE.md`.
 
-> **Data.** The only image shipped with chapter 2 is `data/book/ch02/rgb.JPG` (2048×1536 RGB, Fig. 2.3 / 2.8).
-> Every other input (7×7 and 10×13 matrices, the 8×9 chain-code object, the 201×201 point image, the 16×16 sets)
-> is a transcribed book fixture or a synthetic array from `seaice.core.synth`. The grayscale image of the printed
-> Fig. 2.7 is **not** shipped, so that figure is illustrated with a labelled substitute.
+> **Data.** Chapter 2 uses one photograph, the book's `rgb.JPG` (2048×1536 RGB, Figs. 2.3 / 2.8). The book's
+> images are copyrighted and are **not** in this public repository: `seaice.core.io.load_image()` first looks for
+> your own private copy (`data/book/ch02/rgb.JPG` next to the repository, or `MyDrive/Sea_Ice_Colab/data/book/ch02/`
+> on Colab) and otherwise downloads a public-domain NASA MODIS scene of the Beaufort Sea marginal ice zone with the
+> same size. Every other input (7×7 and 10×13 matrices, the 8×9 chain-code object, the 201×201 point image, the
+> 16×16 sets) is a transcribed book fixture or a synthetic array from `seaice.core.synth`. The grayscale image of the
+> printed Fig. 2.7 is not shipped with the book's code either.
 """)
 
 # =====================================================================================================================
 # 2. Setup cell (Colab / Drive / local)
 # =====================================================================================================================
 md(r"""
-## Setup
+## Setup (Google Colab or local Jupyter)
 
-Run this cell first. It is a no-op locally (it only `chdir`s to the repository root). On Google Colab choose
-`SOURCE = "github"` (clone the repo; set `REPO_URL` to your fork) or `SOURCE = "drive"` (the repo mirrored to
-`MyDrive/seaice-py` with `tools/sync_to_drive.ps1`), then it installs `requirements-colab.txt`.
+Run the two cells below first. On **Colab** the first cell mounts your Google Drive and moves into
+`MyDrive/Sea_Ice_Colab` — the folder where your private copy of the book images lives (`data/book/ch02/rgb.JPG`)
+and where downloads are cached between sessions; readers without Drive get a temporary `/content/Sea_Ice_Colab`.
+The second cell clones (or updates) the public repository `seaice-py` there and installs its requirements.
+**Locally** both cells are no-ops that move to the repository root. No GPU is needed.
 """)
 code(r'''
-import os, sys, subprocess, pathlib
-
-IN_COLAB = "google.colab" in sys.modules
-SOURCE = "github"          # "github" or "drive"  <- pick one when running on Colab
-REPO_URL = "https://github.com/shammun/seaice-py.git"   # <- change to your fork if you use one
-DRIVE_DIR = "/content/drive/MyDrive/seaice-py"          # where tools/sync_to_drive.ps1 mirrors the repo
-
+import os
+try:
+    from google.colab import drive; drive.mount('/content/drive')
+    os.makedirs('/content/drive/MyDrive/Sea_Ice_Colab', exist_ok=True)
+    DRIVE_OK = True
+except Exception:
+    DRIVE_OK = False
+    if os.path.isdir('/content'):                                   # Colab without a Google Drive
+        print("No Google Drive — using /content/Sea_Ice_Colab")
+        os.makedirs('/content/Sea_Ice_Colab', exist_ok=True); os.chdir('/content/Sea_Ice_Colab')
+    else:                                                           # local Jupyter: go to the repository root
+        import pathlib
+        here = pathlib.Path.cwd().resolve()
+        for cand in (here, *here.parents):
+            if (cand / "seaice").is_dir() and (cand / "data").is_dir():
+                os.chdir(cand); break
+    print(os.getcwd())
+if DRIVE_OK:                                                        # the chdir to Drive only runs after a successful mount
+    os.chdir('/content/drive/MyDrive/Sea_Ice_Colab')
+    print(os.getcwd())
+''')
+code(r'''
+import os, sys
+IN_COLAB = os.path.isdir('/content') and ('google.colab' in sys.modules or os.getcwd().startswith('/content'))
 if IN_COLAB:
-    if SOURCE == "drive":
-        from google.colab import drive
-        drive.mount("/content/drive")
-        if not pathlib.Path(DRIVE_DIR, "seaice").is_dir():
-            raise FileNotFoundError(
-                f"{DRIVE_DIR}/seaice not found. Mirror the repository to Google Drive first "
-                "(tools/sync_to_drive.ps1 copies notebooks/ seaice/ data/ knowledge/ requirements-colab.txt "
-                "to MyDrive/seaice-py) or use SOURCE = 'github'.")
-        os.chdir(DRIVE_DIR)
+    if os.path.exists('seaice-py'):
+        !git -C seaice-py pull
     else:
-        if "<user>" in REPO_URL:
-            raise ValueError("Set REPO_URL to the GitHub URL of your seaice-py repository (or use SOURCE = 'drive').")
-        if not pathlib.Path("seaice-py").exists():
-            subprocess.run(["git", "clone", "--depth", "1", REPO_URL, "seaice-py"], check=True)
-        os.chdir("seaice-py")
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", "requirements-colab.txt"], check=True)
+        !git clone --depth 1 https://github.com/shammun/seaice-py.git
+    !pip install -q -r seaice-py/requirements-colab.txt
+    sys.path.insert(0, "seaice-py")
 else:
-    # Local run (Jupyter / nbconvert): find the repository root = the folder that contains seaice/ and data/.
-    here = pathlib.Path.cwd().resolve()
-    for cand in (here, *here.parents):
-        if (cand / "seaice").is_dir() and (cand / "data").is_dir():
-            os.chdir(cand)
-            break
-    else:
-        raise FileNotFoundError("Start this notebook from inside the seaice-py repository (e.g. its notebooks/ folder).")
-
-ROOT = pathlib.Path.cwd()
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-print("IN_COLAB:", IN_COLAB, "| cwd:", ROOT.as_posix())
-''', tags=["setup"])
+    sys.path.insert(0, os.getcwd())                                 # local: the repository root from the cell above
+print("seaice imported from:", "seaice-py/ (Colab clone)" if IN_COLAB else os.getcwd())
+''')
 
 # =====================================================================================================================
 # 3. Data cell
@@ -125,30 +127,24 @@ print("IN_COLAB:", IN_COLAB, "| cwd:", ROOT.as_posix())
 md(r"""
 ## Data
 
-Tier 1 (book-shipped): `data/book/ch02/rgb.JPG` — copied from `MATLAB_ROOT/ch2/rgb.jpg` by `/setup-project`
-and committed with the repo, so it is present after a `git clone` or a Drive mirror. MATLAB opens it as
-`imread('rgb.jpg')` (Windows is case-insensitive); `seaice.core.io.load_book_image` resolves the case explicitly.
-Tier 3 (synthetic / transcribed fixtures) comes from `seaice.core.synth` and needs no download.
-If the image is missing the cell stops with instructions instead of silently substituting anything.
+`seaice.core.io.load_image("ch02", "rgb.JPG")` replaces MATLAB's `imread('rgb.jpg')`. It looks for **your private
+copy of the book image** first — `data/book/ch02/rgb.JPG` in the current folder (on Colab: `MyDrive/Sea_Ice_Colab`),
+in the repository, or explicitly in Drive — and otherwise downloads a **public-domain NASA substitute** (MODIS/Terra
+true-colour scene of the Beaufort Sea marginal ice zone, 25 July 2019, same 2048×1536 size) into
+`data/online/ch02/`. It prints which source it used and returns the label, so the cells below only quote the
+book's numbers when the book's own image is loaded. Synthetic / transcribed fixtures come from `seaice.core.synth`.
 """)
 code(r'''
-from seaice.core.io import book_data_dir, load_book_image, resolve_case_insensitive
+from seaice.core.io import load_image
 
-CH = "ch02"
-try:
-    rgb_path = resolve_case_insensitive(book_data_dir(CH), "rgb.jpg")
-except FileNotFoundError as exc:
-    raise FileNotFoundError(
-        "MANUAL DATA NEEDED for chapter 2:\n"
-        "  1. Take rgb.jpg from the book's MATLAB code archive, folder matlab/ch2/ (owned copy of the book).\n"
-        "  2. Locally: put it in data/book/ch02/rgb.JPG.\n"
-        "  3. Colab + Drive: save it to Google Drive as MyDrive/seaice-py/data/book/ch02/rgb.JPG, "
-        "mount Drive (SOURCE = 'drive' in the setup cell) and rerun this cell.\n"
-        f"  (searched: {book_data_dir(CH).as_posix()})") from exc
-
-I = load_book_image(CH, "rgb.jpg")           # = imread('rgb.jpg'); uint8 (M, N, 3)
-print("loaded", rgb_path.relative_to(ROOT).as_posix(), "->", I.shape, I.dtype)
-print("Fig. 2.3 quoted pixel I(1076, 675) [1-based] =", I[1075, 674].tolist(), "(book: 28, 76, 114)")
+I, SOURCE = load_image("ch02", "rgb.JPG")            # = imread('rgb.jpg'); uint8 (M, N, 3)
+FROM_BOOK = SOURCE.startswith("book")
+book = (lambda s: f"  (book: {s})") if FROM_BOOK else (lambda s: "")   # book-quoted values only for the book image
+if not FROM_BOOK:
+    print("Running on a public-domain substitute image; figures show the same operations, "
+          "but values quoted in the book only hold for the book's own image.")
+print("image:", I.shape, I.dtype)
+print(f"Fig. 2.3 pixel I(1076, 675) [1-based] = {I[1075, 674].tolist()}{book('28, 76, 114')}")
 ''')
 
 md(r"""
@@ -207,7 +203,7 @@ from seaice.ch02_preliminaries import image_type_examples
 ex = image_type_examples(I)      # gray / binary / indexed examples (Figs. 2.1, 2.2, 2.6)
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-imshow_matlab(axes[0], ex["gray"], title="Grayscale image rgb2gray(rgb.JPG): 8 bits, 256 levels")
+imshow_matlab(axes[0], ex["gray"], title="Grayscale image rgb2gray(I): 8 bits, 256 levels")
 axes[0].add_patch(plt.Rectangle((899.5, 199.5), 11, 11, fill=False, edgecolor="r", lw=1.5))
 shade = lambda m: (m.astype(float) - 150) / 105       # display shading only
 show_matrix(axes[1], ex["gray_crop"], fmt="{:d}", cmap="Greys", highlight=shade(ex["gray_crop"]),
@@ -219,7 +215,7 @@ plt.show()
 
 fig, axes = plt.subplots(1, 3, figsize=(16, 4.6))
 show_matrix(axes[0], ex["pattern"].astype(int), cmap="Greys", title="Fig. 2.2  synthetic 16x16 binary pattern (B = 1)")
-imshow_matlab(axes[1], ex["binary"], title="rgb2gray(rgb.JPG) > 128  (logical image)")
+imshow_matlab(axes[1], ex["binary"], title="rgb2gray(I) > 128  (logical image)")
 axes[2].imshow(ex["indexed_rgb"], interpolation="nearest")
 axes[2].set_axis_off()
 axes[2].set_title("Fig. 2.6  indexed image -> RGB through its colormap")
@@ -227,8 +223,8 @@ plt.show()
 print("index matrix:\n", ex["indexed"], "\ncolormap rows:\n", ex["cmap"])
 ''')
 md(r"""
-The 11×11 window shows what "gray value" means numerically (bright ice ≈ 190–210); the printed Fig. 2.1 values come from
-an unknown location of a different image, so only the *form* is compared. Thresholding the gray image at 128 gives a
+The 11×11 window shows what "gray value" means numerically (bright ice is close to 255, water close to 0); the printed
+Fig. 2.1 values come from an unknown location of a different image, so only the *form* is compared. Thresholding the gray image at 128 gives a
 first, crude ice/water binary image — Chapter 3 will do this properly.
 """)
 code(r'''
@@ -251,7 +247,7 @@ for ax, key, k, title in zip(axes.flat[1:], ("R", "G", "B"), (0, 1, 2),
 px = ch["pixel_1076_675"]
 for ax in axes.flat:
     ax.plot(674, 1075, ".k", markersize=8)
-fig.suptitle(f"Fig. 2.3  Pixel values in an RGB image: R(1076,675)={px[0]}, G={px[1]}, B={px[2]}  (book: 28, 76, 114)")
+fig.suptitle(f"Fig. 2.3  Pixel values in an RGB image: R(1076,675)={px[0]}, G={px[1]}, B={px[2]}{book('28, 76, 114')}")
 plt.show()
 
 # --- Fig. 2.4: C, M, Y components (Eq. 2.3) -------------------------------------------------------------------------
@@ -307,10 +303,11 @@ Eq. (2.8) $p(r_k) = h(r_k)/n = n_k/(MN)$, an estimate of the probability of leve
 `seaice.core.histogram.imhist` reproduces MATLAB's binning (256 exact levels for `uint8`, 2 bins for logical images).
 Histograms are the basis of the thresholding methods of Chapter 3 (Otsu picks the valley between the water and ice modes).
 
-> **Fig. 2.7 substitute.** The printed Fig. 2.7 shows a dense floe field whose histogram peaks at ≈7.2·10⁴ pixels
-> near level 195; that image is not shipped with the code (and matches none of the ch3–ch5 images). The left panel
-> below therefore uses `rgb2gray(rgb.JPG)` — peak 47 840 at level 208, identical to MATLAB — and is labelled as a
-> substitute, not a reproduction. Fig. 2.8 (right) *is* the shipped image and matches the book.
+> **Fig. 2.7 is not reproducible.** The printed Fig. 2.7 shows a dense floe field whose histogram peaks at ≈7.2·10⁴
+> pixels near level 195; that image is not shipped with the book's code (and matches none of the ch3–ch5 images).
+> The left panel below therefore shows the grayscale of the image loaded above (for the book's `rgb.JPG`: peak
+> 47 840 at level 208, identical to MATLAB) and is labelled as an illustration, not a reproduction. Fig. 2.8 uses the
+> loaded colour image directly.
 """)
 code(r'''
 from seaice.ch02_preliminaries import gray_histogram
@@ -318,10 +315,10 @@ from seaice.ch02_preliminaries import gray_histogram
 gh = gray_histogram(G)           # num (loop, Eq. 2.7), GP (Eq. 2.8), counts/x (imhist)
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
-imshow_matlab(axes[0], G, title="(a) Grayscale image  [SUBSTITUTE: rgb2gray(rgb.JPG)]")
+imshow_matlab(axes[0], G, title="(a) Grayscale image  [not the printed one: rgb2gray of the loaded image]")
 axes[1].bar(gh["x"], gh["counts"], width=1.0, color="k")
 axes[1].set(xlim=(-0.5, 255.5), xlabel="Intensity value", ylabel="Number of pixels", title="(b) imhist(I), Eq. (2.7)")
-fig.suptitle("Fig. 2.7 (illustrated with rgb.JPG; the printed figure uses an image that is not shipped)")
+fig.suptitle("Fig. 2.7 (illustrated with the loaded image; the printed figure uses an image that is not shipped)")
 plt.show()
 
 fig, axes = plt.subplots(1, 2, figsize=(13, 4.5))
@@ -335,13 +332,15 @@ fig.suptitle("Fig. 2.8  RGB image and its channel histograms")
 plt.show()
 
 print(f"loop count == imhist count: {np.array_equal(gh['num'], gh['counts'])};  sum p(r_k) = {gh['GP'].sum():.12f}")
-print(f"gray peak {gh['counts'].max()} @ level {int(gh['counts'].argmax())}   (book Fig. 2.7 image: ~72000 @ ~195)")
-for key, name in (("y_r", "R"), ("y_g", "G"), ("y_b", "B")):
-    print(f"{name} peak {int(ch[key].max())} @ level {int(ch[key].argmax())}")
+print(f"gray peak {gh['counts'].max()} @ level {int(gh['counts'].argmax())}"
+      f"{book('rgb.JPG 47 840 @ 208; the printed Fig. 2.7 image ~72 000 @ ~195')}")
+for key, name, quoted in (("y_r", "R", "77 513 @ 5"), ("y_g", "G", "64 866 @ 212"), ("y_b", "B", "71 090 @ 227")):
+    print(f"{name} peak {int(ch[key].max())} @ level {int(ch[key].argmax())}{book(quoted)}")
 ''')
 md(r"""
-The channel histograms are bimodal — dark water (red peak at level 5) and bright ice (green/blue peaks at 212/227) —
-which is what makes global thresholding work in Chapter 3.
+The channel histograms of a sea-ice photograph are bimodal — dark water at low levels and bright ice near the top of
+the range (for the book's `rgb.JPG`: red peak at level 5, green/blue peaks at 212/227) — which is what makes global
+thresholding work in Chapter 3. Compare with the peaks printed above for the image you loaded.
 """)
 
 # =====================================================================================================================
@@ -588,7 +587,7 @@ print(f"|A| = {so['A'].sum()}, |B| = {so['B'].sum()}, |A ∪ B| = {so['A_or_B'].
 ''')
 code(r'''
 fig, axes = plt.subplots(1, 4, figsize=(18, 3.8))
-imshow_matlab(axes[0], so["gray"], title="A = rgb2gray(rgb.JPG)")
+imshow_matlab(axes[0], so["gray"], title="A = rgb2gray(I)  (gray image loaded above)")
 imshow_matlab(axes[1], so["gray_c"], title="A^c = L − A, L = 255  (Eq. 2.28)")
 imshow_matlab(axes[2], so["gray_union"], title="A ∪ A^c = max  (Eq. 2.29)")
 imshow_matlab(axes[3], so["gray_intersection"], title="A ∩ A^c = min  (Eq. 2.30)")
@@ -806,7 +805,7 @@ border, antialiasing); `unverified`: Fig. 2.7 (source image not shipped — subs
 
 | Needed by | Primitive |
 |---|---|
-| Ch3 (thresholding, k-means) | `matlab_compat.rgb2gray_matlab`, `histogram.imhist` / `normalized_histogram`, `io.load_book_image` |
+| Ch3 (thresholding, k-means) | `matlab_compat.rgb2gray_matlab`, `histogram.imhist` / `normalized_histogram`, `io.load_image` (private copy → public-domain substitute) |
 | Ch4 (edges, morphology) | `filters.conv2` / `imfilter` (correlation vs convolution!), `setops.reflect` / `translate` (structuring elements), `connectivity.label_components` |
 | Ch5 (watershed, floe splitting) | `distance.bwdist` / `distance_transform` (markers), `chaincode.boundaries` / `fchcode` / `bound2im` (concavity analysis; ch5 ships byte-identical copies of these `.m` files), `label_components` in `bwlabel` order |
 | Ch6 (GVF snake) | `interp.interp2` (bilinear on the GVF field), `distance.bwdist`, `filters.imfilter` (`xconv2`, `gaussianBlur`) |

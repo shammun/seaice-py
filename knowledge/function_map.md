@@ -6,7 +6,7 @@ Never remove a verified row; if a later chapter finds a better mapping, edit the
 
 | MATLAB | Python we use | Parity | Verified in | Note |
 |---|---|---|---|---|
-| `imread('x.jpg')` (JPEG) | `seaice.core.io.load_book_image(chapter, name)` | exact | ch02 | imageio/Pillow decode identical to MATLAB on `rgb.JPG` (0 / 9 437 184 samples); resolves case-insensitively (`rgb.jpg` → `rgb.JPG`) |
+| `imread('x.jpg')` (JPEG) | `seaice.core.io.load_image(chapter, name)[0]` | exact | ch02 | imageio/Pillow decode identical to MATLAB on `rgb.JPG` (0 / 9 437 184 samples); resolves case-insensitively (`rgb.jpg` → `rgb.JPG`) |
 | `rgb2gray(I)` | `seaice.core.matlab_compat.rgb2gray_matlab(I)` | exact | ch02 | NTSC 0.298936/0.587043/0.114021 in double, round half away from zero; 0 of 3 145 728 px differ; double input also exact. Not `skimage.color.rgb2gray` (Rec. 709) |
 | `imcomplement(I)` | `seaice.core.matlab_compat.imcomplement(I)` | exact | ch02 | **canonical** (review Should-fix 7); uint8/uint16/int8/logical/double checked. `setops.gray_complement` / `bitwise_not` are equation-named forms — do not use them for ports. `imcomplement(double 0–255)` = `1 − I` |
 | `uint8(x)` (cast of doubles in 0–255 units) | `seaice.core.matlab_compat.to_uint8_saturating(x)` | exact | ch02 | **canonical** for the cast: MATLAB round (half away from zero) + saturate; never `astype(np.uint8)` (wraps/truncates) |

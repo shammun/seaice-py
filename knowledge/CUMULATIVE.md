@@ -5,7 +5,7 @@ after **ch02**, 2026-09-09. Per-chapter detail: `knowledge/chNN.md`; verified ca
 ## Pipeline so far
 ```
 Ch2 primitives (DONE)                       Ch3 ice mask   Ch4 edges   Ch5 watershed floes   Ch6 GVF boundaries
-  io.load_book_image ──────────────────────►  rgb2gray_matlab → imhist → (graythresh/im2bw, kmeans: to write)
+  io.load_image ──────────────────────►  rgb2gray_matlab → imhist → (graythresh/im2bw, kmeans: to write)
   matlab_compat.{rgb2gray_matlab, imcomplement, matlab_round, im2double, im2uint8, to_uint8_saturating}
   histogram.{imhist, normalized_histogram} ──► Ch3 Otsu/separability, Ch6/7 color_hist
   connectivity.label_components (= bwlabel) ─► Ch5–Ch9 (bwlabel everywhere)
@@ -30,7 +30,7 @@ Conventions fixed in ch02 and binding for all later chapters:
 ## Available primitives in seaice/core/
 | function | module | book § | used by chapters | parity |
 |---|---|---|---|---|
-| `load_book_image(chapter, name)` (case-insensitive `imread`), `repo_root`, `book_data_dir`, `output_dir`, `fetch` | `io` | — | all | exact (JPEG decode identical to MATLAB on `rgb.JPG`) |
+| `load_image(chapter, name)` (case-insensitive `imread`; private copy first, public-domain NASA substitute as fallback), `repo_root`, `book_data_dir`, `output_dir`, `fetch` | `io` | — | all | exact (JPEG decode identical to MATLAB on `rgb.JPG`) |
 | `chapter_argparser`, `resolve_dirs` | `cli` | — | all scripts | — |
 | `rgb2gray_matlab(rgb)` | `matlab_compat` | §2.2 | ch3–ch10 | exact (0 px differ) |
 | `imcomplement(img)` (canonical for MATLAB `imcomplement`) | `matlab_compat` | Eq. 2.3 / 2.21 | ch5 `topological_surface.m`, ch7 | exact |
@@ -82,7 +82,7 @@ GVF/snake (ch6), `imresize_matlab` with antialiasing (ch9 if needed), DLT / lens
 11. `interp2 'cubic'` = Keys `a = −0.5` with quadratic edge extrapolation; `imresize 'bicubic'` differs at borders and
     antialiases when shrinking → `resize` is `approx` there.
 12. HSI Eq. (2.6b) uses `atan(V2/V1)` (undefined at `V1 = 0`); `color_image.m` line 21 has `2*Ig` for `2*Ib` (flat hue).
-13. MATLAB scripts read `imread('rgb.jpg')` on Windows case-insensitively (`rgb.JPG`): use `load_book_image`.
+13. MATLAB scripts read `imread('rgb.jpg')` on Windows case-insensitively (`rgb.JPG`): use `load_image`.
 14. MATLAB scripts may write files (`saveas`) into the cwd — generate references from a scratch directory.
 15. PNG comparisons of float maps: MATLAB's `mat2gray` works in single → ±1 level on a few % of pixels; not a defect.
 16. Windows/Anaconda host: `python -m nbconvert --execute ...` (`python -m jupyter nbconvert` may dispatch to
