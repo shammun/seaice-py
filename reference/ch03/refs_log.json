@@ -1,0 +1,74 @@
+{
+  "compat": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "compat.mat",
+    "status": "ok"
+  },
+  "otsu_test": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "otsu_test.mat",
+    "status": "ok"
+  },
+  "otsu_1": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "otsu_1.mat",
+    "status": "ok"
+  },
+  "otsu_2": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "otsu_2.mat",
+    "status": "ok"
+  },
+  "kmeans_test_k2": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_test_k2.mat",
+    "status": "ok"
+  },
+  "kmeans_test_k3": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_test_k3.mat",
+    "status": "ok"
+  },
+  "kmeans_1_k2": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_1_k2.mat",
+    "status": "ok"
+  },
+  "kmeans_1_k3": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_1_k3.mat",
+    "status": "ok"
+  },
+  "kmeans_2_k2": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_2_k2.mat",
+    "status": "ok"
+  },
+  "kmeans_2_k3": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "kmeans_2_k3.mat",
+    "status": "ok"
+  },
+  "local_otsu": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "local_otsu.mat",
+    "status": "ok"
+  },
+  "separability_108": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "separability_108.mat",
+    "status": "ok"
+  }
+}

@@ -162,10 +162,19 @@ def local_otsu(gray: np.ndarray, n_r: int = 2, n_c: int = 3) -> dict[str, Any]:
 
 
 def _num2str(x: float) -> str:
-    """MATLAB ``num2str`` for a scalar double: ``%.4g`` style (integers print without decimals)."""
-    if float(x).is_integer():
+    """MATLAB ``num2str`` for a scalar double (R2025a ``num2str.m``: integers print as ``%d``; otherwise
+    ``%.<n>g`` with ``n = max(floor(log10(|x|)) + 5, 5)`` significant digits, e.g. ``73.8472`` → ``'73.8472'``,
+    ``pi`` → ``'3.1416'``, ``0.123456789`` → ``'0.12346'``, ``1234.56789`` → ``'1234.5679'``).
+    Parity: exact (ten sample strings checked against MATLAB, ``reference/ch03/local_otsu.mat: n2s``)."""
+    x = float(x)
+    if np.isnan(x):
+        return "NaN"
+    if np.isinf(x):
+        return "Inf" if x > 0 else "-Inf"
+    if x.is_integer():
         return str(int(x))
-    return f"{x:.4g}"
+    ndigits = max(int(np.floor(np.log10(abs(x)))) + 5, 5)
+    return f"{x:.{ndigits}g}"
 
 
 # ---------------------------------------------------------------------------------------------------------------

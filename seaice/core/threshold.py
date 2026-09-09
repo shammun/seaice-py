@@ -37,7 +37,8 @@ class OtsuCurves:
     Attributes
     ----------
     p : (L,) normalised histogram, Eq. (3.3).
-    P0, P1 : (L,) class probabilities, Eqs. (3.4)–(3.5) (``P1 = 1 - P0``).
+    P0, P1 : (L,) class probabilities, Eqs. (3.4)–(3.5) (``P1`` summed directly over ``i > t``, exactly 0 for an
+        empty C1).
     m : (L,) cumulative mean ``m(t)``, Eq. (3.8).
     mG : global mean, Eq. (3.9).
     m0, m1 : (L,) class means, Eqs. (3.6)–(3.7) (NaN where the class is empty).
@@ -101,22 +102,36 @@ def otsu_criterion(counts: np.ndarray) -> OtsuCurves:
     i = np.arange(L, dtype=np.float64)
     p = counts / n  # Eq. (3.3)
     P0 = np.cumsum(p)  # Eq. (3.4)
-    P1 = 1.0 - P0  # Eq. (3.5)
     m = np.cumsum(i * p)  # Eq. (3.8)
     mG = float(m[-1])  # Eq. (3.9)
     sigma_G2 = float(np.sum((i - mG) ** 2 * p))  # Eq. (3.17)
+
+    def tail_sum(v: np.ndarray) -> np.ndarray:
+        """``Σ_{i>t} v_i`` for every ``t`` (reverse cumulative sum; exactly 0 where the tail is empty)."""
+        out = np.zeros(L, dtype=np.float64)
+        out[:-1] = np.cumsum(v[::-1])[::-1][1:]
+        return out
+
+    # C1 moments summed directly over i > t (Eqs. 3.5, 3.7, 3.13) instead of ``1 − P0`` / ``mG − m``: the
+    # subtraction form leaves ~1e-15 residues for an empty C1 (finite junk instead of MATLAB's NaN) and cancels
+    # digits for tiny classes.
+    P1 = tail_sum(p)  # Eq. (3.5)
+    m1_num = tail_sum(i * p)
+    s2_1 = tail_sum(i ** 2 * p)
     with np.errstate(divide="ignore", invalid="ignore"):
         m0 = m / P0  # Eq. (3.6)
-        m1 = (mG - m) / P1  # Eq. (3.7)
+        m1 = m1_num / P1  # Eq. (3.7), NaN where C1 is empty
         # class variances, Eqs. (3.12)–(3.13): Σ_{i≤t} i² p_i / P0 − m0², etc.
         s2 = np.cumsum(i ** 2 * p)
         sigma0_2 = s2 / P0 - m0 ** 2
-        sigma1_2 = (s2[-1] - s2) / P1 - m1 ** 2
+        sigma1_2 = s2_1 / P1 - m1 ** 2
         sigma_W2 = P0 * sigma0_2 + P1 * sigma1_2  # Eq. (3.15)
-        sigma_B2 = (mG * P0 - m) ** 2 / (P0 * (1.0 - P0))  # Eq. (3.16), last form (= otsuthresh / separability.m)
+        # Eq. (3.16), last form — the exact expression of otsuthresh / separability.m, kept for the t* search
+        sigma_B2_otsu = (mG * P0 - m) ** 2 / (P0 * (1.0 - P0))
+        sigma_B2 = np.where(P1 == 0, np.nan, sigma_B2_otsu)  # NaN where a class is empty (P0 == 0 is already 0/0)
         eta = sigma_B2 / sigma_G2 if sigma_G2 > 0 else np.full(L, np.nan)  # Eq. (3.20)
     # Eq. (3.21): exhaustive search over 0 ≤ t < L-1 (otsuthresh loops k = 1..num_bins-1), NaN never wins
-    cand = sigma_B2[: L - 1]
+    cand = sigma_B2_otsu[: L - 1]
     finite = np.isfinite(cand)
     if finite.any():
         maxval = np.max(cand[finite])
@@ -268,8 +283,10 @@ def im2bw(I: np.ndarray, level: float = 0.5) -> np.ndarray:
 def _multithresh_pdf(A: np.ndarray) -> tuple[np.ndarray | None, float, float]:
     """``getpdf`` of R2025a ``multithresh.m``: normalise to ``[minA, maxA]`` → ``grayto8`` → 256-bin pdf.
 
-    Integer classes: ``single(A - minA) / single(maxA - minA)`` (single precision!), floats: double arithmetic;
-    NaNs dropped.  Returns ``(p, minA, maxA)`` with ``p = None`` when the image is constant / empty.
+    Integer classes: ``single(A - minA) / single(maxA - minA)`` (single precision!) and ``grayto8`` then forms
+    ``x * 255`` **in single** too (so e.g. 212.4999949 rounds to the float32 212.5 → bin 213); floats: double
+    arithmetic throughout.  NaNs dropped.  Returns ``(p, minA, maxA)`` with ``p = None`` when the image is
+    constant / empty.  Parity: exact (Eq. 3.28 metric ≤ 1e-12 vs MATLAB on the shipped images).
     """
     A = np.asarray(A).ravel()
     if np.issubdtype(A.dtype, np.floating):
@@ -287,12 +304,13 @@ def _multithresh_pdf(A: np.ndarray) -> tuple[np.ndarray | None, float, float]:
         minA, maxA = float(A.min()), float(A.max())
         if minA == maxA:
             return None, minA, maxA
-        # PARITY: near — MATLAB normalises integer images in *single* precision; emulated with float32 here.
+        # MATLAB normalises integer images in *single* precision; float32 reproduces it bit for bit.
         x = (np.float32(A.astype(np.float64) - minA)) / np.float32(maxA - minA)
         x = x.astype(np.float32)
-    # grayto8: round(255 x) saturated (values outside [0, 1] clipped; Inf → 255 / 0)
-    x64 = x.astype(np.float64)
-    u8 = np.where(x64 < 0, 0, np.where(x64 > 1, 255, np.floor(x64 * 255.0 + 0.5))).astype(np.uint8)
+    # grayto8: uint8(x * 255) with the product in the class of x (single for integer inputs, double for floats),
+    # then MATLAB rounding (half away from zero) and saturation (values outside [0, 1] clipped; ±Inf → 255 / 0)
+    y = (x * x.dtype.type(255)).astype(x.dtype)
+    u8 = np.clip(np.floor(y.astype(np.float64) + 0.5), 0, 255).astype(np.uint8)
     counts, _ = imhist(u8, 256)
     p = counts.astype(np.float64) / counts.sum()
     return p, minA, maxA
