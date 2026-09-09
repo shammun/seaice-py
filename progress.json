@@ -25,7 +25,7 @@
     "ch04": {
       "analyze": "pass",
       "port": "pass",
-      "verify": "todo",
+      "verify": "pass",
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",

@@ -348,17 +348,51 @@ def imdilate(I: np.ndarray, se) -> np.ndarray:
 def imopen(I: np.ndarray, se) -> np.ndarray:
     """MATLAB ``imopen`` — opening Eq. (4.23) ``A ∘ B = (A ⊖ B) ⊕ B`` (removes bright details smaller than B; Fig. 4.12).
 
-    Book: §4.2.2.2 (text only).  Parity: exact by construction from :func:`imerode`/:func:`imdilate`.
+    Book: §4.2.2.2 (text only).  MATLAB R2025a ``imopen.m`` applies ``imdilate(imerode(A, se), se)`` on the
+    *unpadded* image (unlike :func:`imclose`), so the composition is the whole story.
+    Parity: exact vs MATLAB (54 image × SE cases, 0 px).
     """
     return imdilate(imerode(I, se), se)
+
+
+# morphop_fast.m: SEs with fewer than 600 neighbours and every side <= 15 px are handled by the Halide kernel
+_HALIDE_MAX_NEIGHBOURS = 600
+_HALIDE_MAX_SE_SIDE = 15
 
 
 def imclose(I: np.ndarray, se) -> np.ndarray:
     """MATLAB ``imclose`` — closing Eq. (4.22) ``A • B = (A ⊕ B) ⊖ B`` (fills dark details smaller than B; Fig. 4.11).
 
-    Book: §4.2.2.1 (text only).  Parity: exact by construction.
+    Book: §4.2.2.1 (text only).  The book gives no border convention; MATLAB R2025a's ``imclose.m`` is *not* the bare
+    composition ``imerode(imdilate(A, se), se)``: it first pre-pads ``A`` by ``padSize = ceil(size(getnhood(se))/2)``
+    on both sides (``padarray(A, padSize, 'both')``, value 0), dilates, erodes, and crops the pad back.  Hence out-of-
+    image pixels of the *dilated* image are finite (the dilation of the pad) rather than +Inf/intmax during the
+    erosion, and dark notches that open onto the image border are not closed.  ``morphop_fast.m`` routes SEs that
+    are not all-ones rectangles and have < 600 neighbours with every side <= 15 px to a Halide kernel whose border
+    value is the class minimum (-Inf / intmin / false) instead of 0; the two coincide for uint8, logical and
+    non-negative double images and differ only for signed images with negative values.  Both rules are reproduced.
+    A decomposed SE (list of neighbourhoods) is padded by half its combined neighbourhood (:func:`minkowski_sum`,
+    = MATLAB ``getnhood`` of the decomposed strel).
+
+    Parity: exact vs MATLAB R2025a (54 image × SE cases incl. signed int16/double and asymmetric/even SEs, 0 px).
     """
-    return imerode(imdilate(I, se), se)
+    I = np.asarray(I)
+    if I.ndim != 2:
+        raise ValueError("imclose: 2-D images only")
+    seq = _as_sequence(se)
+    if not seq or any(s.size == 0 for s in seq):
+        raise ValueError("empty structuring element")
+    nhood = seq[0] if len(seq) == 1 else minkowski_sum(seq)  # getnhood(se) of the (decomposed) strel
+    # imclose.m: padSize = ceil(size(getnhood(se))/2); Ap = padarray(A, padSize, 'both')  (zeros)
+    pr, pc = (int(np.ceil(n / 2)) for n in nhood.shape)
+    # morphop_fast.m: all-ones rectangular SEs (is2DFull) and SEs too large for Halide use imclose.m's zero pad;
+    # everything else goes through the Halide kernel, which pads with the class minimum (getMinMax)
+    uses_imclose_m = (nhood.all() or nhood.sum() >= _HALIDE_MAX_NEIGHBOURS
+                      or max(nhood.shape) > _HALIDE_MAX_SE_SIDE)
+    pad_value = 0 if uses_imclose_m else _border_values(I.dtype)[1]
+    Ap = np.pad(I, ((pr, pr), (pc, pc)), mode="constant", constant_values=pad_value)
+    Bp = imerode(imdilate(Ap, se), se)
+    return Bp[pr:pr + I.shape[0], pc:pc + I.shape[1]]
 
 
 # ---------------------------------------------------------------------------------------------------------------
