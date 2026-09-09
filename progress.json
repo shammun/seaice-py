@@ -5,8 +5,8 @@
     "ch02": {
       "analyze": "pass",
       "port": "pass",
-      "verify": "in_progress",
-      "review": "todo",
+      "verify": "pass",
+      "review": "in_progress",
       "notebook": "todo",
       "knowledge": "todo",
       "notes": ""

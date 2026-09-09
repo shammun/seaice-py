@@ -31,6 +31,9 @@ _ALIASES = {"linear": "bilinear", "cubic": "bicubic", "nearest": "nearest", "bil
 
 
 def _prep(img: np.ndarray, u, v):
+    """Common argument normalisation.  ``img`` becomes float64 ``(M, N, C)`` -- for a float64 input this is a
+    *view* of the caller's array (no copy), so every method below must build ``out`` as a fresh array and never
+    write into ``img``.  ``u``/``v`` are broadcast float64 arrays (0-d for scalar queries)."""
     img = np.asarray(img, dtype=np.float64)
     squeeze = img.ndim == 2
     if squeeze:
@@ -63,7 +66,10 @@ def interp_nearest(img: np.ndarray, u, v, fill: float = np.nan, border: str = "n
     out_mask = _outside(img, u, v)
     i = np.clip(matlab_round(np.nan_to_num(u)), 0, M - 1).astype(np.int64)
     j = np.clip(matlab_round(np.nan_to_num(v)), 0, N - 1).astype(np.int64)
-    out = img[i, j]
+    # Index with >=1-d integer arrays so that numpy always uses *fancy* indexing, which returns a copy.  With 0-d
+    # (scalar) ``i, j`` the expression ``img[i, j]`` is basic indexing -> a view of the caller's float64 image,
+    # and the ``fill`` assignment below would then overwrite the caller's pixel.
+    out = img[np.atleast_1d(i), np.atleast_1d(j)].reshape(u.shape + (img.shape[2],))
     if border != "replicate":
         out[out_mask] = fill
     return _finish(out, squeeze)
@@ -98,7 +104,7 @@ def interp_bilinear(img: np.ndarray, u, v, fill: float = np.nan, border: str = "
     wv = (v - j)[..., None]  # v - j
     fQ1 = (1.0 - wv) * img[i, j] + wv * img[i, j1]  # Eq. (2.35)
     fQ2 = (1.0 - wv) * img[i1, j] + wv * img[i1, j1]  # Eq. (2.36)
-    out = (1.0 - wu) * fQ1 + wu * fQ2  # Eq. (2.37)
+    out = (1.0 - wu) * fQ1 + wu * fQ2  # Eq. (2.37) -- fresh array, never a view of ``img``
     if border != "replicate":
         out[out_mask] = fill
     return _finish(out, squeeze)
@@ -170,7 +176,7 @@ def interp_bicubic(img: np.ndarray, u, v, a: float = -0.5, fill: float = np.nan,
     P = _pad_for_cubic(img, pad)  # index shift of +2
     i = np.clip(np.floor(u), 0, M - 1).astype(np.int64)
     j = np.clip(np.floor(v), 0, N - 1).astype(np.int64)
-    out = np.zeros(u.shape + (img.shape[2],), dtype=np.float64)
+    out = np.zeros(u.shape + (img.shape[2],), dtype=np.float64)  # fresh array, never a view of ``img``
     for m in range(-1, 3):
         wu = keys_kernel(m + i - u, a)[..., None]  # rc(m + i - u)
         for n in range(-1, 3):

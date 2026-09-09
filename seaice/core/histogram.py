@@ -11,7 +11,14 @@ import numpy as np
 from .matlab_compat import matlab_round
 
 
-def imhist(img: np.ndarray, nbins: int = 256) -> tuple[np.ndarray, np.ndarray]:
+def _default_nbins(img: np.ndarray, nbins: int | None) -> int:
+    """MATLAB ``imhist`` default: ``n = 2`` for logical (binary) images, ``n = 256`` for all other classes."""
+    if nbins is None:
+        return 2 if img.dtype == np.bool_ else 256
+    return int(nbins)
+
+
+def imhist(img: np.ndarray, nbins: int | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Histogram ``h(r_k) = n_k`` of an intensity image — MATLAB ``[counts, x] = imhist(I, n)``.
 
     Book: §2.2, Eq. (2.7) ``h(r_k) = n_k`` (number of pixels with level ``r_k``, ``k = 0..L-1``), Figs. 2.7–2.8.
@@ -21,8 +28,10 @@ def imhist(img: np.ndarray, nbins: int = 256) -> tuple[np.ndarray, np.ndarray]:
     ----------
     img : ndarray
         uint8 / uint16 / bool / float image.  Floats are assumed in ``[0, 1]`` (MATLAB convention).
-    nbins : int, default 256
-        Number of equally spaced bins.  For uint8 with ``nbins=256`` every bin is one gray level (exact).
+    nbins : int or None, default None
+        Number of equally spaced bins.  ``None`` applies MATLAB's ``imhist`` rule: **2 bins for a logical
+        (binary) image**, 256 bins for every other class (``imhist(BW)`` returns ``[n_false; n_true]`` with
+        centres ``[0; 1]``, checked against R2025a).  For uint8 with 256 bins every bin is one gray level (exact).
 
     Returns
     -------
@@ -37,6 +46,7 @@ def imhist(img: np.ndarray, nbins: int = 256) -> tuple[np.ndarray, np.ndarray]:
     rule but are not verified against MATLAB in ch2.
     """
     img = np.asarray(img)
+    nbins = _default_nbins(img, nbins)
     if img.dtype == np.bool_:
         top, vals = 1.0, img.astype(np.float64)
     elif img.dtype == np.uint8:
@@ -55,11 +65,12 @@ def imhist(img: np.ndarray, nbins: int = 256) -> tuple[np.ndarray, np.ndarray]:
     return counts, centers
 
 
-def normalized_histogram(img: np.ndarray, nbins: int = 256) -> tuple[np.ndarray, np.ndarray]:
+def normalized_histogram(img: np.ndarray, nbins: int | None = None) -> tuple[np.ndarray, np.ndarray]:
     """Normalised histogram ``p(r_k) = n_k / (M N)`` — the probability of gray level ``r_k``.
 
     Book: §2.2, Eq. (2.8).  MATLAB source: ``histogram.m`` line 27 ``GP(k+1) = length(find(I == k)) / (m * n)``.
-    Returns ``(p, centers)`` with ``p.sum() == 1``.
+    Returns ``(p, centers)`` with ``p.sum() == 1``.  ``nbins=None`` follows the same MATLAB default as
+    :func:`imhist` (2 bins for logical images, 256 otherwise).
     """
     counts, centers = imhist(img, nbins)
     return counts.astype(np.float64) / float(np.asarray(img).size), centers
