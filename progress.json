@@ -23,7 +23,7 @@
       "notes": "Complete: 4/4 .m exact vs MATLAB R2025a, 112 tests + 1 strict xfail (86 ch02 still pass), parity 16 exact/0 near/1 approx (multithresh int16)/5 reimplemented/1 unverified (ch3ice.jpg/t.jpg not shipped -> Figs 3.2-3.5/3.7 substitute-only); 14/14 image pairs 0 px; book ICs 15.36/32.05/72.63 % and Tables 3.1-3.3 reproduced (k-means needs kmeans_gray(shift_bug=True)); review 1 must-fix + 5 should-fix applied; notebook 35 cells/15 figures/179 s; knowledge/ch03.md + CUMULATIVE + function_map written, skill promoted (graythresh ties, multithresh single, kmeans.m shadowing, num2str, integer sum); publish pending; published 2026-09-09: _colab.ipynb + HTML from the public-domain run (3 NASA Worldview 4290x2856 substitutes), Pages live"
     },
     "ch04": {
-      "analyze": "todo",
+      "analyze": "pass",
       "port": "todo",
       "verify": "todo",
       "review": "todo",
