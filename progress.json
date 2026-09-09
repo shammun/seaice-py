@@ -14,8 +14,8 @@
     },
     "ch03": {
       "analyze": "pass",
-      "port": "in_progress",
-      "verify": "todo",
+      "port": "pass",
+      "verify": "in_progress",
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",

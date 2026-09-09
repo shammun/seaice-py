@@ -155,3 +155,78 @@ def book_fixtures() -> dict[str, np.ndarray]:
         "fig_2_19_a": FIG_2_19_OBJECT,
         "point_201": point_image(201),
     }
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Chapter 3 additions (§3.1.2 Fig. 3.4(a), §3.2.2 Figs. 3.6 / 3.8, unit tests)
+# ---------------------------------------------------------------------------------------------------------------
+
+
+def uneven_illumination(img: np.ndarray, gain: float = 0.5, axis: int = 1, bias: float = 40.0,
+                        offset: float = 0.0, kind: str = "ramp") -> np.ndarray:
+    """Add a "factitious uneven illumination" to an image — Book §3.1.2, Fig. 3.4(a) (text only; the ``t.jpg``
+    read by ``local_Otsu.m`` is not shipped, so this reproduces the *kind* of input, not the printed image).
+
+    ``kind='ramp'``: multiplicative linear ramp along ``axis`` from ``1 + gain`` (first row/column) to
+    ``1 − gain`` (last), plus an additive ramp from ``+bias`` to ``−bias`` gray levels and a constant ``offset``
+    (the defaults ``gain=0.5, bias=40`` make global Otsu visibly under-detect ice on the dark side of ``2.jpg``
+    while 2×3 block Otsu stays within 1 % of the clean IC, the situation of Fig. 3.4).  ``kind='spot'``: radial vignetting
+    ``1 + gain (1 − 2 ρ)`` with ``ρ`` the normalised distance from the centre.  Works on gray or RGB uint8
+    input (same factor per channel); the result is rounded and saturated like MATLAB ``uint8()``
+    (:func:`~seaice.core.matlab_compat.to_uint8_saturating`).  Deterministic (no noise).
+    """
+    from .matlab_compat import to_uint8_saturating  # local import: synth stays dependency-free otherwise
+
+    img = np.asarray(img)
+    M, N = img.shape[:2]
+    if kind == "ramp":
+        n = img.shape[axis]
+        x = np.linspace(0.0, 1.0, n)
+        ramp = 1.0 - 2.0 * x
+        factor = 1.0 + gain * ramp
+        add = bias * ramp
+        factor = factor[:, None] if axis == 0 else factor[None, :]
+        add = add[:, None] if axis == 0 else add[None, :]
+    elif kind == "spot":
+        rr, cc = np.mgrid[0:M, 0:N]
+        rho = np.hypot((rr - (M - 1) / 2) / (M / 2), (cc - (N - 1) / 2) / (N / 2))
+        ramp = 1.0 - 2.0 * rho / rho.max()
+        factor = 1.0 + gain * ramp
+        add = bias * ramp
+    else:
+        raise ValueError(f"uneven_illumination: unknown kind {kind!r}")
+    factor = np.broadcast_to(factor, (M, N)).astype(np.float64)
+    add = np.broadcast_to(add, (M, N)).astype(np.float64)
+    f = img.astype(np.float64)
+    if f.ndim == 3:
+        factor, add = factor[:, :, None], add[:, :, None]
+    return to_uint8_saturating(f * factor + add + offset)
+
+
+def two_clusters_2d(seed: int = 0, n_per: int = 15, centers: tuple[tuple[float, float], ...] = ((2.5, 2.5), (6.5, 6.5)),
+                    spread: float = 0.6, outlier: tuple[float, float] | None = None) -> np.ndarray:
+    """Seeded 2-D points in two compact, well-separated Gaussian clusters inside ``[0, 10]²`` — the data of Book
+    Figs. 3.6 and 3.8 (text only).  ``outlier=(x, y)`` appends one far point (Fig. 3.8(b)).  Returns ``(n, 2)``."""
+    rng = np.random.default_rng(seed)
+    pts = [rng.normal(loc=c, scale=spread, size=(n_per, 2)) for c in centers]
+    X = np.vstack(pts)
+    if outlier is not None:
+        X = np.vstack([X, np.asarray(outlier, dtype=np.float64)[None, :]])
+    return np.clip(X, 0.0, 10.0)
+
+
+def bimodal_image(seed: int = 0, shape: tuple[int, int] = (120, 160), dark: float = 60.0, bright: float = 190.0,
+                  sigma: float = 12.0, ice_fraction: float = 0.4) -> np.ndarray:
+    """Synthetic uint8 image with a bimodal histogram (Fig. 3.1 sketch / unit tests): a rectangular "floe" of
+    mean ``bright`` covering ``ice_fraction`` of the area on a ``dark`` background, Gaussian noise ``sigma``."""
+    from .matlab_compat import to_uint8_saturating
+
+    rng = np.random.default_rng(seed)
+    M, N = shape
+    img = np.full((M, N), dark, dtype=np.float64)
+    h = int(round(np.sqrt(ice_fraction) * M))
+    w = int(round(np.sqrt(ice_fraction) * N))
+    r0, c0 = (M - h) // 2, (N - w) // 2
+    img[r0:r0 + h, c0:c0 + w] = bright
+    img += rng.normal(0.0, sigma, size=(M, N))
+    return to_uint8_saturating(img)
