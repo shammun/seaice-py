@@ -100,6 +100,16 @@ def _quote(p: Path) -> str:
     return "'" + str(p).replace("'", "''") + "'"
 
 
+def _mat_loads(out_mat: Path, save_vars: Sequence[str]) -> bool:
+    """True if ``out_mat`` is a complete v7 .mat holding every name in ``save_vars`` (used after a MATLAB timeout)."""
+    try:
+        from scipy.io import loadmat
+        d = loadmat(str(out_mat))
+    except Exception:
+        return False
+    return all(v in d for v in save_vars)
+
+
 def run_matlab_ref(
     code: str,
     save_vars: Sequence[str],
@@ -166,10 +176,22 @@ def run_matlab_ref(
     try:
         script_path = tmpdir / "seaice_ref.m"
         script_path.write_text(script, encoding="utf-8")
-        proc = subprocess.run(
-            [exe, "-batch", f"run({_quote(script_path)})"],
-            capture_output=True, text=True, timeout=timeout,
-        )
+        try:
+            proc = subprocess.run(
+                [exe, "-batch", f"run({_quote(script_path)})"],
+                capture_output=True, text=True, timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # Seen in ch04 (2026-09-09): MATLAB had written the complete .mat but matlab.exe did not exit within the
+            # timeout (host overloaded by orphaned MATLABWindow processes). A complete, loadable .mat is a valid
+            # reference — accept it and say so in stdout instead of failing the whole make_refs run.
+            if out_mat.exists() and _mat_loads(out_mat, save_vars):
+                note = (f"NOTE: matlab.exe exceeded the {timeout} s timeout after saving {out_mat.name} "
+                        f"(all {len(save_vars)} variables present); reference accepted. "
+                        f"Check for stale MATLABWindow/matlab processes (tasklist | findstr -i matlab).")
+                out = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
+                return RefResult("matlab", matlab_version() or "unknown", out_mat, out + "\n" + note)
+            raise
         if proc.returncode != 0 or not out_mat.exists():
             raise RuntimeError(
                 f"MATLAB failed (exit {proc.returncode}) for {out_mat.name}\n"

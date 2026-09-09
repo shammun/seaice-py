@@ -67,8 +67,14 @@ Brief: paths to analysis, report, review, notebook; the chapter-knowledge skill 
    (writes the `_colab.ipynb` with outputs stripped, the styled `.html`, `index.html`, the README table), then
    `mv data/book_private data/book`. Grep the HTML: `book (local)` count must be 0, no book-image bytes, figure count
    as expected.
-5. Set `publish: pass` in `progress.json`; commit `chNN: publish — …`; push (`git push`; if the permission classifier
-   blocks it, ask the user to run it with `!`). Confirm `https://shammun.github.io/seaice-py/notebooks/chNN_<slug>.html`
+5. **Before pushing, inspect the remote** (ch03 incident, 2026-09-09): `git fetch origin` and list `main..origin/main`.
+   A commit titled "Created using Colab" means the user saved a Colab copy into GitHub *with outputs*; check its
+   `_colab.ipynb` for `Data source: book (` lines / PNG outputs. If present: rebase onto it, restore the stripped
+   notebook from the last publish commit (or rerun `tools/publish_notebook.py`), commit
+   `chNN: restore outputs-stripped _colab.ipynb — …`, run `.venv/Scripts/python.exe tools/check_public.py`, and tell the
+   user the leaked commit stays in history until they force-push a rewrite (their call; never force-push yourself).
+   Set `publish: pass` in `progress.json`; commit `chNN: publish — …`; push (`git push`; if the permission classifier
+   blocks it, ask the user to run it with `!`). Pages deploys in ~1 min — poll with `curl -o /dev/null -w "%{http_code}"`. Confirm `https://shammun.github.io/seaice-py/notebooks/chNN_<slug>.html`
    returns 200 and the Colab badge URL `https://colab.research.google.com/github/shammun/seaice-py/blob/main/notebooks/chNN_<slug>_colab.ipynb`
    resolves (raw GitHub fetch of the `_colab.ipynb`).
 
@@ -77,6 +83,22 @@ Brief: paths to analysis, report, review, notebook; the chapter-knowledge skill 
 - Data the user must download manually (if any) with the Drive path.
 - The two `Data source:` lines (book run / public-domain run), the Pages URL and the Colab URL.
 - "Next: `/clear` then `/do-chapter N+1`".
+
+## Orchestration lessons (ch04, 2026-09-09)
+- **Safe parallelism:** run `port-reviewer` ∥ `notebook-builder` (both read the verified package; review fixes are
+  API-compatible — tell the porter to keep public names/signatures and re-export moved functions), and
+  `knowledge-keeper` ∥ the publish runs (tell the keeper not to run scripts/tests while `data/book` is renamed, and to
+  leave `publish` untouched in `progress.json`; commit `progress.json → publish` yourself afterwards). Never run two
+  agents that both edit `seaice/` or `tests/`.
+- **While the porter works,** the orchestrator can already register the chapter's public-domain substitute (only
+  `seaice/core/public_images.py` + `data/online/SOURCES.md`), fetch candidate scenes and view them.
+- **Re-execute the notebook headlessly on the final code** before committing the notebook phase if review fixes landed
+  after the builder ran (37 s for ch04; prepend `.venv/Scripts` to `PATH`).
+- **Every agent brief must say "do not return while a background run is in progress"**; a verifier once returned with
+  placeholders while pytest was still running and had to be resumed with SendMessage.
+- **Review write-up:** the reviewer is read-only — the orchestrator writes `reports/chNN_review.md` from its reply
+  before dispatching fixes; doc-only findings (analysis text, report labels) are fixed by the orchestrator/verifier,
+  code findings by the porter, test findings by the verifier.
 
 ## Resuming
 `--from verify` skips earlier phases (they must already be `pass`). A fresh session can always resume: everything is on disk.

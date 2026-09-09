@@ -34,6 +34,15 @@ product the authors used, so `exact`/`near` labels are measured against MATLAB i
   line. Each MATLAB launch costs ~10–20 s, so batch several variables into one call per `.m` file rather than one call per
   variable. Inputs to MATLAB must be files on disk (PNG/JPG/.mat) — there is no `push()`; to pass a numpy array save it with
   `scipy.io.savemat` and `load(...)` it in the command string.
+- **MATLAB run hygiene (ch04 lessons):** (a) write Python-built fixtures to `reference/chNN/inputs.mat` (constructed
+  ties, `intmax`/`intmin` plants, asymmetric and even SEs, signed images) — a real photograph never exercises the
+  border/tie/dtype branches where compiled builtins differ; (b) use `try/catch` probes that record MATLAB's own error
+  text for classes it rejects (e.g. `imerode` on int64) so the report can label those cases `L1-only` honestly;
+  (c) `run_ref` accepts a complete `.mat` even if `matlab.exe` fails to exit within the timeout (it says so in
+  `RefResult.stdout`; record the note in `refs_log.json`); (d) before long runs, kill stale `MATLABWindow` processes
+  from earlier timed-out launches (`tasklist | findstr -i matlab`) — they slow the whole host; (e) when you start pytest
+  or a reference run in the background, **wait for it inside the same task** (poll the log in one Bash loop) and only
+  return with the final numbers — never hand back a report with placeholders.
 - **Fallback (only if MATLAB is absent):** `run_ref(..., engine="auto")` transparently uses oct2py/Octave
   (`pkg load image`, same contract). Octave lacks `imbinarize`, `adaptthresh`, `activecontour`, some `regionprops` names
   and `imgaussfilt` in older versions. When a function is missing there: (a) find the authors' own `.m` implementation in the

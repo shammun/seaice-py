@@ -83,5 +83,12 @@ it overrides this skill when they disagree.
   the venv) before executing; otherwise imports fail or silently run against different numpy/scipy versions (ch04).
   Use `python -m nbconvert` rather than `python -m jupyter nbconvert` (the latter may dispatch to Anaconda's binary).
 - Quote every path (repository roots with spaces); `PYTHONIOENCODING=utf-8` for non-ASCII prints on a cp1252 console.
+- **Bash heredocs on this host unescape `\n` / `\\`** inside `<<'EOF'` blocks handed to the Bash tool: a Python patch script
+  containing backslashes (regexes, `"\n"` literals) gets mangled. Write such scripts with the Write/Edit tools (or to a
+  file first) and run the file (ch04 verifier).
+- **Orphaned MATLAB processes slow everything down**: each `matlab -batch` launch spawns `MATLABWindow` helpers that can
+  outlive a timed-out run; seven of them made `import scipy` take minutes and a 7-min pytest run take 69 min (ch04).
+  Before a long test/reference run: `tasklist | findstr -i matlab` and end stale ones from *our* runs (`taskkill /PID …`);
+  `tools/run_matlab_ref.py` now accepts a complete `.mat` even when `matlab.exe` fails to exit within the timeout.
 - Reference generation: never run MATLAB from the read-only source folder — copy scripts verbatim into a scratch cwd under a
   non-shadowing name, patch only literals, never `addpath` a folder that ships a file named like a toolbox function.

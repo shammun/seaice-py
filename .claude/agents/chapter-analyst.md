@@ -22,6 +22,12 @@ artifact: `analysis/chNN.md`. You may only Write that file (and nothing else). Y
    expected parity) / reuse existing `seaice/core` primitive / new primitive / re-implement from equations.
 6. Data: which images the scripts need; are they in `data/book/chNN/`? If not, propose Tier 2/3/4 sources (data-sources skill).
 7. Web research (only when needed): a MATLAB function's exact algorithm (MathWorks docs), a referenced paper (e.g. Xu & Prince GVF, Otsu, Meyer watershed) when the book's equations are incomplete.
+8. **Pre-checks are hypotheses, not references.** If you run MATLAB to probe a compiled builtin (e.g. `edge` thinning,
+   `imclose` borders), label the conclusion "pre-check — to be confirmed by the verifier with constructed fixtures" and
+   list the tie/border/dtype cases that a real image cannot exercise. In ch04 the analyst's "replicate-padded thinning"
+   matched a 12-Mpx photo at 0 px yet was wrong (MATLAB zero-pads); only constructed fixtures exposed it. Prefer reading
+   the installed toolbox M-source (`C:\Program Files\MATLAB\R2025a\toolbox\images\images\*.m`, incl. `private/`) over
+   guessing what a builtin does; cite the file and line.
 
 ## Output format for `analysis/chNN.md`
 ```
