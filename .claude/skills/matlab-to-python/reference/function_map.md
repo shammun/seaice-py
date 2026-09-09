@@ -54,7 +54,8 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 |---|---|---|---|
 | `bwlabel(BW, conn)` | `core.connectivity.label_components(BW, conn)` | E (incl. label numbers) | column-major relabel of skimage output — verified ch02 |
 | `bwconncomp` | `label` + `regionprops` | E | |
-| `bwselect`, `bwareaopen(BW, p)` | `remove_small_objects(BW, p)` | E | 8-conn default in both |
+| `bwareaopen(BW, p[, conn])` | `core.connectivity.bwareaopen(BW, p, conn)` (keep components with ≥ p pixels via `bwlabel` port) | E | verified ch04; `remove_small_objects` changed its threshold argument in skimage 0.26 |
+| `bwselect` | `label` + seed lookup | E | |
 | `bwareafilt` | filter by `regionprops` area | E | |
 | `bwdist(BW, 'euclidean')` | `core.distance.bwdist(BW, 'euclidean')` (`distance_transform_edt(~BW)`) | E | MATLAB single → atol 1e-4 — verified ch02 |
 | `bwdist(BW, 'cityblock')` | `core.distance.bwdist(BW, 'cityblock')` (`distance_transform_cdt(~BW, metric='taxicab')`) | E | verified ch02 |
@@ -76,15 +77,15 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `imfilter(I, h, 'replicate')` | `core.filters.imfilter(I, h, 'replicate')` (positional options accepted) | E | verified ch02 |
 | `imfilter(I, h, 'symmetric'/'circular'/X)` | `core.filters.imfilter(I, h, 'symmetric')` etc. | E | verified ch02 |
 | `imfilter(I, h, 'conv')`, `'full'` | `core.filters.imfilter(I, h, 'conv')`, `'full'` | E | verified ch02 |
-| `fspecial(...)` | `core.filters.fspecial` | R | implement all kernels used in the book |
+| `fspecial(...)` (sobel/prewitt/laplacian/gaussian/log/average/disk/unsharp) | `core.filters.fspecial(kind, p2, p3)` | E | verified ch04 (26 kernels ≤ 7e-18); `'log'` is mean-subtracted, not the sampled ∇²G |
 | `imgaussfilt(I, s)` | `scipy.ndimage.gaussian_filter(I, s, truncate=2)` ⚠ | N | MATLAB kernel size 2·ceil(2s)+1 → `truncate=2.0`; padding 'replicate' → `mode='nearest'` |
-| `medfilt2(I, [m n])` | `scipy.ndimage.median_filter(I, size=(m,n), mode='constant')` | E | |
+| `medfilt2(I, [m n])` | `scipy.ndimage.median_filter(I, size=(m,n), mode='constant')` | E | verified ch04; `'symmetric'` → `mode='reflect'` |
 | `ordfilt2(I, k, dom)` | `scipy.ndimage.rank_filter(I, k-1, footprint=dom)` | E | |
 | `stdfilt`, `entropyfilt`, `rangefilt` | `generic_filter(np.std)`, `skimage.filters.rank.entropy`, `maximum-minimum` | N/A | |
 | `[gx, gy] = gradient(F)` | `gy, gx = np.gradient(F)` | E | |
 | `imgradient(I)` (Sobel default) | `np.hypot(sobel_h, sobel_v)` with MATLAB Sobel kernel | E | skimage `sobel` normalises by 4 → scale |
-| `edge(I, 'sobel'/'prewitt'/'roberts')` | `core.edges.edge_matlab(I, method)` | R | threshold = 4·mean(mag²)^½-style + non-max thinning; read MATLAB doc & Ch4 |
-| `edge(I, 'log', t, sigma)` | `core.edges.log_zero_crossings` | R | zero-crossing with threshold |
+| `[BW, t, gv, gh] = edge(I, 'sobel'/'prewitt'/'roberts', T, dir, 'thinning')` | `core.edges.edge(I, method, thresh, direction, thinning) -> EdgeResult` | E | verified ch04 (252 maps 0 px vs R2025a): `/8` (`/6`) kernels, replicate padding, `b > T²` or `4·mean(b)`, zero-padded thinning rule (see SKILL.md); float input only |
+| `edge(I, 'log', t, sigma)`, `edge(I, 'zerocross', t, H)` | `core.edges.edge(I, 'log', t, sigma=)` / `'zerocross'` (→ `log_zero_crossings`) | E (N on flat synthetic patches) | verified ch04; threshold is on the jump across the crossing |
 | `edge(I, 'canny')` | `skimage.feature.canny(I, sigma=sqrt(2))` | A | |
 | `del2(F)` | `core.filters.del2` | R | |
 | `hough`, `houghpeaks`, `houghlines` | `skimage.transform.hough_line(_peaks)`, `probabilistic_hough_line` | A | |
@@ -92,13 +93,14 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 ## Morphology (Ch4 §4.2, Ch5, Ch7)
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
-| `strel('disk', r)` (n=4 default) | `skimage.morphology.disk(r)` | N | shape differs (see SKILL.md) |
-| `strel('disk', r, 0)` | `disk(r)` | E | |
-| `strel('square', n)` / `'rectangle'` / `'line'` / `'diamond'` / `'octagon'` | `square`, `rectangle`, `line` (implement), `diamond`, `octagon` | E/N | |
-| `imerode(I, se)` / `imdilate` | `skimage.morphology.erosion/dilation` (grayscale) or `binary_erosion/binary_dilation` | E | MATLAB reflects SE for dilation; irrelevant for symmetric SEs |
-| `imopen`/`imclose` | `opening`/`closing` | E | |
+| `strel('disk', r[, n])` (n=4 default → octagon), `'dis'` prefix | `core.morphology.strel('disk', r[, n])`; `disk_decomposition(r, n)` = `decompose` | E | verified ch04 (116 nhoods = `getnhood`); `skimage.morphology.disk(r)` is only the `n = 0` Euclidean case |
+| `strel('square', n)` / `'rectangle'` / `'line'` / `'diamond'` / `'octagon'` / `'periodicline'` / `'pair'` / `strel(nhood)` | `core.morphology.strel(shape, *params)` | E | verified ch04 |
+| `imerode(I, se)` / `imdilate` | `core.morphology.imerode/imdilate(I, se)` (OpenCV `BORDER_CONSTANT` + explicit pad, flipped kernel for dilation; numpy fallback for int32/uint32/int64/uint64) | E | verified ch04 (148 arrays); erosion pads +Inf/intmax/1, dilation −Inf/intmin/0 with the reflected SE; MATLAB rejects int64/uint64 |
+| `imopen` | `core.morphology.imopen` (bare composition) | E | verified ch04 |
+| `imclose` | `core.morphology.imclose` (MATLAB pre-pad `ceil(size/2)`: 0 via `imclose.m`, class-min via Halide) | E | verified ch04 (72 cases); `skimage.morphology.closing` is only N at the border |
+| `K − J` on logical / uint8 (morphological gradients) | `core.morphology.morphological_gradient(I, se, kind)` | E | verified ch04; logical − logical → double, uint8 saturates |
 | `imtophat`/`imbothat` | `white_tophat`/`black_tophat` | E | |
-| `imreconstruct(marker, mask)` | `reconstruction(marker, mask, method='dilation')` | E | |
+| `imreconstruct(marker, mask[, conn])` | `core.morphology.imreconstruct(marker, mask, conn)` (skimage `reconstruction`, `marker <= mask` enforced) | E | verified ch04 (7 cases); erosion dual `reconstruct_by_erosion` is R (no builtin) |
 | `imfill(BW, 'holes')` | `scipy.ndimage.binary_fill_holes(BW)` | E | |
 | `imfill(I)` grayscale | `core.morphology.fill_holes_gray` (reconstruction by erosion) | R | |
 | `imclearborder` | `skimage.segmentation.clear_border` | E | |
