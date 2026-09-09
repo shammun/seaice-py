@@ -7,14 +7,18 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 |---|---|---|---|
 | `imread(f)` | `imageio.v3.imread(f)` | E/N | JPEG decoders may differ by ±1 |
 | `imwrite(I,f)` | `imageio.v3.imwrite(f, I)` | E | |
-| `im2double` / `im2uint8` / `im2single` | `img_as_float` / `img_as_ubyte` / `img_as_float32` | E | |
+| `im2double` / `im2uint8` / `im2single` | `core.matlab_compat.im2double` / `im2uint8` / `img_as_float32` | E | verified ch02 |
+| `uint8(x)` cast (0–255 values) | `core.matlab_compat.to_uint8_saturating(x)` | E | round half-away + saturate; not `astype` (wraps) — verified ch02 |
+| `round(x)` | `core.matlab_compat.matlab_round(x)` | E | half away from zero — verified ch02 |
 | `mat2gray(I)` | `(I-I.min())/(I.max()-I.min())` | E | |
-| `imcomplement(I)` | `255-I` (uint8) / `1-I` (float) / `~BW` | E | |
-| `rgb2gray` | `core.matlab_compat.rgb2gray_matlab` | E | Rec.601 weights + MATLAB rounding |
+| `imcomplement(I)` | `core.matlab_compat.imcomplement(I)` | E | 255−I / 1−I / ~BW — verified ch02 |
+| `rgb2gray` | `core.matlab_compat.rgb2gray_matlab` | E | NTSC weights 0.298936/0.587043/0.114021 in double + half-away rounding — verified ch02 (0 px differ) |
 | `rgb2hsv`/`hsv2rgb` | `skimage.color.rgb2hsv/hsv2rgb` | E | |
-| HSI (book Eq. in §2.1) | implement | R | |
-| CMY = 1−RGB | implement | R | |
-| `rgb2ind`/`ind2rgb` | `PIL.Image.quantize` / index lookup | A | only for §2.1 illustration |
+| HSI (book Eq. in §2.1) | `core.color.rgb2hsi` | R | verified ch02 vs corrected MATLAB snippet |
+| CMY = 1−RGB | `core.color.rgb2cmy` (= `imcomplement`) | E | verified ch02 |
+| CMYK (book Eqs. 2.4–2.5) | `core.color.rgb2cmyk(u, b)` | R | verified ch02 |
+| `rgb2ind` | `PIL.Image.quantize` | A | only for §2.1 illustration |
+| `ind2rgb(idx, cmap)` | `core.color.indexed_to_rgb(idx, cmap, one_based)` | E | integer idx 0-based, double 1-based, clipped — verified ch02 |
 | `imshow(I)`, `imshow(I,[])` | `plt.imshow(I, cmap='gray', vmin=0, vmax=255)` / auto | — | |
 | `subplot`, `figure`, `title` | matplotlib | — | |
 | `label2rgb(L)` | `skimage.color.label2rgb(L, bg_label=0)` | A | colours differ |
@@ -26,8 +30,8 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 ## Histogram / intensity
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
-| `imhist(I)` (uint8) | `np.bincount(I.ravel(), minlength=256)` | E | |
-| `imhist(I, n)` | `np.histogram(I, bins=n, range=(0,255))` | N | bin edges differ slightly |
+| `imhist(I)` (uint8) | `core.histogram.imhist(I)` | E | logical → 2 bins — verified ch02 |
+| `imhist(I, n)` | `core.histogram.imhist(I, n)` | E | MATLAB bin rule `round(v·(n−1)/top)` reproduced — verified ch02 |
 | `histeq(I)` | `skimage.exposure.equalize_hist` / re-implement 64-bin | A/R | |
 | `imadjust(I,[lo hi],[0 1],gamma)` | `skimage.exposure.rescale_intensity` + `adjust_gamma` | N | |
 | `stretchlim` | `np.percentile(I, [1, 99])` | N | |
@@ -41,29 +45,30 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 ## Neighbourhoods, connectivity, distance (Ch2 §2.3–2.4, Ch5)
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
-| `bwlabel(BW, conn)` | `skimage.measure.label(BW, connectivity=2 if conn==8 else 1)` | E (partition) | |
+| `bwlabel(BW, conn)` | `core.connectivity.label_components(BW, conn)` | E (incl. label numbers) | column-major relabel of skimage output — verified ch02 |
 | `bwconncomp` | `label` + `regionprops` | E | |
 | `bwselect`, `bwareaopen(BW, p)` | `remove_small_objects(BW, p)` | E | 8-conn default in both |
 | `bwareafilt` | filter by `regionprops` area | E | |
-| `bwdist(BW, 'euclidean')` | `distance_transform_edt(~BW)` | E | |
-| `bwdist(BW, 'cityblock')` | `distance_transform_cdt(~BW, metric='taxicab')` | E | |
-| `bwdist(BW, 'chessboard')` | `distance_transform_cdt(~BW, metric='chessboard')` | E | |
-| `bwdist(BW, 'quasi-euclidean')` | `core.distance.quasi_euclidean` | R | two-pass chamfer (1, √2) |
+| `bwdist(BW, 'euclidean')` | `core.distance.bwdist(BW, 'euclidean')` (`distance_transform_edt(~BW)`) | E | MATLAB single → atol 1e-4 — verified ch02 |
+| `bwdist(BW, 'cityblock')` | `core.distance.bwdist(BW, 'cityblock')` (`distance_transform_cdt(~BW, metric='taxicab')`) | E | verified ch02 |
+| `bwdist(BW, 'chessboard')` | `core.distance.bwdist(BW, 'chessboard')` (`distance_transform_cdt(~BW, metric='chessboard')`) | E | verified ch02 |
+| `bwdist(BW, 'quasi-euclidean')` | `core.distance.bwdist(BW, 'quasi-euclidean')` (→ `quasi_euclidean_dt`) | R/N | two-pass chamfer (1, √2); MATLAB single is the less precise side — verified ch02 |
 | `[D, IDX] = bwdist(...)` | `distance_transform_edt(~BW, return_indices=True)` | E | IDX is linear column-major in MATLAB |
 | `bwperim(BW)` | `BW & ~binary_erosion(BW, footprint=cross)` | E | MATLAB uses 4-conn for perim |
-| `bwboundaries(BW)` | `core.chaincode.trace_boundaries` (Moore) | R | |
+| `bwboundaries(BW)` / DIPUM `boundaries(BW, conn, dir)` | `core.chaincode.boundaries(BW, conn, direction)` (Moore, exterior only, closed, `bwlabel` order) | R (E vs DIPUM `boundaries.m`) | verified ch02; `bwboundaries` itself (holes, `'noholes'`) not yet compared |
+| DIPUM `fchcode(b, conn, dir)` / `bound2im` | `core.chaincode.fchcode` / `bound2im` | E | `minmag` tie-break where MATLAB errors — verified ch02 |
 | `bwtraceboundary(BW, P, dir)` | `core.chaincode.trace_boundary` | R | |
 | `regionprops(L, props)` | `skimage.measure.regionprops(L)` | N | see property renames in SKILL.md |
 
 ## Filtering, gradients (Ch2 §2.5, Ch4 §4.1, Ch6)
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
-| `conv2(A, K, 'same')` | `scipy.signal.convolve2d(A, K, mode='same', boundary='fill')` | E | |
-| `conv2(A, K, 'valid'/'full')` | same with mode | E | |
-| `imfilter(I, h)` | `scipy.ndimage.correlate(I.astype(float), h, mode='constant')` | E | uint8 output: clip + round like MATLAB |
-| `imfilter(I, h, 'replicate')` | `mode='nearest'` | E | |
-| `imfilter(I, h, 'symmetric')` | `mode='reflect'` | E | |
-| `imfilter(I, h, 'conv')` | `scipy.ndimage.convolve` | E | |
+| `conv2(A, K, 'same')` | `core.filters.conv2(A, K, 'same')` | E | verified ch02 (even kernels too) |
+| `conv2(A, K, 'valid'/'full')` | `core.filters.conv2(A, K, mode)` | E | verified ch02 |
+| `imfilter(I, h)` | `core.filters.imfilter(I, h)` (correlation) | E | uint8 output: clip + round like MATLAB — verified ch02 |
+| `imfilter(I, h, 'replicate')` | `core.filters.imfilter(I, h, 'replicate')` (positional options accepted) | E | verified ch02 |
+| `imfilter(I, h, 'symmetric'/'circular'/X)` | `core.filters.imfilter(I, h, 'symmetric')` etc. | E | verified ch02 |
+| `imfilter(I, h, 'conv')`, `'full'` | `core.filters.imfilter(I, h, 'conv')`, `'full'` | E | verified ch02 |
 | `fspecial(...)` | `core.filters.fspecial` | R | implement all kernels used in the book |
 | `imgaussfilt(I, s)` | `scipy.ndimage.gaussian_filter(I, s, truncate=2)` ⚠ | N | MATLAB kernel size 2·ceil(2s)+1 → `truncate=2.0`; padding 'replicate' → `mode='nearest'` |
 | `medfilt2(I, [m n])` | `scipy.ndimage.median_filter(I, size=(m,n), mode='constant')` | E | |
@@ -104,8 +109,9 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 ## Geometry, interpolation, calibration (Ch2 §2.8, Ch9, App. A)
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
-| `imresize(I, s, 'nearest'/'bilinear'/'bicubic')` | `core.interp.imresize_matlab` | R | implement from §2.8 equations; antialias when shrinking |
-| `interp2(X,Y,V,Xq,Yq,'linear')` | `scipy.ndimage.map_coordinates(V, [rows, cols], order=1)` | E | |
+| `imresize(I, s, 'nearest'/'bilinear')` enlarge, antialias off | `core.interp.resize(I, s, method)` | E | verified ch02 (0.0 full array) |
+| `imresize(I, s, 'bicubic')`, or any shrink | `core.interp.resize` (A) → write `core.interp.imresize_matlab` if needed numerically | A | border rule + antialiasing differ — verified ch02 |
+| `interp2(X,Y,V,Xq,Yq,'nearest'/'linear'/'cubic')` | `core.interp.interp2(V, u=Yq−1, v=Xq−1, method)` | E | all three exact incl. borders (Keys a=−0.5, quadratic edge) — verified ch02 |
 | `imrotate`, `imwarp`, `fitgeotrans`, `projective2d` | `skimage.transform.rotate/warp/ProjectiveTransform/estimate` | N | App. A orthorectification (DLT) → implement DLT from book Eqs |
 | `polyfit`/`polyval` | `np.polyfit`/`np.polyval` | E | |
 | `fminsearch` | `scipy.optimize.minimize(method='Nelder-Mead')` | N | |
