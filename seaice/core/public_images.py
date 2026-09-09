@@ -26,6 +26,11 @@ _NASA_WORLDVIEW_4290 = (
     "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
     "&WIDTH=4290&HEIGHT=2856&WRAP=DAY"
 )
+_NASA_WORLDVIEW_81 = (
+    "https://wvs.earthdata.nasa.gov/api/v1/snapshot?REQUEST=GetSnapshot"
+    "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
+    "&WIDTH=81&HEIGHT=96&WRAP=DAY"
+)
 _NASA_PD = "NASA imagery is in the public domain (https://www.earthdata.nasa.gov/engage/open-data-services-and-software/data-and-information-policy)"
 
 #: ``{(chapter, book file name lower-cased): {"url", "filename", "credit", "licence", "description"}}``
@@ -78,6 +83,18 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "licence": _NASA_PD,
         "description": "Dense floe field with leads; the Fig 4.3(a) crop window (rows 1600–2151, cols 1979–2552) holds "
                        "several floes separated by leads, standing in for the book's two-floe crop",
+    },
+    # --- ch05: the book's 81×96 RGB toy image q.jpg (two touching floes on dark water, Figs 5.4–5.14).  The substitute
+    # is a MODIS scene requested at the same 81×96 size over a ~3.7 km × 15 km window (upsampled from the 250 m native
+    # resolution) so that a few large floes, touching at the bottom of the frame, fill the frame like the book's toy
+    # (verified 2026-09-09: 46 % bright pixels, gray std 71; 8 other windows/zoom levels rejected as too fragmented).
+    ("ch05", "q.jpg"): {
+        "url": _NASA_WORLDVIEW_81 + "&TIME=2019-07-25&BBOX=76.6898,-148.9137,76.8302,-148.4262",
+        "filename": "nasa_modis_terra_beaufort_floes_81x96_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack ice, "
+                  "25 July 2019, 76.69–76.83°N 148.91–148.43°W",
+        "licence": _NASA_PD,
+        "description": "A few large floes on dark water, touching at the bottom of the frame; 81×96 RGB like the book's q.jpg",
     },
 }
 
