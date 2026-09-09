@@ -40,11 +40,24 @@ MANUAL DATA NEEDED for chapter N:
 ```
 and make the code look in `data/manual/chNN/` with a helpful error.
 
-## Locations & Colab access
-- Local: `data/book/`, `data/online/`, `data/synthetic/`, `data/manual/` (last three git-ignored; `SOURCES.md` files committed).
-- Colab via GitHub: the repo includes `data/book/` (small), online data is re-fetched by the notebook, synthetic is regenerated.
-- Colab via Drive: `tools/sync_to_drive.ps1` mirrors `data/` to `G:\My Drive\seaice-py\data\`; the notebook mounts Drive.
-- To *save* online data into Drive from Colab: `!wget -O /content/drive/MyDrive/seaice-py/data/online/<name>.jpg "<url>"` after mounting.
+## Locations & Colab access (public repo — nothing book-derived is committed)
+- Local: `data/book/` (the user's PRIVATE copies, git-ignored), `data/online/` (git-ignored except `SOURCES.md`),
+  `data/synthetic/`, `data/manual/` (git-ignored).
+- Every notebook/script loads through `seaice.core.io.load_image(chapter, name)`: `<cwd>/data/book/<ch>/` → repo
+  `data/book/<ch>/` → `/content/drive/MyDrive/Sea_Ice_Colab/data/book/<ch>/` → registered public-domain substitute
+  downloaded into `data/online/<ch>/` (label `"public-domain substitute (NASA)"`). Scripts/tests pass
+  `allow_fallback=False` and skip when the private copy is absent.
+- Colab: cell 1 of every notebook mounts Drive and `chdir`s to `MyDrive/Sea_Ice_Colab`; the reader who owns the book
+  puts `data/book/chNN/<image>` there; everyone else gets the substitute automatically. Cell 2 clones/pulls the repo.
+
+## Registering a public-domain substitute (PUBLISH phase, one per book image name per chapter)
+1. Pick a NASA Worldview Snapshots MODIS Terra true-colour scene (Beaufort Sea MIZ in July works: e.g.
+   `TIME=2019-07-25&BBOX=71.5,-142.0,74.0,-132.0`) at the **book image's own WIDTH×HEIGHT** so the notebook's pixel
+   indices and crops stay valid; or a NASA Earth Observatory / IceBridge JPEG.
+2. Fetch it with a real request, open it, reject cloudy or featureless scenes (ch02 needed four tries).
+3. Add the entry to `seaice/core/public_images.py` (`REGISTRY[(chapter, name.lower())]` with url, filename, credit,
+   licence, description) and a row to `data/online/SOURCES.md` with the verification date and byte size.
+4. Never commit the downloaded file; `load_image()` re-fetches it on first use.
 
 ## Never
 Fabricate an image's provenance, silently substitute a different image for a book figure, or embed base64 images in notebooks.

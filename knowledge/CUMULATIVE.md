@@ -115,3 +115,12 @@ GVF/snake (ch6), `imresize_matlab` with antialiasing (ch9 if needed), DLT / lens
   files too. ch5 duplicates ch2's `bound2im.m` / `boundaries.m` / `fchcode.m` (byte-identical, md5 verified in ch02).
 - Data gaps: ch9 movie scripts need `dypic_05100_cam1_top.avi` (not shipped); ch8 MCD ships only `.mat` results.
   See `data/online/SOURCES.md` (git-ignored, on disk).
+
+## Publishing findings (2026-09-09, ch02 PUBLISH phase)
+- Public repo `shammun/seaice-py` (branch `main`), GitHub Pages at `https://shammun.github.io/seaice-py/`. History was
+  rewritten with git-filter-repo to purge every book-derived file; `chapters/*.txt`, `data/book/`, `reports/**/figures/`,
+  `outputs/` stay local and git-ignored (CLAUDE.md rule 12).
+- Data: `seaice.core.io.load_image()` (private copy → NASA public-domain substitute from `seaice/core/public_images.py`);
+  ch02's substitute is a MODIS Terra Beaufort MIZ scene of 2019-07-25 at the book image's 2048×1536 size.
+- Notebook cells 1–3 template lives in `notebooks/build_ch02.py`; `tools/publish_notebook.py chNN` builds the Colab
+  variant, the styled HTML page (from a run with `data/book` renamed away), `index.html` and the README table.

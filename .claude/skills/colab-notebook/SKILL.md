@@ -65,9 +65,16 @@ python -m jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeou
 The build is only done when this succeeds locally (Windows, data in `data/`). Delete `executed_*.ipynb` (git-ignored).
 Then also open the executed copy and check no cell output contains `Error` or an empty figure.
 
-## Delivering to Google Drive (see GUIDE.md §7)
-Either commit and let Colab `git clone`, or mirror `notebooks/ seaice/ data/ knowledge/ requirements-colab.txt`
-into `G:\My Drive\seaice-py\` with `tools/sync_to_drive.ps1` (robocopy). The notebook's `SOURCE` variable selects which.
+## Publishing (PUBLISH phase of /do-chapter — the repo is public)
+Colab gets the code by cloning `https://github.com/shammun/seaice-py.git` (cell 2); the reader's private book images
+live in their own Drive (`MyDrive/Sea_Ice_Colab/data/book/chNN/`), never in the repo. After the notebook passes:
+1. run it twice headlessly — with `data/book` present and with `data/book` renamed to `data/book_private` (public-domain
+   substitute; delete the cached download first to prove the fetch) — both 0 errors, all figures;
+2. with `data/book` still renamed, `.venv/Scripts/python.exe tools/publish_notebook.py chNN` → `chNN_<slug>_colab.ipynb`
+   (outputs stripped, Colab metadata), `chNN_<slug>.html` (styled page with Download / Open-in-Colab buttons), `index.html`,
+   README table; rename `data/book` back; grep the HTML for `book (local)` (must be 0);
+3. commit `chNN: publish — …`, push, check `https://shammun.github.io/seaice-py/notebooks/chNN_<slug>.html`.
+Use `python -m nbconvert` (not `python -m jupyter nbconvert`, which can dispatch to Anaconda's binary on this host).
 
 ## Public-repo rule
 The repo is public. Never commit book text, book-shipped images, PDF page crops, or executed notebooks that contain them. Published notebooks load data through seaice.core.io.load_image(), which prefers the reader's private Drive copy and falls back to public-domain imagery. Book-figure comparisons stay local in reports/**/figures/ (git-ignored).

@@ -9,7 +9,8 @@
       "review": "pass",
       "notebook": "pass",
       "knowledge": "done",
-      "notes": "Complete: 7/7 .m exact vs MATLAB R2025a, 86 tests, parity 23 exact/1 near/1 approx/4 reimplemented/1 unverified (Fig 2.7 image not shipped); knowledge/ch02.md + CUMULATIVE + function_map written"
+      "publish": "pass",
+      "notes": "Complete: 7/7 .m exact vs MATLAB R2025a, 86 tests, parity 23 exact/1 near/1 approx/4 reimplemented/1 unverified (Fig 2.7 image not shipped); knowledge/ch02.md + CUMULATIVE + function_map written; published 2026-09-09: _colab.ipynb + HTML from the public-domain run, Pages live"
     },
     "ch03": {
       "analyze": "todo",
@@ -18,6 +19,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch04": {
@@ -27,6 +29,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch05": {
@@ -36,6 +39,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch06": {
@@ -45,6 +49,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch07": {
@@ -54,6 +59,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch08": {
@@ -63,6 +69,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch09": {
@@ -72,6 +79,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": ""
     },
     "ch10": {
@@ -81,6 +89,7 @@
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
+      "publish": "todo",
       "notes": "Appendix A code (confirm)"
     }
   },
