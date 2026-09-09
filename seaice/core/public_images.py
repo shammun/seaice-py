@@ -66,6 +66,19 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "licence": _NASA_PD,
         "description": "Dense floe field with leads (~70 % bright pixels), like the book's high-concentration image 3 (test.jpg)",
     },
+    # --- ch04: the book's 4290×2856 test.jpg (a different image from ch03's test.jpg; Fig 4.3(a) is its crop
+    # rows 1600–2151 / cols 1979–2552 in MATLAB terms, so the substitute must have floe structure in that window).
+    # Same scene as the ch03 dense substitute: the crop window holds several floes separated by leads (verified
+    # 2026-09-09: 72 % bright pixels, std 55 in the window).
+    ("ch04", "test.jpg"): {
+        "url": _NASA_WORLDVIEW_4290 + "&TIME=2019-07-25&BBOX=75.0,-150.0,77.0,-147.0",
+        "filename": "nasa_modis_terra_beaufort_dense_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack ice, "
+                  "25 July 2019, 75–77°N 150–147°W",
+        "licence": _NASA_PD,
+        "description": "Dense floe field with leads; the Fig 4.3(a) crop window (rows 1600–2151, cols 1979–2552) holds "
+                       "several floes separated by leads, standing in for the book's two-floe crop",
+    },
 }
 
 

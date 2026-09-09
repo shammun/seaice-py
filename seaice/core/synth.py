@@ -230,3 +230,107 @@ def bimodal_image(seed: int = 0, shape: tuple[int, int] = (120, 160), dark: floa
     img[r0:r0 + h, c0:c0 + w] = bright
     img += rng.normal(0.0, sigma, size=(M, N))
     return to_uint8_saturating(img)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Chapter 4 additions (§4.2.1 Fig. 4.8 erosion/dilation walk-through, §4.2.2–4.2.3 1-D profiles, unit tests)
+# ---------------------------------------------------------------------------------------------------------------
+
+#: Fig. 4.8(a) (p. 70, from DIPUM [49]): 13×17 binary image with a 3×7 rectangular object (rows 6–8, cols 6–12, 1-based).
+FIG_4_8_IMAGE = _m(
+    """
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0
+    0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0
+    0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    """
+).astype(bool)
+
+#: Fig. 4.8(b): cross-shaped structuring element with the origin at the centre (``B = B̂``).
+FIG_4_8_SE = _m("0 1 0\n1 1 1\n0 1 0").astype(bool)
+
+#: Fig. 4.8(d): erosion result — the object shrinks to one row of 5 pixels (row 7, cols 7–11, 1-based).
+FIG_4_8_ERODED = _m(
+    """
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 1 1 1 1 1 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    """
+).astype(bool)
+
+#: Fig. 4.8(f): dilation result — 5 rows / 9 columns with the four corners clipped.
+FIG_4_8_DILATED = _m(
+    """
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0
+    0 0 0 0 1 1 1 1 1 1 1 1 1 0 0 0 0
+    0 0 0 0 1 1 1 1 1 1 1 1 1 0 0 0 0
+    0 0 0 0 1 1 1 1 1 1 1 1 1 0 0 0 0
+    0 0 0 0 0 1 1 1 1 1 1 1 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+    """
+).astype(bool)
+
+
+def two_floes_profile(n: int = 240) -> np.ndarray:
+    """1-D intensity profile in the spirit of Book Figs. 4.11–4.14 (the printed curves are sketches, not data).
+
+    Two bright "floes" (plateaus of 170 and 200) separated by a narrow dark crack (width 3, value 60) on a dark
+    water background (40), with a 2-pixel bright speck on the water and a 3-pixel dark pit inside the second floe,
+    plus gentle slopes at the floe edges.  Returns a ``(1, n)`` uint8 array so the 2-D morphology functions apply
+    directly (a ``1×N`` image with a ``1×k`` line SE is exactly the book's 1-D case).  Deterministic.
+    """
+    from .matlab_compat import to_uint8_saturating
+
+    x = np.arange(n)
+    f = np.full(n, 40.0)
+    f[(x >= 30) & (x < 100)] = 170.0
+    f[(x >= 103) & (x < 190)] = 200.0
+    f[(x >= 100) & (x < 103)] = 60.0  # crack between the floes
+    f[(x >= 10) & (x < 12)] = 150.0  # bright speck on the water
+    f[(x >= 140) & (x < 143)] = 90.0  # dark pit in the second floe
+    # sloped edges
+    f[25:30] = np.linspace(40, 170, 7)[1:-1]
+    f[190:196] = np.linspace(200, 40, 8)[1:-1]
+    return to_uint8_saturating(f)[None, :]
+
+
+def two_blobs_with_marker(shape: tuple[int, int] = (40, 60)) -> tuple[np.ndarray, np.ndarray]:
+    """Binary mask with two blobs and a marker inside the first one (Fig. 4.13-style reconstruction test).
+
+    Returns ``(marker, mask)`` bool arrays: reconstruction of ``marker`` under ``mask`` must return exactly the
+    first blob.
+    """
+    M, N = shape
+    mask = np.zeros((M, N), dtype=bool)
+    rr, cc = np.mgrid[0:M, 0:N]
+    mask |= (rr - 18) ** 2 + (cc - 16) ** 2 <= 10 ** 2
+    mask |= np.abs(rr - 22) + np.abs(cc - 44) <= 9
+    marker = np.zeros_like(mask)
+    marker[18, 16] = True
+    return marker, mask

@@ -21,11 +21,20 @@ Chapter 3 primitives:
   ``otsu_criterion``, ``separability``, ``ice_concentration``, ``class_coverage`` (§3.1)
 * :mod:`~seaice.core.clustering` — ``kmeans_gray`` (the authors' ``kmeans.m``), ``kmeans_lloyd``,
   ``pairwise_distance`` (§3.2)
+
+Chapter 4 primitives:
+
+* :mod:`~seaice.core.filters` — ``fspecial`` (MATLAB kernels: sobel, prewitt, laplacian, gaussian, log, average, disk)
+* :mod:`~seaice.core.edges` — ``edge`` (MATLAB ``edge`` for sobel/prewitt/roberts/log/zerocross, with thinning),
+  ``thin_gradient``, ``log_zero_crossings`` (§4.1)
+* :mod:`~seaice.core.morphology` — ``strel`` (incl. MATLAB's approximate disk), ``imerode``, ``imdilate``, ``imopen``,
+  ``imclose``, ``imreconstruct``, ``reconstruct_by_erosion``, ``geodesic_dilation/erosion``, ``reconstruct_iterative``,
+  ``morphological_gradient`` (§4.2)
 """
 from __future__ import annotations
 
-from . import chaincode, clustering, color, connectivity, distance, filters, histogram, interp, io, \
-    matlab_compat, plotting, setops, synth, threshold
+from . import chaincode, clustering, color, connectivity, distance, edges, filters, histogram, interp, io, \
+    matlab_compat, morphology, plotting, setops, synth, threshold
 from .chaincode import ChainCode, bound2im, boundaries, code_reverse, fchcode, first_difference, min_magnitude, \
     normalized_first_difference
 from .clustering import KMeansGray, KMeansResult, kmeans_gray, kmeans_lloyd, objective_J, pairwise_distance
@@ -33,8 +42,12 @@ from .color import indexed_to_rgb, rgb2cmy, rgb2cmyk, rgb2hsi, split_rgb
 from .connectivity import count_components, find_paths, is_adjacent, is_m_adjacent, label_components, n4, n8, nd, \
     region_boundary_mask
 from .distance import bwdist, center_distance_map, distance_transform, pixel_distance, quasi_euclidean_dt
-from .filters import conv2, conv_at, imfilter
+from .edges import EdgeResult, edge, gradient_roberts, gradient_sobel_prewitt, log_zero_crossings, thin_gradient
+from .filters import conv2, conv_at, fspecial, imfilter
 from .histogram import imhist, normalized_histogram
+from .morphology import disk_decomposition, geodesic_dilation, geodesic_erosion, imclose, imdilate, imerode, imopen, \
+    imreconstruct, intline, line_strel, minkowski_sum, morphological_gradient, periodic_line, reconstruct_by_erosion, \
+    reconstruct_iterative, se_origin, strel
 from .interp import interp2, interp_bicubic, interp_bilinear, interp_nearest, keys_kernel, resize, warp_image
 from .io import REPO_ROOT, data_roots, load_image, output_dir, read_image, repo_root
 from .matlab_compat import im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
@@ -45,8 +58,13 @@ from .setops import complement, difference, gray_complement, gray_intersection, 
     translate, union
 
 __all__ = [
-    "chaincode", "clustering", "color", "connectivity", "distance", "filters", "histogram", "interp", "io",
-    "matlab_compat", "plotting", "setops", "synth", "threshold",
+    "chaincode", "clustering", "color", "connectivity", "distance", "edges", "filters", "histogram", "interp", "io",
+    "matlab_compat", "morphology", "plotting", "setops", "synth", "threshold",
+    "EdgeResult", "edge", "gradient_roberts", "gradient_sobel_prewitt", "log_zero_crossings", "thin_gradient",
+    "fspecial",
+    "disk_decomposition", "geodesic_dilation", "geodesic_erosion", "imclose", "imdilate", "imerode", "imopen",
+    "imreconstruct", "intline", "line_strel", "minkowski_sum", "morphological_gradient", "periodic_line",
+    "reconstruct_by_erosion", "reconstruct_iterative", "se_origin", "strel",
     "KMeansGray", "KMeansResult", "kmeans_gray", "kmeans_lloyd", "objective_J", "pairwise_distance",
     "BlockOtsu", "OtsuCurves", "block_otsu", "class_coverage", "class_mean_intensity", "graythresh",
     "ice_concentration", "im2bw", "imquantize", "multithresh", "otsu_criterion", "otsuthresh", "separability",

@@ -199,3 +199,143 @@ def conv_at(f: np.ndarray, w: np.ndarray, x: int, y: int, correlate: bool = Fals
             if 0 <= xx < f.shape[0] and 0 <= yy < f.shape[1]:
                 total += w[s + hm, t + hn] * f[xx, yy]
     return float(total)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# MATLAB fspecial (chapter 4: Figs. 4.2, 4.4, 4.5; used by edge('log'); ch5/ch6/ch7 Gaussian smoothing)
+# ---------------------------------------------------------------------------------------------------------------
+
+_FSPECIAL_KINDS = ("average", "disk", "gaussian", "laplacian", "log", "prewitt", "sobel", "unsharp")
+
+
+def _hsize_pair(hsize) -> tuple[int, int]:
+    """MATLAB ``HSIZE``: scalar → ``[h h]``; two-element → ``[rows cols]``."""
+    arr = np.atleast_1d(np.asarray(hsize, dtype=np.float64)).ravel()
+    if arr.size == 1:
+        arr = np.array([arr[0], arr[0]])
+    if arr.size != 2 or np.any(arr <= 0) or np.any(arr != np.floor(arr)):
+        raise ValueError("fspecial: HSIZE must be a positive integer scalar or a 2-element vector")
+    return int(arr[0]), int(arr[1])
+
+
+def fspecial(kind: str, p2=None, p3=None, *, hsize=None, sigma: float | None = None,
+             alpha: float | None = None, radius: float | None = None) -> np.ndarray:
+    """MATLAB ``fspecial(TYPE, ...)`` — the predefined 2-D filter kernels, ported from R2025a ``fspecial.m``.
+
+    Book: §4.1.1 Fig. 4.2 (``'sobel'``, ``'prewitt'``), §4.1.2 Fig. 4.4 (``'laplacian'``), Eqs. (4.14)–(4.15) /
+    Fig. 4.5 (``'gaussian'``, ``'log'``).  No ``.m`` file of the book calls ``fspecial`` directly; MATLAB's ``edge``
+    (ported in :mod:`seaice.core.edges`) uses ``fspecial('sobel')``, ``fspecial('prewitt')`` and
+    ``fspecial('log', 2*ceil(3*sigma)+1, sigma)``; the Gaussian is used by ch5–ch7.
+
+    Parameters follow MATLAB positionally (``fspecial('gaussian', 5, 1)``, ``fspecial('log', 13, 2)``,
+    ``fspecial('laplacian', 0.2)``, ``fspecial('disk', 5)``, ``fspecial('average', [3, 3])``) or by keyword
+    (``hsize``, ``sigma``, ``alpha``, ``radius``).  Defaults are MATLAB's: ``average`` 3×3; ``disk`` r = 5;
+    ``gaussian`` 3×3, σ = 0.5; ``laplacian``/``unsharp`` α = 0.2; ``log`` 5×5, σ = 0.5.  For ``gaussian``/``log``
+    an omitted ``hsize`` with a given ``sigma`` gives ``2*ceil(2*sigma)+1`` (MATLAB rule).
+
+    Formulas (MATLAB):
+
+    * ``sobel = [1 2 1; 0 0 0; -1 -2 -1]`` (= −(Fig. 4.2(b) left)); ``prewitt = [1 1 1; 0 0 0; -1 -1 -1]``.
+    * ``laplacian(α) = [α 1−α α; 1−α −4 1−α; α 1−α α] / (α + 1)``; α = 0 gives Fig. 4.4(a).
+    * ``gaussian``: ``exp(−(x²+y²)/(2σ²))`` on the centred grid, entries ``< eps·max`` zeroed, divided by the sum
+      (Eq. 4.14 normalised to unit sum — Fig. 4.5(a)).
+    * ``log``: ``h = gaussian`` (unit sum), ``h1 = h·(x²+y²−2σ²)/σ⁴``, ``h = h1 − mean(h1)`` (sums to zero — Fig. 4.5(b);
+      *not* Eq. 4.15 sampled, which carries ``1/(2πσ⁶)`` and does not sum to zero).
+    * ``average``: ``ones(hsize)/prod(hsize)``; ``disk``: area-weighted pillbox of radius r, unit sum;
+      ``unsharp``: ``[0 0 0; 0 1 0; 0 0 0] − laplacian(α)``.
+
+    Returns float64.  Parity: exact (formula port; verified in the chapter-4 report).
+    """
+    key = str(kind).lower()
+    matches = [key] if key in _FSPECIAL_KINDS else [k for k in _FSPECIAL_KINDS if k.startswith(key)]
+    if len(matches) != 1:
+        raise ValueError(f"fspecial: unknown or ambiguous TYPE {kind!r}; expected one of {_FSPECIAL_KINDS}")
+    kind = matches[0]
+    # merge keyword aliases into MATLAB's positional (p2, p3) slots
+    if kind in ("gaussian", "log", "average"):
+        if hsize is not None:
+            p2 = hsize
+        if sigma is not None:
+            p3 = sigma
+    elif kind in ("laplacian", "unsharp"):
+        if alpha is not None:
+            p2 = alpha
+    elif kind == "disk":
+        if radius is not None:
+            p2 = radius
+    elif p2 is not None or p3 is not None or hsize is not None or sigma is not None:
+        raise ValueError(f"fspecial('{kind}') takes no further arguments")
+
+    if kind == "sobel":
+        return np.array([[1.0, 2.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -2.0, -1.0]])
+    if kind == "prewitt":
+        return np.array([[1.0, 1.0, 1.0], [0.0, 0.0, 0.0], [-1.0, -1.0, -1.0]])
+    if kind in ("laplacian", "unsharp"):
+        a = 0.2 if p2 is None else float(p2)
+        if a < 0 or a > 1:
+            raise ValueError("fspecial: ALPHA must be in [0, 1]")
+        h1, h2 = a / (a + 1.0), (1.0 - a) / (a + 1.0)
+        lap = np.array([[h1, h2, h1], [h2, -4.0 / (a + 1.0), h2], [h1, h2, h1]])
+        if kind == "laplacian":
+            return lap
+        return np.array([[0.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 0.0]]) - lap
+    if kind == "average":
+        rows, cols = _hsize_pair([3, 3] if p2 is None else p2)
+        return np.ones((rows, cols)) / float(rows * cols)
+    if kind in ("gaussian", "log"):
+        std = 0.5 if p3 is None else float(p3)
+        if std <= 0:
+            raise ValueError("fspecial: SIGMA must be positive")
+        if p2 is None:
+            if p3 is not None:
+                p2 = [2 * int(np.ceil(2 * std)) + 1] * 2
+            else:
+                p2 = [3, 3] if kind == "gaussian" else [5, 5]
+        rows, cols = _hsize_pair(p2)
+        sr, sc = (rows - 1) / 2.0, (cols - 1) / 2.0
+        x, y = np.meshgrid(np.arange(-sc, sc + 1), np.arange(-sr, sr + 1))
+        std2 = std * std
+        h = np.exp(-(x * x + y * y) / (2.0 * std2))
+        h[h < np.finfo(float).eps * h.max()] = 0.0
+        s = h.sum()
+        if s != 0:
+            h = h / s
+        if kind == "gaussian":
+            return h
+        h1 = h * (x * x + y * y - 2.0 * std2) / (std2 * std2)
+        return h1 - h1.sum() / float(rows * cols)  # make the filter sum to zero
+    # 'disk': MATLAB's exact-area pillbox (fspecial.m 'disk' case, transcribed)
+    rad = 5.0 if p2 is None else float(p2)
+    if rad <= 0:
+        raise ValueError("fspecial: RADIUS must be positive")
+    crad = int(np.ceil(rad - 0.5))
+    x, y = np.meshgrid(np.arange(-crad, crad + 1), np.arange(-crad, crad + 1))
+    maxxy = np.maximum(np.abs(x), np.abs(y)).astype(np.float64)
+    minxy = np.minimum(np.abs(x), np.abs(y)).astype(np.float64)
+    r2 = rad * rad
+    with np.errstate(invalid="ignore"):
+        m1 = ((r2 < (maxxy + 0.5) ** 2 + (minxy - 0.5) ** 2) * (minxy - 0.5)
+              + (r2 >= (maxxy + 0.5) ** 2 + (minxy - 0.5) ** 2) * np.sqrt(np.maximum(r2 - (maxxy + 0.5) ** 2, 0.0)))
+        m2 = ((r2 > (maxxy - 0.5) ** 2 + (minxy + 0.5) ** 2) * (minxy + 0.5)
+              + (r2 <= (maxxy - 0.5) ** 2 + (minxy + 0.5) ** 2) * np.sqrt(np.maximum(r2 - (maxxy - 0.5) ** 2, 0.0)))
+        a2, a1 = np.arcsin(np.clip(m2 / rad, -1, 1)), np.arcsin(np.clip(m1 / rad, -1, 1))
+        sgrid = ((r2 * (0.5 * (a2 - a1) + 0.25 * (np.sin(2 * a2) - np.sin(2 * a1)))
+                  - (maxxy - 0.5) * (m2 - m1) + (m1 - minxy + 0.5))
+                 * ((((r2 < (maxxy + 0.5) ** 2 + (minxy + 0.5) ** 2) & (r2 > (maxxy - 0.5) ** 2 + (minxy - 0.5) ** 2))
+                     | ((minxy == 0) & (maxxy - 0.5 < rad) & (maxxy + 0.5 >= rad)))))
+    sgrid = sgrid + ((maxxy + 0.5) ** 2 + (minxy + 0.5) ** 2 < r2)
+    sgrid[crad, crad] = min(np.pi * r2, np.pi / 2)
+    if crad > 0 and rad > crad - 0.5 and r2 < (crad - 0.5) ** 2 + 0.25:
+        m1 = np.sqrt(r2 - (crad - 0.5) ** 2)
+        m1n = m1 / rad
+        sg0 = 2 * (r2 * (0.5 * np.arcsin(m1n) + 0.25 * np.sin(2 * np.arcsin(m1n))) - m1 * (crad - 0.5))
+        sgrid[2 * crad, crad] = sg0
+        sgrid[crad, 2 * crad] = sg0
+        sgrid[crad, 0] = sg0
+        sgrid[0, crad] = sg0
+        sgrid[2 * crad - 1, crad] -= sg0
+        sgrid[crad, 2 * crad - 1] -= sg0
+        sgrid[crad, 1] -= sg0
+        sgrid[1, crad] -= sg0
+    sgrid[crad, crad] = min(sgrid[crad, crad], 1.0)
+    return sgrid / sgrid.sum()
