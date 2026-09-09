@@ -179,7 +179,11 @@ def render_html(executed: Path, name: str, title: str) -> str:
     body, _ = exporter.from_filename(str(executed))
 
     # Stylesheet right after the charset meta (same as the reference pages).
-    link = f'\n<link rel="stylesheet" href="../assets/clean-educational.css?v={int(time.time())}">'
+    link = (
+        f'\n<link rel="stylesheet" href="../assets/clean-educational.css?v={int(time.time())}">'
+        # long code spans inside markdown tables must wrap instead of overflowing into the next column
+        "\n<style>.ce-container table code { white-space: pre-wrap; overflow-wrap: anywhere; }</style>"
+    )
     body = re.sub(r'(<meta charset="utf-8"\s*/?>)', lambda m: m.group(1) + link, body, count=1)
     body = re.sub(r"<title>.*?</title>", f"<title>{html.escape(title)}</title>", body, count=1, flags=re.S)
 
