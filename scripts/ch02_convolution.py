@@ -1,8 +1,9 @@
 """Text-only demo of Book §2.5 — discrete convolution, Eqs. (2.13)–(2.15), Fig. 2.15.
 
 No MATLAB script exists.  A 6×6 integer image is convolved with a 3×3 kernel (``conv2`` semantics, Eq. 2.14);
-the nine terms of Eq. (2.15) are written out at one pixel; MATLAB ``imfilter`` (correlation) is shown next to
-true convolution to make the flip explicit.
+the nine terms are written out at one pixel in both readings — Eq. (2.14) ``ω(s,t) f(x−s,y−t)`` (convolution) and
+Eq. (2.15) as printed ``ω(s,t) f(x+s,y+t)`` (correlation = MATLAB ``imfilter``), which the book states
+inconsistently — and MATLAB ``imfilter`` (correlation) is shown next to true convolution to make the flip explicit.
 
 Usage: ``python scripts/ch02_convolution.py [--out outputs/ch02] [--show]``
 """
@@ -30,29 +31,41 @@ def main(argv: list[str] | None = None) -> int:
     x, y = ex["x"], ex["y"]
     written: list[Path] = []
 
-    fig, axes = plt.subplots(1, 4, figsize=(19, 4.6))
+    fig, axes = plt.subplots(1, 4, figsize=(21, 5.4))
     hl = np.zeros_like(ex["f"])
     hl[x - 1:x + 2, y - 1:y + 2] = 0.6
     hl[x, y] = 1.0
     show_matrix(axes[0], ex["f"].astype(int), fmt="{:d}", highlight=hl, title=f"Image f (3x3 neighbourhood of ({x + 1},{y + 1}))")
     show_matrix(axes[1], ex["w"], fmt="{:g}", highlight=np.abs(ex["w"]) / 2, title="Kernel w(s,t), centre = w(0,0)")
     show_matrix(axes[2], ex["h_conv2"], fmt="{:g}", highlight=(ex["h_conv2"] - ex["h_conv2"].min()) /
-                (np.ptp(ex["h_conv2"]) + 1e-9), title="h = conv2(f, w, 'same')  (Eq. 2.14)")
+                (np.ptp(ex["h_conv2"]) + 1e-9),
+                title=f"Eq. (2.14) convolution = conv2(f, w, 'same')\nat ({x + 1},{y + 1}): h = {ex['h_xy_conv']:g}")
     show_matrix(axes[3], ex["h_imfilter_corr"], fmt="{:g}", highlight=(ex["h_imfilter_corr"] - ex["h_imfilter_corr"].min())
-                / (np.ptp(ex["h_imfilter_corr"]) + 1e-9), title="imfilter(f, w) = correlation (kernel not flipped)")
-    fig.suptitle(f"Fig. 2.15  Convolution with a 3x3 kernel; Eq. (2.15) at ({x + 1},{y + 1}) gives h = {ex['h_xy']:g}")
+                / (np.ptp(ex["h_imfilter_corr"]) + 1e-9),
+                title=f"Eq. (2.15) as printed = correlation = imfilter(f, w)\nat ({x + 1},{y + 1}): h = {ex['h_xy_corr']:g}")
+    fig.suptitle(f"Fig. 2.15  3x3 kernel response at ({x + 1},{y + 1}): Eq. (2.14) convolution h = {ex['h_xy_conv']:g}; "
+                 f"Eq. (2.15) as printed (correlation form, f(x+s,y+t)) h = {ex['h_xy_corr']:g}")
     written.append(finish_figure(fig, out / "fig_2_15_convolution.png", args.show))
 
     print("f =\n", ex["f"].astype(int))
     print("w =\n", ex["w"])
-    print(f"Eq. (2.15) at (x, y) = ({x}, {y}) [0-based]:")
-    total = 0.0
-    for s, t, ws, fv in ex["terms"]:
+    print("NOTE: the book's Eq. (2.15) is printed in correlation form, sum w(s,t) f(x+s,y+t), inconsistent with")
+    print("      Eq. (2.14), sum w(s,t) f(x-s,y-t).  Both readings are evaluated below; the package follows Eq. (2.14).")
+    print(f"Eq. (2.14) convolution at (x, y) = ({x}, {y}) [0-based]:")
+    total_conv = 0.0
+    for s, t, ws, fv in ex["terms_conv"]:
         print(f"  w({s:+d},{t:+d}) * f(x{-s:+d}, y{-t:+d}) = {ws:g} * {fv:g} = {ws * fv:g}")
-        total += ws * fv
-    print(f"  sum = {total:g}  (conv2 gives {ex['h_conv2'][x, y]:g}, conv_at gives {ex['h_xy']:g})")
-    print("h = conv2(f, w, 'same') =\n", ex["h_conv2"])
-    print("imfilter(f, w) (correlation) =\n", ex["h_imfilter_corr"])
+        total_conv += ws * fv
+    print(f"  sum = {total_conv:g}  (conv2 gives {ex['h_conv2'][x, y]:g}, conv_at gives {ex['h_xy_conv']:g})")
+    print(f"Eq. (2.15) as printed (correlation) at (x, y) = ({x}, {y}) [0-based]:")
+    total_corr = 0.0
+    for s, t, ws, fv in ex["terms_corr"]:
+        print(f"  w({s:+d},{t:+d}) * f(x{s:+d}, y{t:+d}) = {ws:g} * {fv:g} = {ws * fv:g}")
+        total_corr += ws * fv
+    print(f"  sum = {total_corr:g}  (imfilter gives {ex['h_imfilter_corr'][x, y]:g}, "
+          f"conv_at(correlate=True) gives {ex['h_xy_corr']:g})")
+    print("h = conv2(f, w, 'same') (Eq. 2.14) =\n", ex["h_conv2"])
+    print("imfilter(f, w) (correlation, Eq. 2.15 as printed) =\n", ex["h_imfilter_corr"])
     print("figures written:")
     for p in written:
         print("  ", p)

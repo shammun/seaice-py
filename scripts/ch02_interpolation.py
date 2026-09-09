@@ -2,7 +2,8 @@
 
 No MATLAB script exists.  A 32×32 crop of ``rgb2gray(rgb.JPG)`` (MATLAB ``G(700:731, 900:931)``) is upsampled on
 the grid ``1:0.4:32`` (as ``interp2`` would) and by ×4 with the ``imresize`` pixel-centre convention, with the
-three methods side by side (Figs. 2.22–2.25 illustrate the concepts; the Keys kernel of Eq. 2.41 is plotted).
+three methods side by side.  These panels are section illustrations (``sec_2_8_*.png``), not reproductions of
+Figs. 2.22–2.24 (which are concept diagrams); the Keys kernel of Eq. (2.41) / Fig. 2.25 is plotted.
 
 Usage: ``python scripts/ch02_interpolation.py [--data data/book/ch02] [--out outputs/ch02] [--show]``
 """
@@ -33,9 +34,9 @@ def main(argv: list[str] | None = None) -> int:
 
     titles = {"nearest": "Nearest neighbour, Eq. (2.33)", "bilinear": "Bilinear, Eqs. (2.35)-(2.38)",
               "bicubic": f"Bicubic (Keys a = {ex['a']}), Eqs. (2.40)-(2.41)"}
-    for prefix, label, fname in (("grid_", "interp2 grid 1:0.4:32", "fig_2_22_interpolation_comparison.png"),
+    for prefix, label, fname in (("grid_", "interp2 grid 1:0.4:32", "sec_2_8_interp2_grid.png"),
                                  ("resize_", "resize x4 (imresize pixel-centre convention)",
-                                  "fig_2_23_resize_comparison.png")):
+                                  "sec_2_8_resize_x4.png")):
         fig, axes = plt.subplots(1, 4, figsize=(18, 4.8))
         axes[0].imshow(ex["P"], cmap="gray", vmin=0, vmax=255, interpolation="nearest")
         axes[0].set_title("Input crop P (32x32)")

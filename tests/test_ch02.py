@@ -196,6 +196,11 @@ class TestL1Connectivity:
         assert b8.sum() == 16 and not b8[3, 3]
         ring = conn.region_boundary_mask(np.ones((3, 3), bool), 4)   # image border counts as outside
         assert ring.sum() == 8 and not ring[1, 1]
+        # notched square: (1,1) sees the missing corner only diagonally -> boundary under 8-conn, not under 4-conn
+        notch = np.ones((5, 5), bool); notch[0, 0] = False
+        b4, b8 = conn.region_boundary_mask(notch, 4), conn.region_boundary_mask(notch, 8)
+        assert b4.sum() == 15 and b8.sum() == 16
+        assert not b4[1, 1] and b8[1, 1]
 
 
 class TestL1Distance:
@@ -240,6 +245,32 @@ class TestL1Distance:
 
 
 class TestL1Filters:
+    def test_conv_at_eq_2_14_vs_eq_2_15_as_printed(self):
+        """Book Eq. (2.14) is convolution f(x-s, y-t); the printed Eq. (2.15) expands to f(x+s, y+t) (correlation,
+        = imfilter).  `conv_at` follows (2.14) by default and reproduces the printed (2.15) with correlate=True."""
+        ex = ch2.convolution_example()
+        f, w, x, y = ex["f"], ex["w"], ex["x"], ex["y"]
+        assert ex["h_xy_conv"] == filters.conv_at(f, w, x, y) == ex["h_conv2"][x, y]
+        assert ex["h_xy_corr"] == filters.conv_at(f, w, x, y, correlate=True) == filters.imfilter(f, w)[x, y]
+        assert ex["h_xy_conv"] == 1.0 and ex["h_xy_corr"] == -1.0       # antisymmetric kernel: opposite signs
+        assert ex["h_xy"] == ex["h_xy_conv"]                            # backward-compatible key = Eq. (2.14)
+        sym = np.ones((3, 3)) / 9.0
+        assert np.isclose(filters.conv_at(f, sym, x, y), filters.conv_at(f, sym, x, y, correlate=True))
+
+    def test_imfilter_matlab_positional_options(self):
+        f = np.arange(20, dtype=float).reshape(4, 5)
+        w = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], float)
+        assert np.array_equal(filters.imfilter(f, w, "replicate"), filters.imfilter(f, w, padding="replicate"))
+        assert np.array_equal(filters.imfilter(f, w, "symmetric", "full"),
+                              filters.imfilter(f, w, padding="symmetric", output="full"))
+        assert np.array_equal(filters.imfilter(f, w, "conv", "replicate"),
+                              filters.imfilter(f, w, mode="conv", padding="replicate"))
+        assert np.array_equal(filters.imfilter(f, w, 2.5), filters.imfilter(f, w, padding=2.5))
+        with pytest.raises(ValueError):
+            filters.imfilter(f, w, "replicate", padding="symmetric")
+        with pytest.raises(ValueError):
+            cc.fchcode(np.array([[0, 0], [0, 1], [1, 1], [1, 0]]), conn=5)   # validated before any computation
+
     def test_conv2_eq_2_15(self):
         f = np.arange(36, dtype=float).reshape(6, 6)
         w = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]], float)
@@ -718,6 +749,11 @@ class TestL2Conv2:
             "g3full": filters.imfilter(f, w3, output="full"), "g5full": filters.imfilter(f, w5, output="full"),
             "g4full": filters.imfilter(f, w4, output="full"), "g4r": filters.imfilter(f, w4, padding="replicate"),
             "g3ch": filters.imfilter(d["f3"], w3),
+            # 'full' output combined with non-zero padding (MATLAB positional idiom)
+            "g3rfull": filters.imfilter(f, w3, "replicate", "full"), "g3sfull": filters.imfilter(f, w3, "symmetric", "full"),
+            "g3wfull": filters.imfilter(f, w3, "circular", "full"), "g5rfull": filters.imfilter(f, w5, "replicate", "full"),
+            "g5sfull": filters.imfilter(f, w5, "symmetric", "full"), "g4rfull": filters.imfilter(f, w4, "replicate", "full"),
+            "g23sfull": filters.imfilter(f, w23, "symmetric", "full"),
         }
         for key, val in cases.items():
             assert_parity(val, d[key], "float", atol=1e-12, rtol=0, name=key)
@@ -754,21 +790,23 @@ class TestL2Interp2:
         shrinking.  The interior of nearest / bilinear enlargements must agree exactly; errors are recorded."""
         d = ref("interp2")
         P = d["P"]
-        R4n, R4l, R4c = (interp.resize(P, 4, m) for m in ("nearest", "bilinear", "bicubic"))
-        m_n = assert_parity(R4n, d["R4n"], "float", atol=0, rtol=0, name="R4n")
-        m_l = assert_parity(R4l[4:-4, 4:-4], d["R4l"][4:-4, 4:-4], "float", atol=1e-9, rtol=0, name="R4l interior")
-        m_c = assert_parity(R4c[8:-8, 8:-8], d["R4c"][8:-8, 8:-8], "float", atol=1e-9, rtol=0, name="R4c interior")
-        R2n, R2l, R2c = (interp.resize(P, 2, m) for m in ("nearest", "bilinear", "bicubic"))
-        assert_parity(R2n, d["R2n"], "float", atol=0, rtol=0, name="R2n")
-        assert_parity(R2l[2:-2, 2:-2], d["R2l"][2:-2, 2:-2], "float", atol=1e-9, rtol=0, name="R2l interior")
+        # nearest / bilinear: full arrays, bit-identical (label `exact`)
+        for s, kn, kl in ((4, "R4n", "R4l"), (2, "R2n", "R2l"), (0.5, "Rhn", "Rhl")):
+            Rn, Rl = interp.resize(P, s, "nearest"), interp.resize(P, s, "bilinear")
+            assert Rn.shape == d[kn].shape and Rl.shape == d[kl].shape
+            assert_parity(Rn, d[kn], "float", atol=0, rtol=0, name=kn)
+            assert_parity(Rl, d[kl], "float", atol=0, rtol=0, name=kl)
+        # bicubic: interior (>= 2 source px from the border) identical; border differs (label `approx`)
+        R4c, R2c = interp.resize(P, 4, "bicubic"), interp.resize(P, 2, "bicubic")
+        assert_parity(R4c[8:-8, 8:-8], d["R4c"][8:-8, 8:-8], "float", atol=1e-9, rtol=0, name="R4c interior")
         assert_parity(R2c[4:-4, 4:-4], d["R2c"][4:-4, 4:-4], "float", atol=1e-9, rtol=0, name="R2c interior")
-        # full-image errors (documented in the report, not asserted tightly)
-        full_l = float(np.abs(R4l - d["R4l"]).max()); full_c = float(np.abs(R4c - d["R4c"]).max())
-        assert full_l < 255 and full_c < 255
-        Rhn = interp.resize(P, 0.5, "nearest"); Rhl = interp.resize(P, 0.5, "bilinear")
-        assert Rhn.shape == d["Rhn"].shape and Rhl.shape == d["Rhl"].shape
-        assert_parity(Rhn, d["Rhn"], "float", atol=0, rtol=0, name="Rhn")
-        assert_parity(Rhl[1:-1, 1:-1], d["Rhl"][1:-1, 1:-1], "float", atol=1e-9, rtol=0, name="Rhl interior")
+        e4 = np.abs(R4c - d["R4c"])
+        bad = np.argwhere(e4 > 1e-9)
+        n = e4.shape[0]
+        dist = np.minimum.reduce([bad[:, 0], bad[:, 1], n - 1 - bad[:, 0], n - 1 - bad[:, 1]])
+        assert dist.max() <= 5                       # every differing output px lies within 1.25 source px of the border
+        # measured (R2025a): max 8.21, 2896 px > 1e-9, 742 px > 0.5, 921 px differ after uint8 rounding (5.62 %)
+        assert e4.max() < 9 and int((e4 > 1e-9).sum()) <= 2896 and int((e4 > 0.5).sum()) <= 742
 
 
 @needs_ref("compat")
@@ -810,6 +848,17 @@ class TestL2Compat:
         h5, x5 = hist.imhist(np.array([0, 1, 2, 3, 4, 5, 250, 251, 252, 253, 254, 255], np.uint8), 5)
         assert np.array_equal(h5, vec(d["h5"])) and np.allclose(x5, d["x5"].ravel())
         assert vec(d["sat"]).tolist() == [255, 200, 100] and vec(d["satm"]).tolist() == [0, 50]  # MATLAB saturates
+
+    def test_ind2rgb(self):
+        """MATLAB ind2rgb: integer classes are 0-based, double is 1-based, both clipped to [1, m]."""
+        d = ref("compat")
+        cmap = d["cmap"]
+        assert np.array_equal(color.indexed_to_rgb(d["idx8"], cmap), d["rgb8"])                          # uint8, 7 clipped
+        assert np.array_equal(color.indexed_to_rgb(d["idxd"], cmap, one_based=True), d["rgbd"])           # double 0 / 9 clipped
+        assert np.array_equal(color.indexed_to_rgb(d["idx16"], cmap), d["rgb16"])
+        assert np.array_equal(color.indexed_to_rgb(d["idxl"].astype(np.uint8), cmap), d["rgbl"])
+        # non-integer double indices: MATLAB raises; the port truncates (documented, no parity claim)
+        assert ref_str(d, "errf") != ""
 
     def test_imhist_logical_default_is_two_bins(self):
         """PORT DISCREPANCY (open item): MATLAB ``imhist(BW)`` on a logical image defaults to n = 2 bins

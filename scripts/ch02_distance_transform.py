@@ -32,9 +32,11 @@ def main(argv: list[str] | None = None) -> int:
     # --- Fig. 2.14: the script -------------------------------------------------------------------------------
     maps = point_distance_maps(201)
     written.append(save_image(out / "fig_2_14_point_image.png", maps["point"]))  # imshow(img)
-    for metric in ("euclidean", "cityblock", "chessboard", "quasi-euclidean"):
-        written.append(save_image(out / f"fig_2_14_point_dt_{metric.replace('-', '_')}.png", maps[metric],
+    for metric in ("euclidean", "cityblock", "chessboard"):
+        written.append(save_image(out / f"fig_2_14_point_dt_{metric}.png", maps[metric],
                                   autoscale=True))  # imshow(imgDist, [])
+    # quasi-euclidean is in bwdist's option list but not in Fig. 2.14(a-d): no figure number on this file
+    written.append(save_image(out / "sec_2_4_point_dt_quasi_euclidean.png", maps["quasi-euclidean"], autoscale=True))
     fig, axes = plt.subplots(1, 4, figsize=(18, 4.6))
     imshow_matlab(axes[0], maps["point"], title="(a) 201x201 image, one pixel at (101,101)")
     for ax, metric, title in zip(axes[1:], ("euclidean", "cityblock", "chessboard"),

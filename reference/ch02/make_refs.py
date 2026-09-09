@@ -230,11 +230,16 @@ g3s = imfilter(f, w3, 'symmetric'); g3w = imfilter(f, w3, 'circular'); g3k = imf
 g4 = imfilter(f, w4); g23 = imfilter(f, w23); g5r = imfilter(f, w5, 'replicate'); g5s = imfilter(f, w5, 'symmetric');
 g3full = imfilter(f, w3, 'full'); g5full = imfilter(f, w5, 'full'); g4full = imfilter(f, w4, 'full');
 g4r = imfilter(f, w4, 'replicate');
+g3rfull = imfilter(f, w3, 'replicate', 'full'); g3sfull = imfilter(f, w3, 'symmetric', 'full');
+g3wfull = imfilter(f, w3, 'circular', 'full'); g5rfull = imfilter(f, w5, 'replicate', 'full');
+g5sfull = imfilter(f, w5, 'symmetric', 'full'); g4rfull = imfilter(f, w4, 'replicate', 'full');
+g23sfull = imfilter(f, w23, 'symmetric', 'full');
 f3 = rand(9, 11, 3); g3ch = imfilter(f3, w3);
 """
     return run_ref(code, ["f", "w3", "w5", "w4", "w23", "h3", "h5", "h4", "h23", "h3full", "h3valid", "h5full",
                           "g3", "g3c", "g3r", "g3s", "g3w", "g3k", "g4", "g23", "g5r", "g5s", "g3full", "g5full",
-                          "g4full", "g4r", "f3", "g3ch"],
+                          "g4full", "g4r", "f3", "g3ch", "g3rfull", "g3sfull", "g3wfull", "g5rfull", "g5sfull",
+                          "g4rfull", "g23sfull"],
                    REF / "conv2.mat", addpath=[CH])
 
 
@@ -277,10 +282,18 @@ Gc = G(1:300, 1:400); Gd = Gd(1:300, 1:400);
 [hd100, xd100] = imhist(im2double(Gc), 100); [hl, xl] = imhist(Gc > 128); [h16, x16] = imhist(uint16(Gc) * 257);
 [h5, x5] = imhist(uint8([0 1 2 3 4 5 250 251 252 253 254 255]), 5);
 sat = uint8([200 100 50]) + uint8([100 100 50]); satm = uint8([10 100]) - uint8([20 50]);
+cmap = [0 0 0; 1 0 0; 0 1 0; 0 0.5 1];
+idx8 = uint8([0 1 2 3; 3 2 1 0; 0 0 3 7]); rgb8 = ind2rgb(idx8, cmap);
+idxd = [1 2 3 4; 4 3 2 1; 0 1 4 9]; rgbd = ind2rgb(idxd, cmap);
+idxf = [1.4 2.6 3.5 0.2 -3]; rgbf = []; errf = '';
+try, rgbf = ind2rgb(idxf, cmap); catch e, errf = e.message; end
+idx16 = uint16([0 3 40000]); rgb16 = ind2rgb(idx16, cmap);
+idxl = logical([0 1]); rgbl = ind2rgb(idxl, cmap);
 """
     return run_ref(code, ["xr", "rx", "v", "u8", "u8b", "d8", "d16", "dl", "ic8", "icd", "icl", "ic16", "ici8",
                           "Gc", "Gd", "h64", "x64", "h256", "x256", "hd", "xd", "hd100", "xd100", "hl", "xl",
-                          "h16", "x16", "h5", "x5", "sat", "satm"],
+                          "h16", "x16", "h5", "x5", "sat", "satm", "cmap", "idx8", "rgb8", "idxd", "rgbd", "idxf",
+                          "rgbf", "errf", "idx16", "rgb16", "idxl", "rgbl"],
                    REF / "compat.mat", addpath=[CH])
 
 

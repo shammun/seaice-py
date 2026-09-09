@@ -191,10 +191,21 @@ def distance_fixture_examples() -> dict[str, np.ndarray]:
 
 
 def convolution_example(seed: int = 0) -> dict[str, Any]:
-    """Numeric illustration of Eqs. (2.14)–(2.15): a 6×6 integer image, a 3×3 kernel, the full response by
-    :func:`~seaice.core.filters.conv2` and the nine explicit terms of Eq. (2.15) at the centre pixel.
+    """Numeric illustration of Book §2.5, Eqs. (2.14)–(2.15), Fig. 2.15: a 6×6 integer image, a 3×3 kernel, the
+    full response by :func:`~seaice.core.filters.conv2` and the nine explicit terms at the centre pixel.
 
-    Also shows that MATLAB ``imfilter`` (correlation) equals convolution with the flipped kernel.
+    Two readings of the nine-term sum are computed with :func:`~seaice.core.filters.conv_at`, because the book is
+    inconsistent: Eq. (2.14) defines convolution with ``f(x−s, y−t)`` (kernel flipped, = ``conv2``), whereas Eq. (2.15)
+    as printed on p. 24 expands to ``ω(s,t) f(x+s, y+t)`` (kernel *not* flipped = correlation = MATLAB ``imfilter``).
+    On the antisymmetric Sobel-type demo kernel the two differ in sign (``+1`` vs ``−1`` at the chosen pixel).
+
+    Returns
+    -------
+    dict with ``f``, ``w``, ``h_conv2`` (Eq. 2.14 / ``conv2``), ``h_imfilter_corr`` (correlation / ``imfilter``),
+    ``x``, ``y`` (0-based pixel), ``terms_conv`` (Eq. 2.14 terms ``(s, t, ω(s,t), f(x−s,y−t))``), ``terms_corr``
+    (Eq. 2.15-as-printed terms ``(s, t, ω(s,t), f(x+s,y+t))``), ``h_xy_conv`` (Eq. 2.14 value), ``h_xy_corr``
+    (Eq. 2.15-as-printed value) and, for backward compatibility, ``terms`` = ``terms_conv`` and ``h_xy`` =
+    ``h_xy_conv``.
     """
     rng = np.random.default_rng(seed)
     f = rng.integers(0, 10, size=(6, 6)).astype(np.float64)
@@ -203,15 +214,21 @@ def convolution_example(seed: int = 0) -> dict[str, Any]:
     h_corr = imfilter(f, w, "corr")
     h_conv_imfilter = imfilter(f, w, "conv")
     x, y = 2, 3
-    terms = []
+    terms_conv = []  # Eq. (2.14): ω(s,t) · f(x−s, y−t)
+    terms_corr = []  # Eq. (2.15) as printed: ω(s,t) · f(x+s, y+t)  (correlation form)
     for s in (-1, 0, 1):
         for t in (-1, 0, 1):
-            terms.append((s, t, w[s + 1, t + 1], f[x - s, y - t]))  # ω(s,t) · f(x−s, y−t)
-    h_xy = conv_at(f, w, x, y)
-    assert abs(h_xy - h_conv[x, y]) < 1e-12 and np.allclose(h_conv, h_conv_imfilter)
+            terms_conv.append((s, t, w[s + 1, t + 1], f[x - s, y - t]))
+            terms_corr.append((s, t, w[s + 1, t + 1], f[x + s, y + t]))
+    h_xy_conv = conv_at(f, w, x, y)                   # Eq. (2.14)
+    h_xy_corr = conv_at(f, w, x, y, correlate=True)   # Eq. (2.15) as printed
+    assert abs(h_xy_conv - h_conv[x, y]) < 1e-12 and np.allclose(h_conv, h_conv_imfilter)
+    assert abs(h_xy_corr - h_corr[x, y]) < 1e-12
     assert np.allclose(h_corr, conv2(f, w[::-1, ::-1], "same"))
-    return {"f": f, "w": w, "h_conv2": h_conv, "h_imfilter_corr": h_corr, "x": x, "y": y, "terms": terms,
-            "h_xy": h_xy}
+    return {"f": f, "w": w, "h_conv2": h_conv, "h_imfilter_corr": h_corr, "x": x, "y": y,
+            "terms_conv": terms_conv, "terms_corr": terms_corr, "h_xy_conv": h_xy_conv, "h_xy_corr": h_xy_corr,
+            # backward-compatible aliases (Eq. 2.14 reading)
+            "terms": terms_conv, "h_xy": h_xy_conv}
 
 
 # ---------------------------------------------------------------------------------------------------------------

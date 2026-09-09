@@ -285,6 +285,8 @@ def fchcode(b: np.ndarray, conn: int = 8, direction: str = "same") -> ChainCode:
     ValueError
         if consecutive points are more than one pixel apart ("curve is broken or points are out of order").
     """
+    if conn not in (4, 8):
+        raise ValueError("conn must be 4 or 8")
     b = np.asarray(b, dtype=np.int64)
     if b.ndim != 2 or b.shape[1] != 2:
         raise ValueError("b must be of size np-by-2")
@@ -308,8 +310,6 @@ def fchcode(b: np.ndarray, conn: int = 8, direction: str = "same") -> ChainCode:
             warnings.warn("The specified 4-connected code cannot be satisfied.", stacklevel=2)
         else:
             fcc = fcc // 2
-    elif conn != 8:
-        raise ValueError("conn must be 4 or 8")
     diff = first_difference(fcc, conn)
     mm = min_magnitude(fcc)
     diffmm = first_difference(mm, conn)
