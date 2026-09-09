@@ -1,0 +1,27 @@
+numpy>=1.26
+scipy>=1.12
+scikit-image>=0.23
+opencv-python-headless>=4.9
+matplotlib>=3.8
+scikit-learn>=1.4
+imageio>=2.34
+imageio-ffmpeg>=0.5
+pillow>=10.3
+pandas>=2.2
+pyyaml>=6.0
+requests>=2.32
+tqdm>=4.66
+# testing
+pytest>=8.2
+pytest-xdist>=3.6
+# MATLAB/Octave bridge for reference outputs (needs GNU Octave installed on PATH)
+oct2py>=5.7
+# notebooks
+jupyter>=1.0
+ipykernel>=6.29
+nbformat>=5.10
+nbconvert>=7.16
+nbclient>=0.10
+# PDF handling
+pypdf>=4.2
+pymupdf>=1.24

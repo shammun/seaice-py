@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(.venv\\Scripts\\python.exe:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(git:*)",
+      "Bash(octave-cli:*)",
+      "Bash(octave:*)",
+      "Bash(jupyter:*)",
+      "Bash(dir:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(copy:*)",
+      "Bash(cp:*)",
+      "Bash(robocopy:*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Edit(K30735_Sea Ice Image Processing with MATLAB_matlab codes/**)",
+      "Write(K30735_Sea Ice Image Processing with MATLAB_matlab codes/**)",
+      "Edit(*.pdf)",
+      "Write(*.pdf)"
+    ]
+  }
+}

@@ -1,0 +1,3762 @@
+{
+  "ch10": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch10/fisheye_calibration.m",
+      "lines": 104,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imread",
+        "imshow",
+        "medfilt2",
+        "subplot"
+      ],
+      "calls_all": [
+        "B",
+        "BB",
+        "G",
+        "GG",
+        "I",
+        "II",
+        "R",
+        "RR",
+        "atan",
+        "cat",
+        "double",
+        "floor",
+        "imread",
+        "imshow",
+        "max",
+        "medfilt2",
+        "s",
+        "size",
+        "ss",
+        "subplot",
+        "tan",
+        "uint16",
+        "uint32",
+        "uint8",
+        "zeros"
+      ],
+      "data_files": [
+        "test.jpg"
+      ],
+      "comment_head": "% function [flat_img]=orth(I,phi,)\n% % Fisheye image calibration\n% % I: Input fisheye image\n% % phi: Field of view"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch10/orthoretification.m",
+      "lines": 103,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imread",
+        "imshow",
+        "medfilt2",
+        "subplot"
+      ],
+      "calls_all": [
+        "B",
+        "BB",
+        "G",
+        "GG",
+        "I",
+        "II",
+        "R",
+        "RR",
+        "abs",
+        "atan",
+        "cat",
+        "cos",
+        "double",
+        "floor",
+        "imread",
+        "imshow",
+        "medfilt2",
+        "s",
+        "sin",
+        "size",
+        "ss",
+        "subplot",
+        "tan",
+        "uint16",
+        "uint32",
+        "uint8",
+        "zeros"
+      ],
+      "data_files": [
+        "IMG_0729.jpg"
+      ],
+      "comment_head": "% function [orth_img]=orth(I,f,phi,theta)\n% %Orthoritification from oblique image\n% % I: Input oblique image\n% % f: Focal lens\n% % phi: Shooting angle\n% % theta: Field of view"
+    }
+  ],
+  "ch2": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/chain code/bound2im.m",
+      "lines": 68,
+      "defines": [
+        "bound2im"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "round",
+        "sub2ind"
+      ],
+      "calls_all": [
+        "B",
+        "b",
+        "bound2im",
+        "error",
+        "false",
+        "max",
+        "min",
+        "round",
+        "size",
+        "sub2ind"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUND2IM Converts a boundary to an image. \n%   B = BOUND2IM(b) converts b, an np-by-2 or 2-by-np array \n%   representing the integer coordinates of a boundary, into a binary \n%   image with 1s in the locations defined by the coordinates in b \n%   and 0s elsewhere.  \n% \n%   B = BOUND2IM(b, M, N) places the boundary approximately centered \n%   in an M-by-N image. If any part of the boundary is outside the \n%   M-by-N rectangle, an error is issued.   \n% \n%   B = BOUND2IM(b, M, N, X0, Y0) places the boundary in an image of "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/chain code/boundaries.m",
+      "lines": 146,
+      "defines": [
+        "boundaries"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwlabel",
+        "find",
+        "ind2sub",
+        "padarray"
+      ],
+      "calls_all": [
+        "L",
+        "Lp",
+        "SIZE",
+        "boundaries",
+        "bwlabel",
+        "cc",
+        "elseif",
+        "find",
+        "if",
+        "ind2sub",
+        "isempty",
+        "length",
+        "max",
+        "next_direction_lut",
+        "next_search_direction_lut",
+        "offsets",
+        "padarray",
+        "repmat",
+        "rr",
+        "scratch",
+        "size",
+        "strcmp",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUNDARIES Trace object boundaries.\n%B=BOUNDARIES(BW) traces the exterior boundaries of objects in the binary\n%image BW.B is a p_by_1 cell array,where p is the number of objects in the\n%image.Each cell contains a Q_by_2 matrix,each row of which contains the\n%row and column coordinates of a boundary pixel.Q is the number of boundary\n%pixels for the corresponding object.Object boundaries are traced in the\n%clockwise direction.\n%\n%B=BOUNDARIES(BW,CONN) specifies the connectivity to use when tracing \n%boundaries.CONN may be either 8 or 4.The default value for CONN is 8.\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/chain code/chain_diff.m",
+      "lines": 19,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "cellfun",
+        "imshow"
+      ],
+      "calls_all": [
+        "b",
+        "bound2im",
+        "boundaries",
+        "cellfun",
+        "fchcode",
+        "imshow",
+        "logical",
+        "max",
+        "min",
+        "size",
+        "text",
+        "x0y0"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/chain code/fchcode.m",
+      "lines": 240,
+      "defines": [
+        "fchcode",
+        "coderev",
+        "minmag",
+        "codediff"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "A",
+        "C",
+        "D",
+        "DEL",
+        "abs",
+        "any",
+        "b",
+        "circshift",
+        "codediff",
+        "coderev",
+        "cr",
+        "d",
+        "error",
+        "fchcode",
+        "find",
+        "fliplr",
+        "isempty",
+        "isequal",
+        "length",
+        "min",
+        "minmag",
+        "size",
+        "strcmp",
+        "warning",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%FCHCODE Computes the Freeman chain code of a boundary.\n%   C = FCHCODE(B) computes the 8-connected Freeman chain code of a\n%   set of 2-D coordinate pairs contained in B, an np-by-2 array. C\n%   is a structure with the following fields: \n%\n%     c.fcc    = Freeman chain code (1-by-np)\n%     c.diff   = First difference of code c.fcc (1-by-np)\n%     c.mm     = Integer of minimum magnitude from c.fcc (1-by-np)\n%     c.diffmm = First difference of code c.mm (1-by-np)\n%     c.x0y0   = Coordinates where the code starts (1-by-2) \n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/color_image.m",
+      "lines": 34,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imcomplement",
+        "imread",
+        "imshow"
+      ],
+      "calls_all": [
+        "I",
+        "atan",
+        "double",
+        "imcomplement",
+        "imread",
+        "imshow",
+        "sqrt"
+      ],
+      "data_files": [
+        "rgb.jpg"
+      ],
+      "comment_head": "% CMY"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/distance_transform.m",
+      "lines": 15,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwdist",
+        "imshow"
+      ],
+      "calls_all": [
+        "bwdist",
+        "img",
+        "imshow",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% img = im2bw(img, graythresh(img));"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch2/histogram.m",
+      "lines": 76,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "imhist",
+        "imread",
+        "imshow",
+        "plot",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "GP",
+        "I",
+        "colormap",
+        "find",
+        "imhist",
+        "imread",
+        "imshow",
+        "iptsetpref",
+        "legend",
+        "length",
+        "num",
+        "plot",
+        "rgb2gray",
+        "saveas",
+        "size",
+        "xlabel",
+        "xlim",
+        "ylabel",
+        "ylim",
+        "zeros"
+      ],
+      "data_files": [
+        "blue.png",
+        "green.png",
+        "red.png",
+        "rgb.jpg"
+      ],
+      "comment_head": "% clear all\n% \n% hold on, plot(675, 1076, '.k', 'MarkerSize',12); "
+    }
+  ],
+  "ch3": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch3/kmeans.m",
+      "lines": 100,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "imread",
+        "imshow",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "a",
+        "abs",
+        "average_intensity",
+        "cc",
+        "colormap",
+        "copy",
+        "double",
+        "find",
+        "h",
+        "hc",
+        "if",
+        "ima",
+        "imread",
+        "imshow",
+        "ind",
+        "length",
+        "mask",
+        "mask1",
+        "max",
+        "min",
+        "mu",
+        "n",
+        "p",
+        "rgb2gray",
+        "s",
+        "size",
+        "ss",
+        "sum",
+        "while",
+        "zeros"
+      ],
+      "data_files": [
+        "test.jpg"
+      ],
+      "comment_head": "% check image"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch3/local_Otsu.m",
+      "lines": 51,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "subplot"
+      ],
+      "calls_all": [
+        "I",
+        "IC_local",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "num",
+        "num2str",
+        "rgb2gray",
+        "size",
+        "subplot",
+        "sum",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "temp",
+        "thresh",
+        "title"
+      ],
+      "data_files": [
+        "t.jpg"
+      ],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch3/Otsu.m",
+      "lines": 47,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "I",
+        "average_intensity",
+        "coverage",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imquantize",
+        "imread",
+        "imshow",
+        "length",
+        "multithresh",
+        "p",
+        "rgb2gray",
+        "s",
+        "size",
+        "sum"
+      ],
+      "data_files": [
+        "test.jpg"
+      ],
+      "comment_head": "%% Otsu"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch3/separability.m",
+      "lines": 43,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "imhist",
+        "imread",
+        "imshow",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "bw",
+        "find",
+        "imhist",
+        "imread",
+        "imshow",
+        "length",
+        "p",
+        "rgb2gray",
+        "size",
+        "zeros"
+      ],
+      "data_files": [
+        "ch3ice.jpg"
+      ],
+      "comment_head": "%% thresholding"
+    }
+  ],
+  "ch4": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch4/derivative.m",
+      "lines": 20,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "edge",
+        "imread",
+        "imshow",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "double",
+        "edge",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "size"
+      ],
+      "data_files": [
+        "test.jpg"
+      ],
+      "comment_head": "% im = medfilt2(im,[3 3]); %Median filtering the image to remove noise%\n% BW = bwareaopen(BW,20);"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch4/morphology.m",
+      "lines": 51,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imerode",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "strel"
+      ],
+      "calls_all": [
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imerode",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "strel"
+      ],
+      "data_files": [
+        "test.jpg"
+      ],
+      "comment_head": "%% binary morphology"
+    }
+  ],
+  "ch5": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/bound2im.m",
+      "lines": 68,
+      "defines": [
+        "bound2im"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "round",
+        "sub2ind"
+      ],
+      "calls_all": [
+        "B",
+        "b",
+        "bound2im",
+        "error",
+        "false",
+        "max",
+        "min",
+        "round",
+        "size",
+        "sub2ind"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUND2IM Converts a boundary to an image. \n%   B = BOUND2IM(b) converts b, an np-by-2 or 2-by-np array \n%   representing the integer coordinates of a boundary, into a binary \n%   image with 1s in the locations defined by the coordinates in b \n%   and 0s elsewhere.  \n% \n%   B = BOUND2IM(b, M, N) places the boundary approximately centered \n%   in an M-by-N image. If any part of the boundary is outside the \n%   M-by-N rectangle, an error is issued.   \n% \n%   B = BOUND2IM(b, M, N, X0, Y0) places the boundary in an image of "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/boundaries.m",
+      "lines": 146,
+      "defines": [
+        "boundaries"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwlabel",
+        "find",
+        "ind2sub",
+        "padarray"
+      ],
+      "calls_all": [
+        "L",
+        "Lp",
+        "SIZE",
+        "boundaries",
+        "bwlabel",
+        "cc",
+        "elseif",
+        "find",
+        "if",
+        "ind2sub",
+        "isempty",
+        "length",
+        "max",
+        "next_direction_lut",
+        "next_search_direction_lut",
+        "offsets",
+        "padarray",
+        "repmat",
+        "rr",
+        "scratch",
+        "size",
+        "strcmp",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUNDARIES Trace object boundaries.\n%B=BOUNDARIES(BW) traces the exterior boundaries of objects in the binary\n%image BW.B is a p_by_1 cell array,where p is the number of objects in the\n%image.Each cell contains a Q_by_2 matrix,each row of which contains the\n%row and column coordinates of a boundary pixel.Q is the number of boundary\n%pixels for the corresponding object.Object boundaries are traced in the\n%clockwise direction.\n%\n%B=BOUNDARIES(BW,CONN) specifies the connectivity to use when tracing \n%boundaries.CONN may be either 8 or 4.The default value for CONN is 8.\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/chaincode_corner.m",
+      "lines": 82,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "cellfun",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "mod",
+        "plot"
+      ],
+      "calls_all": [
+        "A",
+        "D",
+        "Diff",
+        "R",
+        "Sum",
+        "b",
+        "bound2im",
+        "boundaries",
+        "cellfun",
+        "concave",
+        "fcc",
+        "fchcode",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "length",
+        "max",
+        "min",
+        "mod",
+        "plot",
+        "size"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% concave = freeman_concave(I);\n% 8-connectivity, counterclockwise"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/direct_watershed.m",
+      "lines": 28,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwlabel",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "label2rgb",
+        "rgb2gray",
+        "watershed"
+      ],
+      "calls_all": [
+        "bwlabel",
+        "graythresh",
+        "im",
+        "im2bw",
+        "imread",
+        "imshow",
+        "label2rgb",
+        "rgb2gray",
+        "watershed"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% g = imcomplement(im);\n%% watershed"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/distance_propagation.m",
+      "lines": 19,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwdist",
+        "imshow"
+      ],
+      "calls_all": [
+        "abs",
+        "bwdist",
+        "image",
+        "imcontour",
+        "img",
+        "imshow",
+        "max",
+        "min",
+        "uint8",
+        "zeros"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% img = imread('q.jpg');\n% img = im2bw(img, graythresh(img));"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/distance_watershed.m",
+      "lines": 33,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "watershed"
+      ],
+      "calls_all": [
+        "bw0",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "img",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "watershed"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% imgDist(~img)=-inf; \n% figure, imshow(imgDist, [])\n%% check local minimums"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/fchcode.m",
+      "lines": 240,
+      "defines": [
+        "fchcode",
+        "coderev",
+        "minmag",
+        "codediff"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "A",
+        "C",
+        "D",
+        "DEL",
+        "abs",
+        "any",
+        "b",
+        "circshift",
+        "codediff",
+        "coderev",
+        "cr",
+        "d",
+        "error",
+        "fchcode",
+        "find",
+        "fliplr",
+        "isempty",
+        "isequal",
+        "length",
+        "min",
+        "minmag",
+        "size",
+        "strcmp",
+        "warning",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%FCHCODE Computes the Freeman chain code of a boundary.\n%   C = FCHCODE(B) computes the 8-connected Freeman chain code of a\n%   set of 2-D coordinate pairs contained in B, an np-by-2 array. C\n%   is a structure with the following fields: \n%\n%     c.fcc    = Freeman chain code (1-by-np)\n%     c.diff   = First difference of code c.fcc (1-by-np)\n%     c.mm     = Integer of minimum magnitude from c.fcc (1-by-np)\n%     c.diffmm = First difference of code c.mm (1-by-np)\n%     c.x0y0   = Coordinates where the code starts (1-by-2) \n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/gradients_watershed.m",
+      "lines": 46,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "fspecial",
+        "graythresh",
+        "im2bw",
+        "imclose",
+        "imfilter",
+        "imopen",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "watershed"
+      ],
+      "calls_all": [
+        "double",
+        "f",
+        "f2",
+        "fspecial",
+        "graythresh",
+        "im2bw",
+        "imclose",
+        "imfilter",
+        "imopen",
+        "imread",
+        "imshow",
+        "ones",
+        "rgb2gray",
+        "sqrt",
+        "watershed"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "%% gradients"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/marker_watershed.m",
+      "lines": 57,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imimposemin",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "strel",
+        "watershed"
+      ],
+      "calls_all": [
+        "bw0",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "img",
+        "imimposemin",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "strel",
+        "watershed"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% imgDist(~img)=-inf; \n% figure, imshow(imgDist, [])\n%% check local minimums"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/topological_surface.m",
+      "lines": 37,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwdist",
+        "fspecial",
+        "graythresh",
+        "im2bw",
+        "imcomplement",
+        "imfilter",
+        "imread",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "bwdist",
+        "colormap",
+        "double",
+        "fspecial",
+        "graythresh",
+        "im2bw",
+        "imcomplement",
+        "imfilter",
+        "imread",
+        "rgb2gray",
+        "set",
+        "sqrt",
+        "surf",
+        "xlim"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% figure,imshow(I)\n%%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/watershed_based/bound2im.m",
+      "lines": 68,
+      "defines": [
+        "bound2im"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "round",
+        "sub2ind"
+      ],
+      "calls_all": [
+        "B",
+        "b",
+        "bound2im",
+        "error",
+        "false",
+        "max",
+        "min",
+        "round",
+        "size",
+        "sub2ind"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUND2IM Converts a boundary to an image. \n%   B = BOUND2IM(b) converts b, an np-by-2 or 2-by-np array \n%   representing the integer coordinates of a boundary, into a binary \n%   image with 1s in the locations defined by the coordinates in b \n%   and 0s elsewhere.  \n% \n%   B = BOUND2IM(b, M, N) places the boundary approximately centered \n%   in an M-by-N image. If any part of the boundary is outside the \n%   M-by-N rectangle, an error is issued.   \n% \n%   B = BOUND2IM(b, M, N, X0, Y0) places the boundary in an image of "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/watershed_based/boundaries.m",
+      "lines": 146,
+      "defines": [
+        "boundaries"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwlabel",
+        "find",
+        "ind2sub",
+        "padarray"
+      ],
+      "calls_all": [
+        "L",
+        "Lp",
+        "SIZE",
+        "boundaries",
+        "bwlabel",
+        "cc",
+        "elseif",
+        "find",
+        "if",
+        "ind2sub",
+        "isempty",
+        "length",
+        "max",
+        "next_direction_lut",
+        "next_search_direction_lut",
+        "offsets",
+        "padarray",
+        "repmat",
+        "rr",
+        "scratch",
+        "size",
+        "strcmp",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%BOUNDARIES Trace object boundaries.\n%B=BOUNDARIES(BW) traces the exterior boundaries of objects in the binary\n%image BW.B is a p_by_1 cell array,where p is the number of objects in the\n%image.Each cell contains a Q_by_2 matrix,each row of which contains the\n%row and column coordinates of a boundary pixel.Q is the number of boundary\n%pixels for the corresponding object.Object boundaries are traced in the\n%clockwise direction.\n%\n%B=BOUNDARIES(BW,CONN) specifies the connectivity to use when tracing \n%boundaries.CONN may be either 8 or 4.The default value for CONN is 8.\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/watershed_based/fchcode.m",
+      "lines": 240,
+      "defines": [
+        "fchcode",
+        "coderev",
+        "minmag",
+        "codediff"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "A",
+        "C",
+        "D",
+        "DEL",
+        "abs",
+        "any",
+        "b",
+        "circshift",
+        "codediff",
+        "coderev",
+        "cr",
+        "d",
+        "error",
+        "fchcode",
+        "find",
+        "fliplr",
+        "isempty",
+        "isequal",
+        "length",
+        "min",
+        "minmag",
+        "size",
+        "strcmp",
+        "warning",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%FCHCODE Computes the Freeman chain code of a boundary.\n%   C = FCHCODE(B) computes the 8-connected Freeman chain code of a\n%   set of 2-D coordinate pairs contained in B, an np-by-2 array. C\n%   is a structure with the following fields: \n%\n%     c.fcc    = Freeman chain code (1-by-np)\n%     c.diff   = First difference of code c.fcc (1-by-np)\n%     c.mm     = Integer of minimum magnitude from c.fcc (1-by-np)\n%     c.diffmm = First difference of code c.mm (1-by-np)\n%     c.x0y0   = Coordinates where the code starts (1-by-2) \n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/watershed_based/freeman_concave.m",
+      "lines": 115,
+      "defines": [
+        "freeman_concave"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "cellfun",
+        "find",
+        "graythresh",
+        "im2bw",
+        "mod"
+      ],
+      "calls_all": [
+        "A",
+        "D",
+        "Diff",
+        "R",
+        "Sum",
+        "b",
+        "bound2im",
+        "boundaries",
+        "cellfun",
+        "fcc",
+        "fchcode",
+        "find",
+        "freeman_concave",
+        "graythresh",
+        "im2bw",
+        "length",
+        "max",
+        "min",
+        "mod",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "%% Find concave points of object's boundary\n% 8-connectivity, counterclockwise"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch5/watershed_based/main.m",
+      "lines": 93,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imfilter",
+        "imread",
+        "imreconstruct",
+        "imshow",
+        "plot",
+        "watershed"
+      ],
+      "calls_all": [
+        "abs",
+        "bitand",
+        "bwdist",
+        "bwlabel",
+        "double",
+        "find",
+        "freeman_concave",
+        "g",
+        "g2",
+        "graythresh",
+        "im2bw",
+        "imfilter",
+        "imread",
+        "imreconstruct",
+        "imshow",
+        "intersect",
+        "max",
+        "neighbor",
+        "numel",
+        "plot",
+        "seg",
+        "size",
+        "watershed",
+        "zeros"
+      ],
+      "data_files": [
+        "q.jpg"
+      ],
+      "comment_head": "% h = fspecial('gaussian', 1, 3);  % gaussian, 3, 2.5\n% img = imfilter(img, h, 'replicate');\n% watershed ridge lines"
+    }
+  ],
+  "ch6": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/BoundMirrorEnsure.m",
+      "lines": 41,
+      "defines": [
+        "BoundMirrorEnsure"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorEnsure",
+        "error",
+        "if",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Ensure mirror boundary condition\n%\n% The number of rows and columns of A must be greater than 2\n%\n% for example (X means value that is not of interest)\n% \n% A = [\n%     X  X  X  X  X   X\n%     X  1  2  3  11  X\n%     X  4  5  6  12  X \n%     X  7  8  9  13  X "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/BoundMirrorExpand.m",
+      "lines": 31,
+      "defines": [
+        "BoundMirrorExpand"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorExpand",
+        "size",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Expand the matrix using mirror boundary condition\n% \n% for example \n%\n% A = [\n%     1  2  3  11\n%     4  5  6  12\n%     7  8  9  13\n%     ]\n%\n% B = BoundMirrorExpand(A) will yield"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/BoundMirrorShrink.m",
+      "lines": 27,
+      "defines": [
+        "BoundMirrorShrink"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "BoundMirrorShrink",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Shrink the matrix to remove the padded mirror boundaries\n%\n% for example \n%\n% A = [\n%     5  4  5  6  12  6\n%     2  1  2  3  11  3\n%     5  4  5  6  12  6 \n%     8  7  8  9  13  9 \n%     5  4  5  6  12  6\n%     ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/dist.m",
+      "lines": 66,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "regionprops",
+        "rgb2gray",
+        "round",
+        "strel"
+      ],
+      "calls_all": [
+        "abs",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "cen",
+        "cos",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imread",
+        "imregionalmin",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "regionprops",
+        "rgb2gray",
+        "round",
+        "sin",
+        "sqrt",
+        "strel"
+      ],
+      "data_files": [
+        "C:\\Users\\qinz\\Desktop\\OneDrive\\OneDrive for Business\\CRC\\latex\\matlab\\ch6\\Sea_Ice_Floe_Identification\\sea_ice_test.jpg"
+      ],
+      "comment_head": "% clear all, clc;"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/for_test.m",
+      "lines": 124,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "interp2",
+        "plot",
+        "quiver",
+        "rgb2gray",
+        "strel"
+      ],
+      "calls_all": [
+        "GVF",
+        "abs",
+        "axis",
+        "bw",
+        "ceil",
+        "cos",
+        "double",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "interp2",
+        "length",
+        "pause",
+        "plot",
+        "polybool",
+        "quiver",
+        "rgb2gray",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakedisp",
+        "snakeinterp",
+        "sqrt",
+        "strel",
+        "xx",
+        "yy"
+      ],
+      "data_files": [
+        "test8.jpg"
+      ],
+      "comment_head": "% clear all, clc;\n% parameter setting"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/gradient2.m",
+      "lines": 58,
+      "defines": [
+        "grad"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "a",
+        "ax",
+        "grad",
+        "imag",
+        "length",
+        "ones",
+        "real",
+        "size",
+        "sqrt",
+        "xax",
+        "y",
+        "yax",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%GRADIENT Approximate gradient.\n%\t[PX,PY] = GRADIENT(Z,DX,DY) returns the numerical partial derivatives\n%\tof matrix Z in matrices PX = dZ/dx and PY = dZ/dy.   DX and DY\n%\tmay be scalars containing the sample spacing in the X and Y\n%\tdirections, or they may be vectors containing all the explicit\n%\tlocations.\n%\n%\t[PX,PY] = GRADIENT(Z) assumes DX = DY = 1.\n%\n%\tIf Y is a vector, GRADIENT(Y) and GRADIENT(Y,DX) return the one\n%\tdimensional numerical derivative dY/dX."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/GVF.m",
+      "lines": 44,
+      "defines": [
+        "GVF"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "del2",
+        "gradient"
+      ],
+      "calls_all": [
+        "BoundMirrorEnsure",
+        "BoundMirrorExpand",
+        "BoundMirrorShrink",
+        "GVF",
+        "del2",
+        "f",
+        "gradient",
+        "max",
+        "min",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "%GVF Compute gradient vector flow.\n%   [u,v] = GVF(f, mu, ITER) computes the\n%   GVF of an edge map f.  mu is the GVF regularization coefficient\n%   and ITER is the number of iterations that will be computed.  \n%   Chenyang Xu and Jerry L. Prince 6/17/97\n%   Copyright (c) 1996-99 by Chenyang Xu and Jerry L. Prince\n%   Image Analysis and Communications Lab, Johns Hopkins University\n%   modified on 9/9/99 by Chenyang Xu\n%   MATLAB do not implement the boundary condition for gradient and del2 "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/snakedeform.m",
+      "lines": 51,
+      "defines": [
+        "snakedeform"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "interp2"
+      ],
+      "calls_all": [
+        "a",
+        "alpha",
+        "b",
+        "beta",
+        "d",
+        "diag",
+        "e",
+        "interp2",
+        "inv",
+        "length",
+        "ones",
+        "snakedeform"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDEFORM  Deform snake in the given external force field\n%     [x,y] = snakedeform(x,y,alpha,beta,gamma,kappa,fx,fy,ITER)\n%\n%     alpha:   elasticity parameter\n%     beta:    rigidity parameter\n%     gamma:   viscosity parameter\n%     kappa:   external force weight\n%     fx,fy:   external force field\n%      Chenyang Xu and Jerry L. Prince, 4/1/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/snakedisp.m",
+      "lines": 21,
+      "defines": [
+        "snakedisp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "plot"
+      ],
+      "calls_all": [
+        "disp",
+        "plot",
+        "snakedisp",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDISP  Initialize the snake \n%      snakedisp(x,y,line)\n%       \n%      style is same as the string for plot\n%      Chenyang Xu and Jerry L. Prince, 5/15/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince\n%      Image Analysis and Communications Lab, Johns Hopkins University"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/snakeindex.m",
+      "lines": 9,
+      "defines": [
+        "snakeindex"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "length",
+        "snakeindex",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEINDEX  Create index for adpative interpolating the snake \n%     y = snakeindex(IDX)\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/for test/snakeinterp.m",
+      "lines": 63,
+      "defines": [
+        "snakeinterp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "abs",
+        "find",
+        "interp1",
+        "length",
+        "max",
+        "snakeindex",
+        "snakeinterp",
+        "while",
+        "x",
+        "xi",
+        "y",
+        "yi"
+      ],
+      "data_files": [],
+      "comment_head": "%SNAKEINTERP  Interpolate the snake adaptively\n%   [xi,yi] = snakeinterp(x,y,dmax,dmin)\n%\n%   dmax: the maximum distance between two snake points\n%   dmin: the maximum distance between two snake points\n%   d(i,i+1)>dmax, then a new point is added between i and i+1\n%   d(i,i+1)<dmin, then either i or i+1 is removed \n%  \n%   NOTE: the spacing of original curve must be close to the \n%         range defined by dmax and dmin. For arbitrary spacing,\n%         try snakeinterp1."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/BoundMirrorEnsure.m",
+      "lines": 41,
+      "defines": [
+        "BoundMirrorEnsure"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorEnsure",
+        "error",
+        "if",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Ensure mirror boundary condition\n%\n% The number of rows and columns of A must be greater than 2\n%\n% for example (X means value that is not of interest)\n% \n% A = [\n%     X  X  X  X  X   X\n%     X  1  2  3  11  X\n%     X  4  5  6  12  X \n%     X  7  8  9  13  X "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/BoundMirrorExpand.m",
+      "lines": 31,
+      "defines": [
+        "BoundMirrorExpand"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorExpand",
+        "size",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Expand the matrix using mirror boundary condition\n% \n% for example \n%\n% A = [\n%     1  2  3  11\n%     4  5  6  12\n%     7  8  9  13\n%     ]\n%\n% B = BoundMirrorExpand(A) will yield"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/BoundMirrorShrink.m",
+      "lines": 27,
+      "defines": [
+        "BoundMirrorShrink"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "BoundMirrorShrink",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Shrink the matrix to remove the padded mirror boundaries\n%\n% for example \n%\n% A = [\n%     5  4  5  6  12  6\n%     2  1  2  3  11  3\n%     5  4  5  6  12  6 \n%     8  7  8  9  13  9 \n%     5  4  5  6  12  6\n%     ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/color_hist.m",
+      "lines": 46,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "fix",
+        "round"
+      ],
+      "calls_all": [
+        "bar",
+        "cat",
+        "color",
+        "colormap",
+        "exp",
+        "fix",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "jet",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "round",
+        "set",
+        "sortrows",
+        "ysh",
+        "z"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/color_hist_comparison.m",
+      "lines": 55,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "fix",
+        "round"
+      ],
+      "calls_all": [
+        "bar",
+        "cat",
+        "color",
+        "colormap",
+        "exp",
+        "fix",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "jet",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "round",
+        "set",
+        "sortrows",
+        "ysh",
+        "z_d"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/gaussianBlur.m",
+      "lines": 15,
+      "defines": [
+        "gaussianBlur"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "gaussianBlur",
+        "gaussianMask",
+        "sum",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% GAUSSIANBLUR blur the image with a gaussian kernel\n%     GI = gaussianBlur(I,s) \n%     I is the image, s is the standard deviation of the gaussian\n%     kernel, and GI is the gaussian blurred image.\n%    Chenyang Xu and Jerry L. Prince 6/17/97\n%    Copyright (c) 1996-97 by Chenyang Xu and Jerry L. Prince\n                     % equal to 1"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/gaussianMask.m",
+      "lines": 11,
+      "defines": [
+        "gaussianMask"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "M",
+        "ceil",
+        "exp",
+        "gaussianMask"
+      ],
+      "data_files": [],
+      "comment_head": "% k: the scaling factor\n% s: standard variance"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/gradient2.m",
+      "lines": 58,
+      "defines": [
+        "grad"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "a",
+        "ax",
+        "grad",
+        "imag",
+        "length",
+        "ones",
+        "real",
+        "size",
+        "sqrt",
+        "xax",
+        "y",
+        "yax",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%GRADIENT Approximate gradient.\n%\t[PX,PY] = GRADIENT(Z,DX,DY) returns the numerical partial derivatives\n%\tof matrix Z in matrices PX = dZ/dx and PY = dZ/dy.   DX and DY\n%\tmay be scalars containing the sample spacing in the X and Y\n%\tdirections, or they may be vectors containing all the explicit\n%\tlocations.\n%\n%\t[PX,PY] = GRADIENT(Z) assumes DX = DY = 1.\n%\n%\tIf Y is a vector, GRADIENT(Y) and GRADIENT(Y,DX) return the one\n%\tdimensional numerical derivative dY/dX."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/GVF.m",
+      "lines": 44,
+      "defines": [
+        "GVF"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "del2",
+        "gradient"
+      ],
+      "calls_all": [
+        "BoundMirrorEnsure",
+        "BoundMirrorExpand",
+        "BoundMirrorShrink",
+        "GVF",
+        "del2",
+        "f",
+        "gradient",
+        "max",
+        "min",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "%GVF Compute gradient vector flow.\n%   [u,v] = GVF(f, mu, ITER) computes the\n%   GVF of an edge map f.  mu is the GVF regularization coefficient\n%   and ITER is the number of iterations that will be computed.  \n%   Chenyang Xu and Jerry L. Prince 6/17/97\n%   Copyright (c) 1996-99 by Chenyang Xu and Jerry L. Prince\n%   Image Analysis and Communications Lab, Johns Hopkins University\n%   modified on 9/9/99 by Chenyang Xu\n%   MATLAB do not implement the boundary condition for gradient and del2 "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/GVF_distance.m",
+      "lines": 166,
+      "defines": [
+        "GVF_distance"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imregionalmin",
+        "regionprops",
+        "rgb2gray",
+        "round"
+      ],
+      "calls_all": [
+        "GVF",
+        "GVF_distance",
+        "a",
+        "abs",
+        "bw1",
+        "bw2",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "ceil",
+        "cen",
+        "cos",
+        "double",
+        "find",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imregionalmin",
+        "k",
+        "l",
+        "length",
+        "polybool",
+        "rc",
+        "regionprops",
+        "rgb2gray",
+        "round",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakeinterp",
+        "sqrt",
+        "unique",
+        "w",
+        "xx",
+        "yy",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Snake GVF with automatical initial contour based on local minima derived \n% from distance transform\n% \n% Input data:\n% I:               input color image\n% sigma = 0:       gaussianBlur\n% GradientOn = 1:  1 : Gradient on  0 : Gradient off\n% \n% GVFOn = 1:       1 : GVF  0 : SVF\n% Num:             number of GVF iterations"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/homofil.m",
+      "lines": 32,
+      "defines": [
+        "homofil"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "H",
+        "abs",
+        "exp",
+        "fft2",
+        "homofil",
+        "ifft2",
+        "log2",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%Butterworth high pass filter"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/ice_shape_enhancement.m",
+      "lines": 252,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwlabel",
+        "find",
+        "fix",
+        "imclose",
+        "imfill",
+        "imopen",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "regionprops",
+        "round",
+        "strel"
+      ],
+      "calls_all": [
+        "b",
+        "bar",
+        "bk0",
+        "brash_cen",
+        "bwlabel",
+        "cat",
+        "color",
+        "colormap",
+        "double",
+        "exp",
+        "fill",
+        "find",
+        "fix",
+        "floe_cen",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "ice_shape_enhancement",
+        "imclose",
+        "imfill",
+        "imopen",
+        "imshow",
+        "ind",
+        "index_brash",
+        "index_floe",
+        "index_residue",
+        "index_slush",
+        "jet",
+        "l",
+        "label2rgb",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "ones",
+        "out",
+        "plot",
+        "regionprops",
+        "round",
+        "set",
+        "size",
+        "sort",
+        "sortrows",
+        "strel",
+        "struct",
+        "sum",
+        "ysh",
+        "z",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% sea ice shape enhancement\n%\n% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n% \n% Input data:\n% bk:              binary ice image by kmeans method"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/minboundrect.m",
+      "lines": 204,
+      "defines": [
+        "minboundrect"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "mod"
+      ],
+      "calls_all": [
+        "Rmat",
+        "atan2",
+        "convhull",
+        "cos",
+        "diff",
+        "edgeangles",
+        "if",
+        "ischar",
+        "isempty",
+        "length",
+        "lower",
+        "max",
+        "metric",
+        "min",
+        "minboundrect",
+        "mod",
+        "prod",
+        "rect",
+        "repmat",
+        "sin",
+        "sqrt",
+        "strmatch",
+        "sum",
+        "unique",
+        "x",
+        "xymax",
+        "xymin",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% minboundrect: Compute the minimal bounding rectangle of points in the plane\n% usage: [rectx,recty,area,perimeter] = minboundrect(x,y,metric)\n%\n% arguments: (input)\n%  x,y - vectors of points, describing points in the plane as\n%        (x,y) pairs. x and y must be the same lengths.\n%\n%  metric - (OPTIONAL) - single letter character flag which\n%        denotes the use of minimal area or perimeter as the\n%        metric to be minimized. metric may be either 'a' or 'p',\n%        capitalization is ignored. Any other contraction of 'area'"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/polygeom.m",
+      "lines": 109,
+      "defines": [
+        "polygeom"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "atan2",
+        "eig",
+        "eig_val",
+        "eig_vec",
+        "error",
+        "isequal",
+        "mean",
+        "ones",
+        "polygeom",
+        "shiftdim",
+        "size",
+        "sqrt",
+        "sum",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "%POLYGEOM Geometry of a planar polygon\n%\n%   POLYGEOM( X, Y ) returns area, X centroid,\n%   Y centroid and perimeter for the planar polygon\n%   specified by vertices in vectors X and Y.\n%\n%   [ GEOM, INER, CPMO ] = POLYGEOM( X, Y ) returns\n%   area, centroid, perimeter and area moments of \n%   inertia for the polygon.\n%   GEOM = [ area   X_cen  Y_cen  perimeter ]\n%   INER = [ Ixx    Iyy    Ixy    Iuu    Ivv    Iuv ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/sea_ice_demo.m",
+      "lines": 60,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imread",
+        "strel"
+      ],
+      "calls_all": [
+        "GVF",
+        "ice_shape_enhancement",
+        "imread",
+        "sea_ice_model",
+        "seaice_kmean_GVF_forenhancement",
+        "strel"
+      ],
+      "data_files": [
+        "sea_ice_test.jpg"
+      ],
+      "comment_head": "% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n%% parameter setting\n% parameters for image"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/sea_ice_model.m",
+      "lines": 170,
+      "defines": [
+        "sea_ice_model"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "imshow",
+        "plot",
+        "roipoly"
+      ],
+      "calls_all": [
+        "brash",
+        "brash_ice",
+        "bw_brash",
+        "bw_floe",
+        "c",
+        "c0",
+        "cat",
+        "cc",
+        "convhull",
+        "cos",
+        "double",
+        "floe",
+        "geom",
+        "ice_floe",
+        "imshow",
+        "length",
+        "line",
+        "pixels",
+        "plot",
+        "polygeom",
+        "polyxpoly",
+        "roipoly",
+        "sea_ice_model",
+        "sin",
+        "size",
+        "sqrt",
+        "struct",
+        "v",
+        "v0",
+        "ver",
+        "x",
+        "y",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Sea-ice model. Polygon-fit for each sea-ice floe,\n%                and disk-fit for each brash ice.\n% \n% Input data:\n% ice_floe: structure data of identified sea-ice floes, \n%           includes: Vertices, Center, Area, Perimeter\n% brash_ice: structure data of identified brash ice, \n%           includes: Vertices, Center, Area, Perimeter\n% img:   segmented binary image\n% \n% Output data:"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/SeaIce_Image_Structure.m",
+      "lines": 115,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "fix"
+      ],
+      "calls_all": [
+        "brash",
+        "brash_ice",
+        "cat",
+        "find",
+        "fix",
+        "floe",
+        "hist",
+        "ice_floe",
+        "int_max",
+        "int_min",
+        "length",
+        "max",
+        "min",
+        "n",
+        "num",
+        "size",
+        "struct",
+        "v1"
+      ],
+      "data_files": [],
+      "comment_head": "%% Floe"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/seaice_kmean_GVF_forenhancement.m",
+      "lines": 300,
+      "defines": [
+        "seaice_kmean_GVF_forenhancement"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imregionalmin",
+        "kmeans",
+        "regionprops",
+        "rgb2gray",
+        "round"
+      ],
+      "calls_all": [
+        "GVF",
+        "I",
+        "a",
+        "abs",
+        "bw0",
+        "bw1",
+        "bw2",
+        "bw_kmeans",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "ceil",
+        "cen",
+        "cos",
+        "double",
+        "find",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imregionalmin",
+        "ind0",
+        "k",
+        "kmeans",
+        "l",
+        "length",
+        "ones",
+        "polybool",
+        "pp",
+        "rc",
+        "regionprops",
+        "reshape",
+        "rgb2gray",
+        "round",
+        "s0",
+        "seaice_kmean_GVF_forenhancement",
+        "si",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakeinterp",
+        "sort",
+        "sqrt",
+        "sum",
+        "unique",
+        "w",
+        "xx",
+        "yy",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Snake GVF with automatical initial contour based on local minima derived \n% from distance transform\n%\n% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n% \n% Input data:"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/snakedeform.m",
+      "lines": 51,
+      "defines": [
+        "snakedeform"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "interp2"
+      ],
+      "calls_all": [
+        "a",
+        "alpha",
+        "b",
+        "beta",
+        "d",
+        "diag",
+        "e",
+        "interp2",
+        "inv",
+        "length",
+        "ones",
+        "snakedeform"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDEFORM  Deform snake in the given external force field\n%     [x,y] = snakedeform(x,y,alpha,beta,gamma,kappa,fx,fy,ITER)\n%\n%     alpha:   elasticity parameter\n%     beta:    rigidity parameter\n%     gamma:   viscosity parameter\n%     kappa:   external force weight\n%     fx,fy:   external force field\n%      Chenyang Xu and Jerry L. Prince, 4/1/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/snakedisp.m",
+      "lines": 21,
+      "defines": [
+        "snakedisp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "plot"
+      ],
+      "calls_all": [
+        "disp",
+        "plot",
+        "snakedisp",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDISP  Initialize the snake \n%      snakedisp(x,y,line)\n%       \n%      style is same as the string for plot\n%      Chenyang Xu and Jerry L. Prince, 5/15/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince\n%      Image Analysis and Communications Lab, Johns Hopkins University"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/snakeindex.m",
+      "lines": 9,
+      "defines": [
+        "snakeindex"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "length",
+        "snakeindex",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEINDEX  Create index for adpative interpolating the snake \n%     y = snakeindex(IDX)\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/snakeinterp.m",
+      "lines": 63,
+      "defines": [
+        "snakeinterp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "abs",
+        "find",
+        "interp1",
+        "length",
+        "max",
+        "snakeindex",
+        "snakeinterp",
+        "while",
+        "x",
+        "xi",
+        "y",
+        "yi"
+      ],
+      "data_files": [],
+      "comment_head": "%SNAKEINTERP  Interpolate the snake adaptively\n%   [xi,yi] = snakeinterp(x,y,dmax,dmin)\n%\n%   dmax: the maximum distance between two snake points\n%   dmin: the maximum distance between two snake points\n%   d(i,i+1)>dmax, then a new point is added between i and i+1\n%   d(i,i+1)<dmin, then either i or i+1 is removed \n%  \n%   NOTE: the spacing of original curve must be close to the \n%         range defined by dmax and dmin. For arbitrary spacing,\n%         try snakeinterp1."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch6/Sea_Ice_Floe_Identification/xconv2.m",
+      "lines": 26,
+      "defines": [
+        "xconv2"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "YT",
+        "fft2",
+        "floor",
+        "ifft2",
+        "real",
+        "size",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% function Y = xconv2(I,G)\n%   I: the original image\n%   G: the mask to be convoluted\n%   Y: the convoluted result (by taking fft2, multiply and ifft2)\n% \n%   a similar version of the MATLAB conv2(I,G,'same'),  7/10/95\n%   implemented by fft instead of doing direct convolution as in conv2\n%   the result is almost same , differences are under 1e-10.\n%   However, the speed of xconv2 is much faster than conv2 when\n%   gaussian kernel has large standard variation."
+    }
+  ],
+  "ch7": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/cleaning & labeling & filling/filling.m",
+      "lines": 55,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "calls_all": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/cleaning & labeling & filling/filling_reconstruct.m",
+      "lines": 71,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "calls_all": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/cleaning & labeling & filling/labeling.m",
+      "lines": 53,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "calls_all": [
+        "imdilate",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/cleaning & labeling & filling/morphology_cleaning.m",
+      "lines": 42,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imclose",
+        "imdilate",
+        "imerode",
+        "imopen",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "calls_all": [
+        "imclose",
+        "imdilate",
+        "imerode",
+        "imopen",
+        "imshow",
+        "strel",
+        "subplot"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/BoundMirrorEnsure.m",
+      "lines": 41,
+      "defines": [
+        "BoundMirrorEnsure"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorEnsure",
+        "error",
+        "if",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Ensure mirror boundary condition\n%\n% The number of rows and columns of A must be greater than 2\n%\n% for example (X means value that is not of interest)\n% \n% A = [\n%     X  X  X  X  X   X\n%     X  1  2  3  11  X\n%     X  4  5  6  12  X \n%     X  7  8  9  13  X "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/BoundMirrorExpand.m",
+      "lines": 31,
+      "defines": [
+        "BoundMirrorExpand"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorExpand",
+        "size",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Expand the matrix using mirror boundary condition\n% \n% for example \n%\n% A = [\n%     1  2  3  11\n%     4  5  6  12\n%     7  8  9  13\n%     ]\n%\n% B = BoundMirrorExpand(A) will yield"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/BoundMirrorShrink.m",
+      "lines": 27,
+      "defines": [
+        "BoundMirrorShrink"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "BoundMirrorShrink",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Shrink the matrix to remove the padded mirror boundaries\n%\n% for example \n%\n% A = [\n%     5  4  5  6  12  6\n%     2  1  2  3  11  3\n%     5  4  5  6  12  6 \n%     8  7  8  9  13  9 \n%     5  4  5  6  12  6\n%     ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/color_hist.m",
+      "lines": 46,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "fix",
+        "round"
+      ],
+      "calls_all": [
+        "bar",
+        "cat",
+        "color",
+        "colormap",
+        "exp",
+        "fix",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "jet",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "round",
+        "set",
+        "sortrows",
+        "ysh",
+        "z"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/color_hist_comparison.m",
+      "lines": 55,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "fix",
+        "round"
+      ],
+      "calls_all": [
+        "bar",
+        "cat",
+        "color",
+        "colormap",
+        "exp",
+        "fix",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "jet",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "round",
+        "set",
+        "sortrows",
+        "ysh",
+        "z_d"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/gaussianBlur.m",
+      "lines": 15,
+      "defines": [
+        "gaussianBlur"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "gaussianBlur",
+        "gaussianMask",
+        "sum",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% GAUSSIANBLUR blur the image with a gaussian kernel\n%     GI = gaussianBlur(I,s) \n%     I is the image, s is the standard deviation of the gaussian\n%     kernel, and GI is the gaussian blurred image.\n%    Chenyang Xu and Jerry L. Prince 6/17/97\n%    Copyright (c) 1996-97 by Chenyang Xu and Jerry L. Prince\n                     % equal to 1"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/gaussianMask.m",
+      "lines": 11,
+      "defines": [
+        "gaussianMask"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "M",
+        "ceil",
+        "exp",
+        "gaussianMask"
+      ],
+      "data_files": [],
+      "comment_head": "% k: the scaling factor\n% s: standard variance"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/gradient2.m",
+      "lines": 58,
+      "defines": [
+        "grad"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "a",
+        "ax",
+        "grad",
+        "imag",
+        "length",
+        "ones",
+        "real",
+        "size",
+        "sqrt",
+        "xax",
+        "y",
+        "yax",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%GRADIENT Approximate gradient.\n%\t[PX,PY] = GRADIENT(Z,DX,DY) returns the numerical partial derivatives\n%\tof matrix Z in matrices PX = dZ/dx and PY = dZ/dy.   DX and DY\n%\tmay be scalars containing the sample spacing in the X and Y\n%\tdirections, or they may be vectors containing all the explicit\n%\tlocations.\n%\n%\t[PX,PY] = GRADIENT(Z) assumes DX = DY = 1.\n%\n%\tIf Y is a vector, GRADIENT(Y) and GRADIENT(Y,DX) return the one\n%\tdimensional numerical derivative dY/dX."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/GVF.m",
+      "lines": 44,
+      "defines": [
+        "GVF"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "del2",
+        "gradient"
+      ],
+      "calls_all": [
+        "BoundMirrorEnsure",
+        "BoundMirrorExpand",
+        "BoundMirrorShrink",
+        "GVF",
+        "del2",
+        "f",
+        "gradient",
+        "max",
+        "min",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "%GVF Compute gradient vector flow.\n%   [u,v] = GVF(f, mu, ITER) computes the\n%   GVF of an edge map f.  mu is the GVF regularization coefficient\n%   and ITER is the number of iterations that will be computed.  \n%   Chenyang Xu and Jerry L. Prince 6/17/97\n%   Copyright (c) 1996-99 by Chenyang Xu and Jerry L. Prince\n%   Image Analysis and Communications Lab, Johns Hopkins University\n%   modified on 9/9/99 by Chenyang Xu\n%   MATLAB do not implement the boundary condition for gradient and del2 "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/GVF_distance.m",
+      "lines": 166,
+      "defines": [
+        "GVF_distance"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imregionalmin",
+        "regionprops",
+        "rgb2gray",
+        "round"
+      ],
+      "calls_all": [
+        "GVF",
+        "GVF_distance",
+        "a",
+        "abs",
+        "bw1",
+        "bw2",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "ceil",
+        "cen",
+        "cos",
+        "double",
+        "find",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imregionalmin",
+        "k",
+        "l",
+        "length",
+        "polybool",
+        "rc",
+        "regionprops",
+        "rgb2gray",
+        "round",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakeinterp",
+        "sqrt",
+        "unique",
+        "w",
+        "xx",
+        "yy",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Snake GVF with automatical initial contour based on local minima derived \n% from distance transform\n% \n% Input data:\n% I:               input color image\n% sigma = 0:       gaussianBlur\n% GradientOn = 1:  1 : Gradient on  0 : Gradient off\n% \n% GVFOn = 1:       1 : GVF  0 : SVF\n% Num:             number of GVF iterations"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/homofil.m",
+      "lines": 32,
+      "defines": [
+        "homofil"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "H",
+        "abs",
+        "exp",
+        "fft2",
+        "homofil",
+        "ifft2",
+        "log2",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%Butterworth high pass filter"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/ice_shape_enhancement.m",
+      "lines": 252,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwlabel",
+        "find",
+        "fix",
+        "imclose",
+        "imfill",
+        "imopen",
+        "imshow",
+        "label2rgb",
+        "plot",
+        "regionprops",
+        "round",
+        "strel"
+      ],
+      "calls_all": [
+        "b",
+        "bar",
+        "bk0",
+        "brash_cen",
+        "bwlabel",
+        "cat",
+        "color",
+        "colormap",
+        "double",
+        "exp",
+        "fill",
+        "find",
+        "fix",
+        "floe_cen",
+        "fvcd",
+        "fvd",
+        "get",
+        "hist",
+        "ice_shape_enhancement",
+        "imclose",
+        "imfill",
+        "imopen",
+        "imshow",
+        "ind",
+        "index_brash",
+        "index_floe",
+        "index_residue",
+        "index_slush",
+        "jet",
+        "l",
+        "label2rgb",
+        "length",
+        "linspace",
+        "log",
+        "max",
+        "min",
+        "n",
+        "ones",
+        "out",
+        "plot",
+        "regionprops",
+        "round",
+        "set",
+        "size",
+        "sort",
+        "sortrows",
+        "strel",
+        "struct",
+        "sum",
+        "ysh",
+        "z",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% sea ice shape enhancement\n%\n% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n% \n% Input data:\n% bk:              binary ice image by kmeans method"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/minboundrect.m",
+      "lines": 204,
+      "defines": [
+        "minboundrect"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "mod"
+      ],
+      "calls_all": [
+        "Rmat",
+        "atan2",
+        "convhull",
+        "cos",
+        "diff",
+        "edgeangles",
+        "if",
+        "ischar",
+        "isempty",
+        "length",
+        "lower",
+        "max",
+        "metric",
+        "min",
+        "minboundrect",
+        "mod",
+        "prod",
+        "rect",
+        "repmat",
+        "sin",
+        "sqrt",
+        "strmatch",
+        "sum",
+        "unique",
+        "x",
+        "xymax",
+        "xymin",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% minboundrect: Compute the minimal bounding rectangle of points in the plane\n% usage: [rectx,recty,area,perimeter] = minboundrect(x,y,metric)\n%\n% arguments: (input)\n%  x,y - vectors of points, describing points in the plane as\n%        (x,y) pairs. x and y must be the same lengths.\n%\n%  metric - (OPTIONAL) - single letter character flag which\n%        denotes the use of minimal area or perimeter as the\n%        metric to be minimized. metric may be either 'a' or 'p',\n%        capitalization is ignored. Any other contraction of 'area'"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/polygeom.m",
+      "lines": 109,
+      "defines": [
+        "polygeom"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "atan2",
+        "eig",
+        "eig_val",
+        "eig_vec",
+        "error",
+        "isequal",
+        "mean",
+        "ones",
+        "polygeom",
+        "shiftdim",
+        "size",
+        "sqrt",
+        "sum",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "%POLYGEOM Geometry of a planar polygon\n%\n%   POLYGEOM( X, Y ) returns area, X centroid,\n%   Y centroid and perimeter for the planar polygon\n%   specified by vertices in vectors X and Y.\n%\n%   [ GEOM, INER, CPMO ] = POLYGEOM( X, Y ) returns\n%   area, centroid, perimeter and area moments of \n%   inertia for the polygon.\n%   GEOM = [ area   X_cen  Y_cen  perimeter ]\n%   INER = [ Ixx    Iyy    Ixy    Iuu    Ivv    Iuv ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/sea_ice_demo.m",
+      "lines": 60,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "imread",
+        "strel"
+      ],
+      "calls_all": [
+        "GVF",
+        "ice_shape_enhancement",
+        "imread",
+        "sea_ice_model",
+        "seaice_kmean_GVF_forenhancement",
+        "strel"
+      ],
+      "data_files": [
+        "sea_ice_test.jpg"
+      ],
+      "comment_head": "% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n%% parameter setting\n% parameters for image"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/sea_ice_model.m",
+      "lines": 170,
+      "defines": [
+        "sea_ice_model"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "imshow",
+        "plot",
+        "roipoly"
+      ],
+      "calls_all": [
+        "brash",
+        "brash_ice",
+        "bw_brash",
+        "bw_floe",
+        "c",
+        "c0",
+        "cat",
+        "cc",
+        "convhull",
+        "cos",
+        "double",
+        "floe",
+        "geom",
+        "ice_floe",
+        "imshow",
+        "length",
+        "line",
+        "pixels",
+        "plot",
+        "polygeom",
+        "polyxpoly",
+        "roipoly",
+        "sea_ice_model",
+        "sin",
+        "size",
+        "sqrt",
+        "struct",
+        "v",
+        "v0",
+        "ver",
+        "x",
+        "y",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Sea-ice model. Polygon-fit for each sea-ice floe,\n%                and disk-fit for each brash ice.\n% \n% Input data:\n% ice_floe: structure data of identified sea-ice floes, \n%           includes: Vertices, Center, Area, Perimeter\n% brash_ice: structure data of identified brash ice, \n%           includes: Vertices, Center, Area, Perimeter\n% img:   segmented binary image\n% \n% Output data:"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/SeaIce_Image_Structure.m",
+      "lines": 115,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "find",
+        "fix"
+      ],
+      "calls_all": [
+        "brash",
+        "brash_ice",
+        "cat",
+        "find",
+        "fix",
+        "floe",
+        "hist",
+        "ice_floe",
+        "int_max",
+        "int_min",
+        "length",
+        "max",
+        "min",
+        "n",
+        "num",
+        "size",
+        "struct",
+        "v1"
+      ],
+      "data_files": [],
+      "comment_head": "%% Floe"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/seaice_kmean_GVF_forenhancement.m",
+      "lines": 300,
+      "defines": [
+        "seaice_kmean_GVF_forenhancement"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imregionalmin",
+        "kmeans",
+        "regionprops",
+        "rgb2gray",
+        "round"
+      ],
+      "calls_all": [
+        "GVF",
+        "I",
+        "a",
+        "abs",
+        "bw0",
+        "bw1",
+        "bw2",
+        "bw_kmeans",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "ceil",
+        "cen",
+        "cos",
+        "double",
+        "find",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imregionalmin",
+        "ind0",
+        "k",
+        "kmeans",
+        "l",
+        "length",
+        "ones",
+        "polybool",
+        "pp",
+        "rc",
+        "regionprops",
+        "reshape",
+        "rgb2gray",
+        "round",
+        "s0",
+        "seaice_kmean_GVF_forenhancement",
+        "si",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakeinterp",
+        "sort",
+        "sqrt",
+        "sum",
+        "unique",
+        "w",
+        "xx",
+        "yy",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Snake GVF with automatical initial contour based on local minima derived \n% from distance transform\n%\n% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q. and R. Skjetne, \ufffdImage processing for identification of \n% sea-ice floes and the floe size distributions.\ufffd IEEE Transactions\n% on Geoscience and Remote Sensing, Vol. 53, No. 5, pp. 2913-2924, 2015.\n% \n% Input data:"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/snakedeform.m",
+      "lines": 51,
+      "defines": [
+        "snakedeform"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "interp2"
+      ],
+      "calls_all": [
+        "a",
+        "alpha",
+        "b",
+        "beta",
+        "d",
+        "diag",
+        "e",
+        "interp2",
+        "inv",
+        "length",
+        "ones",
+        "snakedeform"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDEFORM  Deform snake in the given external force field\n%     [x,y] = snakedeform(x,y,alpha,beta,gamma,kappa,fx,fy,ITER)\n%\n%     alpha:   elasticity parameter\n%     beta:    rigidity parameter\n%     gamma:   viscosity parameter\n%     kappa:   external force weight\n%     fx,fy:   external force field\n%      Chenyang Xu and Jerry L. Prince, 4/1/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/snakedisp.m",
+      "lines": 21,
+      "defines": [
+        "snakedisp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "plot"
+      ],
+      "calls_all": [
+        "disp",
+        "plot",
+        "snakedisp",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDISP  Initialize the snake \n%      snakedisp(x,y,line)\n%       \n%      style is same as the string for plot\n%      Chenyang Xu and Jerry L. Prince, 5/15/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince\n%      Image Analysis and Communications Lab, Johns Hopkins University"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/snakeindex.m",
+      "lines": 9,
+      "defines": [
+        "snakeindex"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "length",
+        "snakeindex",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEINDEX  Create index for adpative interpolating the snake \n%     y = snakeindex(IDX)\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/snakeinterp.m",
+      "lines": 63,
+      "defines": [
+        "snakeinterp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "abs",
+        "find",
+        "interp1",
+        "length",
+        "max",
+        "snakeindex",
+        "snakeinterp",
+        "while",
+        "x",
+        "xi",
+        "y",
+        "yi"
+      ],
+      "data_files": [],
+      "comment_head": "%SNAKEINTERP  Interpolate the snake adaptively\n%   [xi,yi] = snakeinterp(x,y,dmax,dmin)\n%\n%   dmax: the maximum distance between two snake points\n%   dmin: the maximum distance between two snake points\n%   d(i,i+1)>dmax, then a new point is added between i and i+1\n%   d(i,i+1)<dmin, then either i or i+1 is removed \n%  \n%   NOTE: the spacing of original curve must be close to the \n%         range defined by dmax and dmin. For arbitrary spacing,\n%         try snakeinterp1."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch7/Sea_Ice_Floe_Identification/xconv2.m",
+      "lines": 26,
+      "defines": [
+        "xconv2"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "YT",
+        "fft2",
+        "floor",
+        "ifft2",
+        "real",
+        "size",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% function Y = xconv2(I,G)\n%   I: the original image\n%   G: the mask to be convoluted\n%   Y: the convoluted result (by taking fft2, multiply and ifft2)\n% \n%   a similar version of the MATLAB conv2(I,G,'same'),  7/10/95\n%   implemented by fft instead of doing direct convolution as in conv2\n%   the result is almost same , differences are under 1e-10.\n%   However, the speed of xconv2 is much faster than conv2 when\n%   gaussian kernel has large standard variation."
+    }
+  ],
+  "ch8": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch8/MCD/fitting_iceFloes_distribution.m",
+      "lines": 63,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "figure",
+        "find"
+      ],
+      "calls_all": [
+        "MCD",
+        "N_L",
+        "Raw_MCD",
+        "cd",
+        "epsilong",
+        "figure",
+        "find",
+        "legend",
+        "loglog",
+        "lsqcurvefit",
+        "max",
+        "min",
+        "set",
+        "size",
+        "sort",
+        "xlabel",
+        "ylabel"
+      ],
+      "data_files": [],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch8/MCD/main_WL_new.m",
+      "lines": 67,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [],
+      "calls_all": [
+        "Floe",
+        "Poly_Area",
+        "Poly_MCD",
+        "Poly_centers",
+        "Raw_Area",
+        "Raw_MCD",
+        "Raw_centers",
+        "Raw_counts",
+        "bar",
+        "caxis",
+        "cd",
+        "color_M",
+        "colormap",
+        "count_error",
+        "h",
+        "jet",
+        "load",
+        "plot_color_bar_and_floe",
+        "set",
+        "size",
+        "sqrt",
+        "xlabel",
+        "ylabel"
+      ],
+      "data_files": [
+        "IceImage_290915_2_jpg.0000179.mat"
+      ],
+      "comment_head": "%---build the color vector between Red and Blue---\n%---r : [1 0 0]; ---big\n%---b : [0 0 1]; ---small"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch8/MCD/plot_color_bar_and_floe.m",
+      "lines": 116,
+      "defines": [
+        "plot_color_bar_and_floe"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "imshow",
+        "plot"
+      ],
+      "calls_all": [
+        "MCD",
+        "Pixels",
+        "Poly_struc",
+        "Vertices",
+        "abs",
+        "bar",
+        "caxis",
+        "centre",
+        "color_M",
+        "colormap",
+        "counts",
+        "error",
+        "fill",
+        "h",
+        "hist",
+        "histogram_centers",
+        "imshow",
+        "isfield",
+        "jet",
+        "min",
+        "plot",
+        "plot_color_bar_and_floe",
+        "rgbImage",
+        "set",
+        "size",
+        "x",
+        "xlabel",
+        "y",
+        "ylabel"
+      ],
+      "data_files": [],
+      "comment_head": "%---we need to create a biased stations to highlight the color\n%difference---\n% color_limit_N = 30; % the first 30 bars are colored"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch8/MCD/PowerLaw_fitting_method_and_plotting.m",
+      "lines": 34,
+      "defines": [
+        "PowerLaw_fitting_method_and_plotting"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "figure"
+      ],
+      "calls_all": [
+        "N",
+        "PowerLaw_fitting_method_and_plotting",
+        "epsilong",
+        "figure",
+        "legend",
+        "loglog",
+        "lsqcurvefit",
+        "max",
+        "min",
+        "set",
+        "xlabel",
+        "ylabel"
+      ],
+      "data_files": [],
+      "comment_head": "%---power law method are used to fit the x, y data\n%-- Power Law distribution---  --- Outputs: eta\n%---THEN, a loglog plot is made on figure(fig_num)\n%---start fitting the data---\n%---Power law distribution---\n% x=MCD_norm;\n% y=N_L;"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch8/MCD/three_fitting_method_and_plotting.m",
+      "lines": 65,
+      "defines": [
+        "three_fitting_method_and_plotting"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "figure"
+      ],
+      "calls_all": [
+        "epsilong",
+        "exp",
+        "figure",
+        "legend",
+        "loglog",
+        "lsqcurvefit",
+        "max",
+        "mean",
+        "min",
+        "optimset",
+        "set",
+        "three_fitting_method_and_plotting",
+        "x",
+        "xlabel",
+        "ylabel"
+      ],
+      "data_files": [],
+      "comment_head": "%---three different methods are used to fit the x, y data\n%--1. Truncated Power Law method;--- Outputs: eta1\n%--2. Weibull distribution---    --- Outputs: eta2\n%--3. Power Law distribution---  --- Outputs: eta3\n%---THEN, a loglog plot is made on figure(fig_num)\n%---start fitting the data---\n%---Truncated Power law distribution---\n% x=MCD_norm;"
+    }
+  ],
+  "ch9": [
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/block_threshold.m",
+      "lines": 47,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "rgb2gray",
+        "subplot"
+      ],
+      "calls_all": [
+        "I",
+        "IC",
+        "graythresh",
+        "im2bw",
+        "imread",
+        "imshow",
+        "num2str",
+        "rgb2gray",
+        "size",
+        "subplot",
+        "t1",
+        "t2",
+        "t3",
+        "t4",
+        "temp",
+        "thresh",
+        "title"
+      ],
+      "data_files": [
+        "04100_analyse.jpg"
+      ],
+      "comment_head": ""
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/BoundMirrorEnsure.m",
+      "lines": 41,
+      "defines": [
+        "BoundMirrorEnsure"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorEnsure",
+        "error",
+        "if",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Ensure mirror boundary condition\n%\n% The number of rows and columns of A must be greater than 2\n%\n% for example (X means value that is not of interest)\n% \n% A = [\n%     X  X  X  X  X   X\n%     X  1  2  3  11  X\n%     X  4  5  6  12  X \n%     X  7  8  9  13  X "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/BoundMirrorExpand.m",
+      "lines": 31,
+      "defines": [
+        "BoundMirrorExpand"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "B",
+        "BoundMirrorExpand",
+        "size",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Expand the matrix using mirror boundary condition\n% \n% for example \n%\n% A = [\n%     1  2  3  11\n%     4  5  6  12\n%     7  8  9  13\n%     ]\n%\n% B = BoundMirrorExpand(A) will yield"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/BoundMirrorShrink.m",
+      "lines": 27,
+      "defines": [
+        "BoundMirrorShrink"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "A",
+        "BoundMirrorShrink",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "% Shrink the matrix to remove the padded mirror boundaries\n%\n% for example \n%\n% A = [\n%     5  4  5  6  12  6\n%     2  1  2  3  11  3\n%     5  4  5  6  12  6 \n%     8  7  8  9  13  9 \n%     5  4  5  6  12  6\n%     ]"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/gaussianBlur.m",
+      "lines": 15,
+      "defines": [
+        "gaussianBlur"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "gaussianBlur",
+        "gaussianMask",
+        "sum",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% GAUSSIANBLUR blur the image with a gaussian kernel\n%     GI = gaussianBlur(I,s) \n%     I is the image, s is the standard deviation of the gaussian\n%     kernel, and GI is the gaussian blurred image.\n%    Chenyang Xu and Jerry L. Prince 6/17/97\n%    Copyright (c) 1996-97 by Chenyang Xu and Jerry L. Prince\n                     % equal to 1"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/gaussianMask.m",
+      "lines": 11,
+      "defines": [
+        "gaussianMask"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "M",
+        "ceil",
+        "exp",
+        "gaussianMask"
+      ],
+      "data_files": [],
+      "comment_head": "% k: the scaling factor\n% s: standard variance"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/gradient2.m",
+      "lines": 58,
+      "defines": [
+        "grad"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "a",
+        "ax",
+        "grad",
+        "imag",
+        "length",
+        "ones",
+        "real",
+        "size",
+        "sqrt",
+        "xax",
+        "y",
+        "yax",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "%GRADIENT Approximate gradient.\n%\t[PX,PY] = GRADIENT(Z,DX,DY) returns the numerical partial derivatives\n%\tof matrix Z in matrices PX = dZ/dx and PY = dZ/dy.   DX and DY\n%\tmay be scalars containing the sample spacing in the X and Y\n%\tdirections, or they may be vectors containing all the explicit\n%\tlocations.\n%\n%\t[PX,PY] = GRADIENT(Z) assumes DX = DY = 1.\n%\n%\tIf Y is a vector, GRADIENT(Y) and GRADIENT(Y,DX) return the one\n%\tdimensional numerical derivative dY/dX."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/GVF.m",
+      "lines": 44,
+      "defines": [
+        "GVF"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "del2",
+        "gradient"
+      ],
+      "calls_all": [
+        "BoundMirrorEnsure",
+        "BoundMirrorExpand",
+        "BoundMirrorShrink",
+        "GVF",
+        "del2",
+        "f",
+        "gradient",
+        "max",
+        "min",
+        "size"
+      ],
+      "data_files": [],
+      "comment_head": "%GVF Compute gradient vector flow.\n%   [u,v] = GVF(f, mu, ITER) computes the\n%   GVF of an edge map f.  mu is the GVF regularization coefficient\n%   and ITER is the number of iterations that will be computed.  \n%   Chenyang Xu and Jerry L. Prince 6/17/97\n%   Copyright (c) 1996-99 by Chenyang Xu and Jerry L. Prince\n%   Image Analysis and Communications Lab, Johns Hopkins University\n%   modified on 9/9/99 by Chenyang Xu\n%   MATLAB do not implement the boundary condition for gradient and del2 "
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/GVF_distance.m",
+      "lines": 166,
+      "defines": [
+        "GVF_distance"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "find",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imregionalmin",
+        "regionprops",
+        "rgb2gray",
+        "round"
+      ],
+      "calls_all": [
+        "GVF",
+        "GVF_distance",
+        "a",
+        "abs",
+        "bw1",
+        "bw2",
+        "bwareaopen",
+        "bwdist",
+        "bwlabel",
+        "cat",
+        "ceil",
+        "cen",
+        "cos",
+        "double",
+        "find",
+        "floor",
+        "gaussianBlur",
+        "gradient2",
+        "graythresh",
+        "im2bw",
+        "imdilate",
+        "imgDist",
+        "img_Dist",
+        "imregionalmin",
+        "k",
+        "l",
+        "length",
+        "polybool",
+        "rc",
+        "regionprops",
+        "rgb2gray",
+        "round",
+        "sin",
+        "size",
+        "snakedeform",
+        "snakeinterp",
+        "sqrt",
+        "unique",
+        "w",
+        "xx",
+        "yy",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Snake GVF with automatical initial contour based on local minima derived \n% from distance transform\n% \n% Input data:\n% I:               input color image\n% sigma = 0:       gaussianBlur\n% GradientOn = 1:  1 : Gradient on  0 : Gradient off\n% \n% GVFOn = 1:       1 : GVF  0 : SVF\n% Num:             number of GVF iterations"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/minboundrect.m",
+      "lines": 204,
+      "defines": [
+        "minboundrect"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "mod"
+      ],
+      "calls_all": [
+        "Rmat",
+        "atan2",
+        "convhull",
+        "cos",
+        "diff",
+        "edgeangles",
+        "if",
+        "ischar",
+        "isempty",
+        "length",
+        "lower",
+        "max",
+        "metric",
+        "min",
+        "minboundrect",
+        "mod",
+        "prod",
+        "rect",
+        "repmat",
+        "sin",
+        "sqrt",
+        "strmatch",
+        "sum",
+        "unique",
+        "x",
+        "xymax",
+        "xymin",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% minboundrect: Compute the minimal bounding rectangle of points in the plane\n% usage: [rectx,recty,area,perimeter] = minboundrect(x,y,metric)\n%\n% arguments: (input)\n%  x,y - vectors of points, describing points in the plane as\n%        (x,y) pairs. x and y must be the same lengths.\n%\n%  metric - (OPTIONAL) - single letter character flag which\n%        denotes the use of minimal area or perimeter as the\n%        metric to be minimized. metric may be either 'a' or 'p',\n%        capitalization is ignored. Any other contraction of 'area'"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/model_ice_demo.m",
+      "lines": 70,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwareaopen",
+        "imfill",
+        "imread",
+        "imshow",
+        "strel"
+      ],
+      "calls_all": [
+        "GVF",
+        "GVF_distance",
+        "bwareaopen",
+        "imfill",
+        "imread",
+        "imshow",
+        "strel"
+      ],
+      "data_files": [
+        "model_ice.jpg"
+      ],
+      "comment_head": "% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q., R. Skjetne, I. Metrikin, and S. L\ufffdset, \ufffdImage Processing for\n% Ice Floe Analyses in Broken-ice Model Testing.\ufffd Cold Regions Science and\n% Technology, Vol. 111, pp. 27-38, 2015.\n%% parameter setting\n% parameters for image"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/model_ice_model.m",
+      "lines": 72,
+      "defines": [
+        "model_ice_model"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "imshow",
+        "plot",
+        "roipoly"
+      ],
+      "calls_all": [
+        "S",
+        "bw",
+        "c",
+        "cat",
+        "double",
+        "imshow",
+        "length",
+        "line",
+        "model_ice_model",
+        "plot",
+        "polybool",
+        "roipoly",
+        "size",
+        "sqrt",
+        "ss",
+        "struct",
+        "v",
+        "vj",
+        "zeros"
+      ],
+      "data_files": [],
+      "comment_head": "% Model-ice model\n% \n% Input data:\n% S:    structure data of rectangularized floes, includes: Vertices, \n%       Center, Area, Perimeter\n% img:   segmented binary image\n% k1:   minimum length/width radio of model ice floe\n% k2:   maximum length/width radio of model ice floe\n% \n% Output data:\n% s_model:   structure data, includes: Vertices, Center, Area, Perimeter,"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/movie_floe.m",
+      "lines": 31,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "bwareaopen",
+        "bwlabel",
+        "im2bw",
+        "read",
+        "regionprops"
+      ],
+      "calls_all": [
+        "bwareaopen",
+        "bwlabel",
+        "floe",
+        "get",
+        "im",
+        "im2bw",
+        "max",
+        "mmreader",
+        "mov",
+        "out",
+        "read",
+        "regionprops",
+        "vidFrames"
+      ],
+      "data_files": [
+        "05100.avi"
+      ],
+      "comment_head": "%%\n% Construct a multimedia reader object \n% Read in all video frames.\n% Get the number of frames."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/rect.m",
+      "lines": 62,
+      "defines": [
+        "rect"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "bwlabel",
+        "find"
+      ],
+      "calls_all": [
+        "bwlabel",
+        "find",
+        "if",
+        "ischar",
+        "isempty",
+        "lower",
+        "metric",
+        "minboundrect",
+        "rect",
+        "rectx",
+        "recty",
+        "strmatch",
+        "struct",
+        "sum"
+      ],
+      "data_files": [],
+      "comment_head": "% Find minimal bounding rectangle for each object\n% \n% This code is only available for academic non-commercial use. \n% If you are using this code, please give a reference to:\n% Zhang, Q., R. Skjetne, I. Metrikin, and S. L\ufffdset, \ufffdImage Processing for\n% Ice Floe Analyses in Broken-ice Model Testing.\ufffd Cold Regions Science and\n% Technology, Vol. 111, pp. 27-38, 2015.\n%\n% Input data:\n% img:   input binary image\n% metric:(OPTIONAL)single letter character flag which"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/snakedeform.m",
+      "lines": 51,
+      "defines": [
+        "snakedeform"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "interp2"
+      ],
+      "calls_all": [
+        "a",
+        "alpha",
+        "b",
+        "beta",
+        "d",
+        "diag",
+        "e",
+        "interp2",
+        "inv",
+        "length",
+        "ones",
+        "snakedeform"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDEFORM  Deform snake in the given external force field\n%     [x,y] = snakedeform(x,y,alpha,beta,gamma,kappa,fx,fy,ITER)\n%\n%     alpha:   elasticity parameter\n%     beta:    rigidity parameter\n%     gamma:   viscosity parameter\n%     kappa:   external force weight\n%     fx,fy:   external force field\n%      Chenyang Xu and Jerry L. Prince, 4/1/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/snakedisp.m",
+      "lines": 21,
+      "defines": [
+        "snakedisp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "plot"
+      ],
+      "calls_all": [
+        "disp",
+        "plot",
+        "snakedisp",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEDISP  Initialize the snake \n%      snakedisp(x,y,line)\n%       \n%      style is same as the string for plot\n%      Chenyang Xu and Jerry L. Prince, 5/15/95, 6/17/97\n%      Copyright (c) 1995-97 by Chenyang Xu and Jerry L. Prince\n%      Image Analysis and Communications Lab, Johns Hopkins University"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/snakeindex.m",
+      "lines": 9,
+      "defines": [
+        "snakeindex"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "length",
+        "snakeindex",
+        "x",
+        "y"
+      ],
+      "data_files": [],
+      "comment_head": "% SNAKEINDEX  Create index for adpative interpolating the snake \n%     y = snakeindex(IDX)\n%"
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/snakeinterp.m",
+      "lines": 63,
+      "defines": [
+        "snakeinterp"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [
+        "find"
+      ],
+      "calls_all": [
+        "abs",
+        "find",
+        "interp1",
+        "length",
+        "max",
+        "snakeindex",
+        "snakeinterp",
+        "while",
+        "x",
+        "xi",
+        "y",
+        "yi"
+      ],
+      "data_files": [],
+      "comment_head": "%SNAKEINTERP  Interpolate the snake adaptively\n%   [xi,yi] = snakeinterp(x,y,dmax,dmin)\n%\n%   dmax: the maximum distance between two snake points\n%   dmin: the maximum distance between two snake points\n%   d(i,i+1)>dmax, then a new point is added between i and i+1\n%   d(i,i+1)<dmin, then either i or i+1 is removed \n%  \n%   NOTE: the spacing of original curve must be close to the \n%         range defined by dmax and dmin. For arbitrary spacing,\n%         try snakeinterp1."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/Model_Ice_Floe_Identification/xconv2.m",
+      "lines": 26,
+      "defines": [
+        "xconv2"
+      ],
+      "is_function_file": true,
+      "calls_watchlist": [],
+      "calls_all": [
+        "YT",
+        "fft2",
+        "floor",
+        "ifft2",
+        "real",
+        "size",
+        "xconv2"
+      ],
+      "data_files": [],
+      "comment_head": "% function Y = xconv2(I,G)\n%   I: the original image\n%   G: the mask to be convoluted\n%   Y: the convoluted result (by taking fft2, multiply and ifft2)\n% \n%   a similar version of the MATLAB conv2(I,G,'same'),  7/10/95\n%   implemented by fft instead of doing direct convolution as in conv2\n%   the result is almost same , differences are under 1e-10.\n%   However, the speed of xconv2 is much faster than conv2 when\n%   gaussian kernel has large standard variation."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/movie_kmeans.m",
+      "lines": 85,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "VideoReader",
+        "find",
+        "im2double",
+        "imshow",
+        "kmeans",
+        "plot",
+        "read",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "I1",
+        "I2",
+        "IC",
+        "M",
+        "VideoReader",
+        "a",
+        "cdata",
+        "double",
+        "find",
+        "get",
+        "im",
+        "im2double",
+        "ima",
+        "imshow",
+        "kmeans",
+        "length",
+        "map1",
+        "mask",
+        "mask1",
+        "max",
+        "mov",
+        "movie2avi",
+        "out",
+        "plot",
+        "read",
+        "reshape",
+        "rgb2gray",
+        "s",
+        "si",
+        "size",
+        "sum",
+        "uint8",
+        "vidFrames",
+        "xlabel",
+        "ylabel",
+        "zeros"
+      ],
+      "data_files": [
+        "05400_kmeans.avi",
+        "dypic_05100_cam1_top.avi"
+      ],
+      "comment_head": "%%\n% Construct a multimedia reader object \n% readerobj = mmreader('dypic_05100_cam1_top.avi');\n% Read in all video frames.\n% Get the number of frames."
+    },
+    {
+      "file": "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab/ch9/movie_otsu.m",
+      "lines": 83,
+      "defines": [],
+      "is_function_file": false,
+      "calls_watchlist": [
+        "VideoReader",
+        "graythresh",
+        "im2bw",
+        "imshow",
+        "plot",
+        "read",
+        "rgb2gray"
+      ],
+      "calls_all": [
+        "I",
+        "I1",
+        "I2",
+        "IC",
+        "M",
+        "VideoReader",
+        "bw",
+        "cdata",
+        "get",
+        "graythresh",
+        "im2bw",
+        "imshow",
+        "mov",
+        "movie2avi",
+        "n",
+        "plot",
+        "read",
+        "rgb2gray",
+        "size",
+        "t",
+        "vidFrames",
+        "xlabel",
+        "ylabel"
+      ],
+      "data_files": [
+        "Otsu.avi",
+        "dypic_05100_cam1_top.avi",
+        "otsu.avi"
+      ],
+      "comment_head": "%%\n% Construct a multimedia reader object \n% readerobj = mmreader('dypic_05100_cam1_top.avi');\n% Read in all video frames.\n% Get the number of frames."
+    }
+  ]
+}

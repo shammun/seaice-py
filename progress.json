@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "current_chapter": null,
+  "chapters": {
+    "ch02": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch03": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch04": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch05": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch06": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch07": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch08": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch09": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": ""},
+    "ch10": {"analyze": "todo", "port": "todo", "verify": "todo", "review": "todo", "notebook": "todo", "knowledge": "todo", "notes": "Appendix A code (confirm)"}
+  },
+  "status_values": ["todo", "in_progress", "pass", "fail", "blocked", "done"],
+  "environment": {"matlab": "25.1.0.2833191 (R2025a) Prerelease Update 2", "matlab_exe": "C:/Program Files/MATLAB/R2025a/bin/matlab.exe", "octave": null, "python": "3.11.5", "checked_on": "2026-09-09"}
+}

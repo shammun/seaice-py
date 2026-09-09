@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+outputs/
+data/online/
+data/synthetic/
+data/manual/
+reference/**/*.mat
+notebooks/executed_*.ipynb
+chapters/*.pdf
+*.log
+# the book and the original code archive stay out of git (large / copyrighted); the matlab folder is read-only reference
+*.pdf
+*.zip
+K30735_Sea Ice Image Processing with MATLAB_matlab codes/

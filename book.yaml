@@ -1,0 +1,105 @@
+# Chapter map for "Sea Ice Image Processing with MATLAB" (Zhang & Skjetne, CRC Press, 2018).
+# printed_page = page number printed in the book. pdf_page is filled in by tools/split_pdf.py
+# (it detects the front-matter offset automatically; check the values it prints).
+# Repo root = C:\Users\sislam27\Work\Climate Dynamics PHD\Sea Ice Image Processing with MATLAB  (Claude Code runs here)
+book:
+  title: "Sea Ice Image Processing with MATLAB"
+  authors: ["Qin Zhang", "Roger Skjetne"]
+  # "auto" = the single *.pdf in the repo root ("Sea ice image processing with MATLAB® by Skjetne, Roger Zhang, Qin (z-lib.org).pdf").
+  # tools/split_pdf.py splits it into chapters/chNN.pdf + chapters/chNN.txt. You may also put the explicit file name here.
+  pdf: auto
+  # Folder holding ch2 … ch10 (relative to repo root). tools also auto-detect a folder named "matlab" containing "ch2" if this is wrong.
+  matlab_root: "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab"
+  pdf_offset: 31     # confirmed 2026-09-09: pdf 0-based index = printed_page - 1 + 31 (auto-detect gave -3, wrong)
+
+# Work order. `matlab_dir` is the folder under book.matlab_root. `status` is mirrored in progress.json.
+chapters:
+  - id: ch01
+    number: 1
+    title: "Introduction"
+    printed_page_start: 1
+    printed_page_end: 10
+    matlab_dir: null          # no code; read only for context
+    do_port: false
+  - id: ch02
+    number: 2
+    title: "Digital Image Processing Preliminaries"
+    printed_page_start: 11
+    printed_page_end: 36
+    matlab_dir: ch2
+    do_port: true
+    sections: ["2.1 Image types", "2.2 Image histogram", "2.3 Basic relationships between pixels",
+               "2.4 Distance transform", "2.5 Convolution", "2.6 Set and logical operations",
+               "2.7 Chain code", "2.8 Image interpolation"]
+  - id: ch03
+    number: 3
+    title: "Ice Pixel Detection"
+    printed_page_start: 37
+    printed_page_end: 58
+    matlab_dir: ch3
+    do_port: true
+    sections: ["3.1 Thresholding", "3.2 Clustering", "3.3 Experiment results and discussion"]
+  - id: ch04
+    number: 4
+    title: "Ice Edge Detection"
+    printed_page_start: 59
+    printed_page_end: 82
+    matlab_dir: ch4
+    do_port: true
+    sections: ["4.1 Derivative edge detection", "4.2 Morphological edge detection", "4.3 Experimental results and discussion"]
+  - id: ch05
+    number: 5
+    title: "Watershed-Based Ice Floe Segmentation"
+    printed_page_start: 83
+    printed_page_end: 108
+    matlab_dir: ch5
+    do_port: true
+    sections: ["5.1 Watershed segmentation", "5.2 Combination of the watershed and neighboring-region merging", "5.3 Experimental results and discussion"]
+  - id: ch06
+    number: 6
+    title: "GVF Snake-Based Ice Floe Boundary Identification and Ice Image Segmentation"
+    printed_page_start: 109
+    printed_page_end: 144
+    matlab_dir: ch6
+    do_port: true
+    sections: ["6.1 Traditional parametric snake model", "6.2 Gradient vector flow (GVF) snake",
+               "6.3 Contours initialization", "6.4 Ice image segmentation", "6.5 Discussion"]
+  - id: ch07
+    number: 7
+    title: "Sea Ice Type Identification"
+    printed_page_start: 145
+    printed_page_end: 174
+    matlab_dir: ch7
+    do_port: true
+    sections: ["7.1 Ice shape enhancement", "7.2 General sea ice image processing", "7.3 Case studies and discussion"]
+  - id: ch08
+    number: 8
+    title: "Sea Ice Image Processing Applications"
+    printed_page_start: 175
+    printed_page_end: 194
+    matlab_dir: ch8
+    do_port: true
+    sections: ["8.1 Shipborne camera system / ice concentration", "8.2 Numerical characterization of a real ice field", "8.3 Sea ice floe size statistic"]
+  - id: ch09
+    number: 9
+    title: "Model Sea Ice Image Processing Applications"
+    printed_page_start: 195
+    printed_page_end: 212
+    matlab_dir: ch9
+    do_port: true
+    sections: ["9.1 Experimental setup and model sea ice image data", "9.2 Ice concentration", "9.3 Ice floe identification"]
+  - id: ch10
+    number: 10
+    title: "Appendix A — Geometric Calibration (orthorectification, lens distortion)"
+    printed_page_start: 213
+    printed_page_end: 220
+    matlab_dir: ch10           # CONFIRMED 2026-09-09: fisheye_calibration.m (A.2 lens distortion) + orthoretification.m (A.1) = Appendix A
+    do_port: true
+    sections: ["A.1 Orthorectification", "A.2 Radial lens distortion calibration"]
+  - id: ch11
+    number: 11
+    title: "Appendix B — Ice Image Data Structure"
+    printed_page_start: 221
+    printed_page_end: 226
+    matlab_dir: null
+    do_port: false            # read when porting ch8/ch9 (data structure of ice images)

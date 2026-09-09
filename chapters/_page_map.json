@@ -1,0 +1,105 @@
+{
+  "offset": 31,
+  "n_pages": 273,
+  "chapters": {
+    "ch01": {
+      "title": "Introduction",
+      "pdf_index_start": 31,
+      "pdf_index_end": 40,
+      "printed": [
+        1,
+        10
+      ]
+    },
+    "ch02": {
+      "title": "Digital Image Processing Preliminaries",
+      "pdf_index_start": 41,
+      "pdf_index_end": 66,
+      "printed": [
+        11,
+        36
+      ]
+    },
+    "ch03": {
+      "title": "Ice Pixel Detection",
+      "pdf_index_start": 67,
+      "pdf_index_end": 88,
+      "printed": [
+        37,
+        58
+      ]
+    },
+    "ch04": {
+      "title": "Ice Edge Detection",
+      "pdf_index_start": 89,
+      "pdf_index_end": 112,
+      "printed": [
+        59,
+        82
+      ]
+    },
+    "ch05": {
+      "title": "Watershed-Based Ice Floe Segmentation",
+      "pdf_index_start": 113,
+      "pdf_index_end": 138,
+      "printed": [
+        83,
+        108
+      ]
+    },
+    "ch06": {
+      "title": "GVF Snake-Based Ice Floe Boundary Identification and Ice Image Segmentation",
+      "pdf_index_start": 139,
+      "pdf_index_end": 174,
+      "printed": [
+        109,
+        144
+      ]
+    },
+    "ch07": {
+      "title": "Sea Ice Type Identification",
+      "pdf_index_start": 175,
+      "pdf_index_end": 204,
+      "printed": [
+        145,
+        174
+      ]
+    },
+    "ch08": {
+      "title": "Sea Ice Image Processing Applications",
+      "pdf_index_start": 205,
+      "pdf_index_end": 224,
+      "printed": [
+        175,
+        194
+      ]
+    },
+    "ch09": {
+      "title": "Model Sea Ice Image Processing Applications",
+      "pdf_index_start": 225,
+      "pdf_index_end": 242,
+      "printed": [
+        195,
+        212
+      ]
+    },
+    "ch10": {
+      "title": "Appendix A \u2014 Geometric Calibration (orthorectification, lens distortion)",
+      "pdf_index_start": 243,
+      "pdf_index_end": 250,
+      "printed": [
+        213,
+        220
+      ]
+    },
+    "ch11": {
+      "title": "Appendix B \u2014 Ice Image Data Structure",
+      "pdf_index_start": 251,
+      "pdf_index_end": 256,
+      "printed": [
+        221,
+        226
+      ]
+    }
+  }
+}
