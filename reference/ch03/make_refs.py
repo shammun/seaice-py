@@ -118,6 +118,14 @@ def _prepare() -> None:
         "Rnd": synth.bimodal_image(seed=0),
         "I16": np.array([[-32768, -32767, -1, 0, 1, 32767, 1000, -1000]], dtype=np.int16),
         "Hc": np.array([[0, 0, 5, 0, 0, 0, 5, 0, 0, 0]], dtype=np.float64),
+        # review follow-ups (reports/ch03_review.md Must-fix 1, Should-fix 2-3): degenerate multithresh inputs,
+        # the four-spike N = 3 case and a half-integer im2bw / block-Otsu level
+        "Z44": np.zeros((4, 4), dtype=np.uint8),                                  # multithresh(., 2) -> [0 1]
+        "B2": np.array([[0, 255, 0, 255]], dtype=np.uint8),                       # multithresh(., 3) -> [0 1 255]
+        "Tri": np.tile(np.array([100, 101, 102], dtype=np.uint8), (3, 5)),        # multithresh(., 3) -> [100 101 102]
+        "HL": np.tile(np.array([100, 255], dtype=np.uint8), (2, 6)),              # multithresh(., 3) -> [1 100 255]
+        "Spk": np.tile(np.array([0, 1, 128, 255], dtype=np.uint8), 100),          # 4 spikes, N = 3 needs t1 = 0
+        "Half": np.array([[104, 105, 106]], dtype=np.uint8),                      # graythresh tie -> 104.5 / 255
     })
 
 
@@ -239,12 +247,18 @@ bw_i16 = im2bw(I16, lv_I16); bw_rgb = im2bw(cat(3, Rnd, Rnd, Rnd), lv_Rnd);
 [mt1_Four, mm1_Four] = multithresh(Four, 1); [mt2_Four, mm2_Four] = multithresh(Four, 2); [mt3_Four, mm3_Four] = multithresh(Four, 3);
 [mt2_Two, mm2_Two] = multithresh(Two, 2); [mt1_Cst, mm1_Cst] = multithresh(Cst, 1); [mt2_Cst, mm2_Cst] = multithresh(Cst, 2);
 [mt1_Tie, mm1_Tie] = multithresh(Tie, 1); [mt2_I16, mm2_I16] = multithresh(I16, 2);
+[mt2_Z44, mm2_Z44] = multithresh(Z44, 2); [mt3_B2, mm3_B2] = multithresh(B2, 3);
+[mt3_Tri, mm3_Tri] = multithresh(Tri, 3); [mt3_HL, mm3_HL] = multithresh(HL, 3); [mt3_Spk, mm3_Spk] = multithresh(Spk, 3);
+[lv_Half, em_Half] = graythresh(Half); gt_half = Half > 104.5; bw_half = im2bw(Half, 104.5/255);
+n_half = nnz(Half > lv_Half * 255);
 q_Ramp = imquantize(Ramp, mt2_Ramp); qv_Ramp = imquantize(Ramp, mt2_Ramp, [10 20 30]); q_Dbl = imquantize(Dbl, mt2_Dbl);
 q_Rnd3 = imquantize(Rnd, mt3_Rnd); q_Rnd1 = imquantize(Rnd, mt1_Rnd);
 u16to8 = im2uint8(uint16(0:65535)); i16to8 = im2uint8(I16);
 gt_Rnd_pdf = imhist(im2uint8(Rnd(:)), 256);
 """
     vars_ = ["Cst", "Two", "Tie", "U16", "Dbl", "Ramp", "Four", "Rnd", "I16", "Hc",
+             "Z44", "B2", "Tri", "HL", "Spk", "Half", "mt2_Z44", "mm2_Z44", "mt3_B2", "mm3_B2", "mt3_Tri", "mm3_Tri",
+             "mt3_HL", "mm3_HL", "mt3_Spk", "mm3_Spk", "lv_Half", "em_Half", "gt_half", "bw_half", "n_half",
              "lv_Cst", "em_Cst", "lv_Two", "em_Two", "lv_Tie", "em_Tie", "lv_U16", "em_U16", "lv_Dbl", "em_Dbl",
              "lv_Ramp", "em_Ramp", "lv_Four", "em_Four", "lv_Rnd", "em_Rnd", "lv_I16", "em_I16", "lv_Dbl255", "em_Dbl255",
              "ot_t", "ot_em", "ot10_t", "ot10_em", "nbw", "bw_tie", "bw_u16", "bw_dbl", "bw_default", "bw_i16", "bw_rgb",

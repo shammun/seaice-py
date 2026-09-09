@@ -16,8 +16,8 @@
       "analyze": "pass",
       "port": "pass",
       "verify": "pass",
-      "review": "in_progress",
-      "notebook": "todo",
+      "review": "pass",
+      "notebook": "in_progress",
       "knowledge": "todo",
       "publish": "todo",
       "notes": ""

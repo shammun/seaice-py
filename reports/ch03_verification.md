@@ -29,7 +29,9 @@ Python (`inputs.mat`) and hand-codes Eqs. (3.3)–(3.22) in MATLAB.
 ## pytest
 `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` (full suite, ch02 + ch03, after the porter's fixes and
 the two test updates) → **`194 passed, 1 xfailed, 0 failed in 480 s`** (`outputs/ch03/verify/pytest_full_reverify.txt`,
-exit 0): all 86 ch02 tests pass; `tests/test_ch03.py` contributes **108 passed, 1 xfailed** (109 tests). First-pass
+exit 0): all 86 ch02 tests pass; `tests/test_ch03.py` contributes **108 passed, 1 xfailed** (109 tests). After the
+review fixes (table below): `tests/test_ch03.py` → **112 passed, 1 xfailed, 0 failed in 409.9 s** (113 tests, four
+new degenerate cases) and `tests/test_ch02.py` → **86 passed in 206.5 s**, both exit 0. First-pass
 result for the record (`pytest_full.txt`): `3 failed, 190 passed, 2 xfailed` — the three failures and one of the xfails
 were the port defects fixed since (table below).
 
@@ -47,6 +49,16 @@ Resolved since the first pass (the three former failing tests now pass; the refe
 Test-side changes for the re-verification: dropped the xfail marker on `test_otsu_criterion_empty_class_tail_matches_matlab`
 and changed `test_multithresh_metric_single_precision_hypothesis` to require `moved.size == 0` for every image (it had
 encoded the old bins-212/213 discrepancy); no tolerance was loosened.
+
+Resolved after the independent review (`reports/ch03_review.md`, 2026-09-09):
+
+| review item | fix and measurement |
+|---|---|
+| Must-fix 1: `multithresh` N = 3 excluded `t1 = 0` and, when every candidate was NaN, the fallback returned N + 1 thresholds (four-spike image `[0 1 128 255]`×100 → `[0 1 128 255]`, metric 0) | `_sigma_b2_exhaustive_n3` loops `i = 1..` (t1 = 0 is a candidate, as in `otsuthresh`, the N = 2 matrix and MATLAB); the fallback takes `getDegenerateThresholds` only when `numel(unique(A)) <= N` (MATLAB's `checkForDegenerateInput`) and otherwise applies it to the ≤ N distinct histogram-bin values so exactly N thresholds are returned (`approx`, MATLAB's own `noConvergence` path returns > N values for N < 3). Measured: `Spk` → 0,64,191 / metric 1.0, shape (3,); `Four` → 34,104,194 / 1.0 (was 35,104,194); `Ramp` 66,127,188 and `Rnd` 59,124,190 unchanged; MATLAB on `Spk`: 64,128,191 / −Inf (`compat.mat: mt3_Spk`) |
+| Should-fix 1: `test_script_runs` failed without `data/book/ch03` | exit-code assert kept unconditional; the file-count assert is skipped for the four image scripts when `DATA` is absent (their `SKIP` print is asserted) |
+| Should-fix 2: `_degenerate_thresholds` upper-fill branch had no L2 evidence | MATLAB R2025a (`compat.mat`): `Z44 = zeros(4,4,'uint8'), N=2 → [0 1]`; `B2 = [0 255 0 255], N=3 → [0 1 255]`; `Tri = [100 101 102]…, N=3 → [100 101 102]`; `HL = [100 255]…, N=3 → [1 100 255]`; port identical (dtype uint8, metric 0, `len == N`) |
+| Should-fix 3: half-integer `im2bw` / `block_otsu` level | MATLAB R2025a: `uint8([104 105 106]) > 104.5 = [0 1 1]`, `im2bw(…, 104.5/255) = [0 1 1]`, `graythresh = 104.5/255`, `nnz(> 104.5) = 2`; port identical (`bw_half`, `lv_Half`, `n_half`) |
+| Should-fix 4: `kmeans_lloyd(init='equal')` docstring claimed `kmeans.m`'s start | docstring now states `'equal'` divides `[min, max]` and gives `kmeans.m`'s `[min − 1, max + 1]` rule explicitly (88.0/163.0 vs 88.33/162.67 on `bimodal_image(seed=1)`); no code change, the L1 test already passes `kmeans.m`'s vector as an array |
 
 xfailed (strict, documenting a known divergence): `test_multithresh_int16_known_divergence` (int16 saturation in
 `multithresh.m` line 274, not a book case — Open item 2).
@@ -67,7 +79,7 @@ are the new `seaice/core` primitives and the text-only algorithms of `analysis/c
 | — `graythresh` / `otsuthresh` | `core.threshold.graythresh`, `otsuthresh` | L1 L2 | compat: constant, two-valued, tie ({100,110} → 104.5/255), uint16, double, double·255 (clipped), ramp 5..250, 4-valued, bimodal, int16 — `level` bit-identical, `em` ≤ 9e-16; `otsuthresh` on `imhist` and on a 10-bin hand histogram identical; 3 book images identical | exact | tie averaging (`mean(find(...))`) reproduced |
 | — `im2bw` | `core.threshold.im2bw` | L1 L2 | `nnz(im2bw(Rnd, i/255))` for all 256 levels identical; uint8 tie level, uint16, double, int16, RGB input, default 0.5: 0 px differ | exact | strict `>` confirmed |
 | — `multithresh`, N ≤ 2 | `core.threshold.multithresh` | L1 L2 | thresholds identical for uint8 (ramp 5..250: 127 / 86,167; bimodal 124 / 59,124; 4-valued 104 / 104,194; tie 105), uint16 (32877 / 22096,44428), double (0.49341568 / 0.30942886,0.63825637), degenerate (two-valued N=2 → 0,255; constant → 77 / 1,77 with metric 0); metric ≤ 1e-12 on all of them and on test.jpg/1.jpg/2.jpg; `_multithresh_pdf` equals the single-precision emulation bin for bin on the three JPEGs | exact | dtype of the output matches MATLAB (uint8/uint16/double); `grayto8` emulated with the `x·255` product in single |
-| — `multithresh`, N = 3 | `core.threshold.multithresh` (exhaustive Eq. 3.27) | L1 L2 | ramp: identical (66,127,188; metric 0.9379000214); 2.jpg: identical (56,125,179); test.jpg: identical (113,182,211), metric 0.9059957850 identical; 1.jpg: **49,86,160 vs MATLAB 50,101,165** — fminsearch local optimum, port's criterion 0.9940612 > MATLAB's 0.9938168; bimodal image: 59,124,190 vs 59,135,190 on an empty-histogram plateau (identical σ_B²); 4-valued image: MATLAB returns its initial guess 68,125,183 with metric **−Inf**, port 35,104,194 with metric 1 | reimplemented | never `exact` by design (analysis risk 5); the port's σ_B² is ≥ MATLAB's in every case |
+| — `multithresh`, N = 3 | `core.threshold.multithresh` (exhaustive Eq. 3.27) | L1 L2 | ramp: identical (66,127,188; metric 0.9379000214); 2.jpg: identical (56,125,179); test.jpg: identical (113,182,211), metric 0.9059957850 identical; 1.jpg: **49,86,160 vs MATLAB 50,101,165** — fminsearch local optimum, port's criterion 0.9940612 > MATLAB's 0.9938168; bimodal image: 59,124,190 vs 59,135,190 on an empty-histogram plateau (identical σ_B²); 4-valued image `Four`: MATLAB returns its initial guess 68,125,183 with metric **−Inf**, port **34,104,194** with metric 1 (was 35,104,194 before the review fix: the `t1` plateau tie-average now includes `t1 = 0`); four-spike image `Spk` (`[0 1 128 255]`×100, darkest level isolated): MATLAB 64,128,191 / −Inf, port 0,64,191 / metric 1 with exactly three thresholds | reimplemented | never `exact` by design (analysis risk 5); `t1 = 0` is a candidate exactly as in the N ≤ 2 branches and in MATLAB; the port's σ_B² is ≥ MATLAB's whenever the port finds a finite split (always, when ≥ N + 1 histogram bins are non-empty) |
 | — `multithresh`, int16 input | `core.threshold.multithresh` | L2 (negative) | MATLAB −1157, 31611 vs port −16963, 16705 | approx (int16 only) | `multithresh.m` line 274 `single(A − minA)` saturates in int16 arithmetic; int16 images never occur in the book (xfail test) |
 | — `imquantize` | `core.threshold.imquantize` | L1 L2 | ramp / double / 1 and 3 thresholds / with `values`: identical; `seg` and `imquantize(I, thresh, [0 128 255])` on the 3 images: 0 px differ | exact | |
 | — `im2uint8` for uint16/int16 (`_im2uint8_any`) | `core.threshold._im2uint8_any` | L2 | all 65 536 uint16 values identical to MATLAB `im2uint8(uint16(0:65535))` (= round(v/257)); int16 sample identical | exact | |
@@ -129,7 +141,7 @@ input and mask, separability mask) are identical, 0 of 12 252 240 px differ each
 3. **Stale-buffer means** (`Otsu.m` lines 39–42, `kmeans.m` 76–79): library returns correct class means; the scripts' values are available as `average_intensity_script` (`stale_mean_intensity`) and were verified identical to MATLAB on all nine runs — MATLAB prints e.g. 4759.10 for a mean gray level on 1.jpg.
 4. **Cosine distance** = 1 − aᵀb/(|a||b|) (Eq. 3.33 prints the similarity); documented in the docstring.
 5. **`mask1` displayed in gray**, not parula (`colormap('default')`); the MATLAB parula rendering is included in the compare figures for reference.
-6. **`multithresh` N = 3** exhaustive vs `fminsearch` (`reimplemented`); N > 3 raises `NotImplementedError`.
+6. **`multithresh` N = 3** exhaustive vs `fminsearch` (`reimplemented`), `t1 = 0` included like N ≤ 2; N > 3 raises `NotImplementedError`. When > N distinct values collapse into ≤ N histogram bins (uint16/int16/float only) the port returns exactly N degenerate thresholds from the bin values (`approx`; MATLAB's `noConvergence` path returns all unique values for N < 3).
 7. **`separability.m` off-by-one** reproduced literally (`eta` = η(k − 1)); `eta_book` and `core.threshold.separability` give the book convention.
 8. **`multithresh` int16** input: MATLAB's saturating `single(A − minA)` not emulated (not a book case).
 9. Substitutes: `2.jpg` for `ch3ice.jpg`, `2.jpg` + synthetic ramp for `t.jpg` (analysis/ch03.md §5); every number derived from them is labelled as such.
@@ -141,7 +153,10 @@ input and mask, separability mask) are identical, 0 of 12 252 240 px differ each
 
 Closed since the first pass: the `num2str` title digits (former item 1), the single-precision `grayto8` product in
 `_multithresh_pdf` (former item 2) and the `otsu_criterion` empty-class tail (former item 3) — all fixed by the porter
-and confirmed above against the unchanged MATLAB references.
+and confirmed above against the unchanged MATLAB references. Closed after the review: the N = 3 shape defect
+(`t1 = 0` excluded, N + 1 thresholds from the fallback) — found by the reviewer, fixed, and covered by the new
+`Spk`/`Z44`/`B2`/`Tri`/`HL`/`Half` entries of `compat.mat` (regenerated with MATLAB R2025a from the same seeded `inputs.mat`; every pre-existing bit-identical L2 assert
+still passes against the regenerated file, so no pre-existing reference value changed).
 
 ## Verdict: PASS
 All four `.m` files run verbatim in MATLAB R2025a and every output of the port is identical to MATLAB

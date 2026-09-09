@@ -186,7 +186,18 @@ class TestL1Otsu:
             th.multithresh(img, 0)
         with pytest.warns(RuntimeWarning):
             tc, mc = th.multithresh(np.full((5, 5), 9, dtype=np.uint8), 1)
-        assert tc.tolist() == [9] and mc == 0.0
+        assert tc.tolist() == [9] and mc == 0.0 and len(tc) == 1
+        # review Must-fix 1: four spikes with the darkest level isolated -> the perfect split needs t1 = 0 (class 1 =
+        # bin 0 alone), which the N = 3 search formerly excluded (it then fell through to the degenerate rule and
+        # returned four thresholds).  Exhaustive optimum: [0, 64, 191], metric exactly 1, exactly N values.
+        spikes = np.tile(np.array([0, 1, 128, 255], dtype=np.uint8), 100)
+        t3, m3 = th.multithresh(spikes, 3)
+        assert t3.shape == (3,) and t3.tolist() == [0, 64, 191] and m3 == pytest.approx(1.0, abs=1e-12)
+        assert np.array_equal(np.unique(th.imquantize(spikes, t3)), [1, 2, 3, 4])
+        # > N distinct values that collapse into <= N histogram bins: no finite split; still exactly N thresholds
+        with pytest.warns(RuntimeWarning, match="no finite split"):
+            tu, mu = th.multithresh(np.array([0, 1, 2, 65535], dtype=np.uint16), 2)
+        assert len(tu) == 2 and tu.dtype == np.uint16 and mu == 0.0
 
     def test_block_otsu_synthetic(self):
         rng = np.random.default_rng(3)
@@ -399,6 +410,19 @@ class TestL2Compat:
         assert_parity(th.im2bw(d["Rnd"]), d["bw_default"], "binary", name="bw_default")
         rgb = np.stack([d["Rnd"]] * 3, axis=-1)
         assert_parity(th.im2bw(rgb, sc(d["lv_Rnd"])), d["bw_rgb"], "binary", name="bw_rgb")
+        # review Should-fix 3: a half-integer level is compared in double, not rounded to the uint8 class first
+        # (MATLAB R2025a: uint8([104 105 106]) > 104.5 = [0 1 1]; im2bw(..., 104.5/255) = [0 1 1])
+        half = d["Half"]
+        assert half.dtype == np.uint8 and half.ravel().tolist() == [104, 105, 106]
+        assert vec(d["gt_half"]).tolist() == [0, 1, 1] and vec(d["bw_half"]).tolist() == [0, 1, 1]
+        assert th.im2bw(half, 104.5 / 255).ravel().tolist() == [False, True, True]
+        assert_parity(th.im2bw(half, 104.5 / 255), d["bw_half"], "binary", name="bw_half")
+        # block Otsu on the same three pixels: graythresh ties 104/105 -> th = 104.5 exactly; count uses `> 104.5`
+        level, _ = th.graythresh(half)
+        assert level == sc(d["lv_Half"]) == 104.5 / 255
+        bo = th.block_otsu(half, 1, 1)
+        assert bo.thresholds.tolist() == [104.5] and bo.counts.tolist() == [int(sc(d["n_half"]))] == [2]
+        assert bo.bw.ravel().tolist() == [False, True, True]
 
     @pytest.mark.parametrize("name,N", [("Ramp", 1), ("Ramp", 2), ("Rnd", 1), ("Rnd", 2), ("U16", 1), ("U16", 2),
                                         ("Dbl", 1), ("Dbl", 2), ("Four", 1), ("Four", 2), ("Tie", 1)])
@@ -412,11 +436,18 @@ class TestL2Compat:
             assert np.array_equal(t, r), (name, N, t, r)
         assert m == pytest.approx(sc(d[f"mm{N}_{name}"]), abs=1e-12)
 
-    @pytest.mark.parametrize("name,N", [("Two", 2), ("Cst", 1), ("Cst", 2)])
-    def test_multithresh_degenerate(self, d, name, N):
-        with pytest.warns(RuntimeWarning):
+    @pytest.mark.parametrize("name,N,expect", [("Two", 2, [0, 255]), ("Cst", 1, [77]), ("Cst", 2, [1, 77]),
+                                               # review Should-fix 2: getDegenerateThresholds upper-fill branch
+                                               # (MATLAB R2025a values confirmed by the reviewer and by compat.mat)
+                                               ("Z44", 2, [0, 1]), ("B2", 3, [0, 1, 255]),
+                                               ("Tri", 3, [100, 101, 102]), ("HL", 3, [1, 100, 255])])
+    def test_multithresh_degenerate(self, d, name, N, expect):
+        with pytest.warns(RuntimeWarning, match="degenerate"):
             t, m = th.multithresh(d[name], N)
-        assert np.array_equal(t, vec(d[f"mt{N}_{name}"])) and m == 0.0 == sc(d[f"mm{N}_{name}"])
+        r = vec(d[f"mt{N}_{name}"])
+        assert r.tolist() == expect, (name, N, r)                        # the MATLAB reference itself
+        assert np.array_equal(t, r) and t.dtype == r.dtype and m == 0.0 == sc(d[f"mm{N}_{name}"])
+        assert len(t) == N
 
     def test_multithresh_n3_reimplemented(self, d):
         """N = 3: MATLAB uses fminsearch (local search, TolX = 1); the port maximises Eq. (3.27) exhaustively."""
@@ -432,7 +463,15 @@ class TestL2Compat:
         # with metric -Inf; the exhaustive search returns the perfect split (metric 1)
         t, m = th.multithresh(d["Four"], 3)
         assert np.isinf(sc(d["mm3_Four"])) and m == pytest.approx(1.0, abs=1e-12)
+        assert t.tolist() == [34, 104, 194] and len(t) == 3            # t1 plateau tie-average now includes t1 = 0
         assert np.array_equal(np.unique(th.imquantize(d["Four"], t)), [1, 2, 3, 4])
+        # review Must-fix 1: the darkest level isolated -> only t1 = 0 gives four non-empty classes.  MATLAB's
+        # fminsearch returns its rounded iterate [64 128 191] with metric -Inf; the exhaustive search finds the
+        # perfect split with exactly N = 3 thresholds (it used to fall through to the degenerate rule -> 4 values)
+        t, m = th.multithresh(d["Spk"], 3)
+        assert np.isinf(sc(d["mm3_Spk"])) and vec(d["mt3_Spk"]).tolist() == [64, 128, 191]
+        assert t.tolist() == [0, 64, 191] and t.dtype == np.uint8 and m == pytest.approx(1.0, abs=1e-12)
+        assert np.array_equal(np.unique(th.imquantize(d["Spk"], t)), [1, 2, 3, 4])
 
     @pytest.mark.xfail(strict=True, reason="int16 input: MATLAB multithresh.m line 274 evaluates single(A - minA) "
                                           "in saturating int16 arithmetic; the port normalises in float64 "
@@ -735,6 +774,7 @@ class TestL4BookNumbers:
 # Scripts — every ported .m must run headless
 # ================================================================================================================
 SCRIPTS = ["otsu", "local_otsu", "separability", "kmeans", "global_threshold", "kmeans_demo_2d"]
+SCRIPTS_SYNTHETIC_ONLY = {"global_threshold", "kmeans_demo_2d"}   # the other four need data/book/ch03 (private)
 
 
 @pytest.mark.parametrize("name", SCRIPTS)
@@ -743,6 +783,10 @@ def test_script_runs(name: str, tmp_path: Path):
     out = tmp_path / name
     proc = subprocess.run([sys.executable, str(script), "--no-show", "--out", str(out)], capture_output=True,
                           text=True, cwd=str(ROOT), timeout=900)
+    # the exit-code assert is unconditional: without the private images the four image scripts must still exit 0
     assert proc.returncode == 0, f"{script.name} failed:\n{proc.stdout[-2000:]}\n{proc.stderr[-4000:]}"
+    if name not in SCRIPTS_SYNTHETIC_ONLY and not DATA.exists():
+        assert "SKIP" in proc.stdout, f"{script.name} should print SKIP without data/book/ch03"
+        pytest.skip(f"{script.name}: data/book/ch03 absent — graceful SKIP verified, no figures expected")
     files = list(out.glob("*"))
     assert files, f"{script.name} wrote nothing to {out}"

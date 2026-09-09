@@ -122,9 +122,13 @@ def kmeans_lloyd(X: np.ndarray, k: int, init: str | np.ndarray = "random", seed:
     k : number of clusters
     init : {'random', 'equal', 'kmeans++'} or (k, d) array
         ``'random'`` = ``k`` distinct data points chosen with ``seed`` (Fig. 3.6(b) "select initial centroids at
-        random"); ``'equal'`` = equal-division points ``min + i (max − min)/(k+1)`` per coordinate (the
-        initialisation of ``kmeans.m`` / §3.3); ``'kmeans++'`` = D² sampling (for later chapters); an array is used
-        as given (Step 1 "specified by the user").
+        random"); ``'equal'`` = equal division of ``[min, max]`` per coordinate, ``min + i (max − min)/(k+1)``,
+        ``i = 1..k``.  This is *not* the start of ``kmeans.m`` (§3.3), which divides ``[min − 1, max + 1]``:
+        ``mu = (1:k)·m/(k+1)`` with ``m = max − min + 2`` in shifted units, i.e. ``min − 1 + i (max − min + 2)/(k+1)``
+        in gray levels (88.0/163.0 vs 88.33/162.67 on ``synth.bimodal_image(seed=1)``); pass that vector as an array
+        to reproduce it (see ``tests/test_ch03.py::test_kmeans_gray_equals_lloyd_with_same_init``).
+        ``'kmeans++'`` = D² sampling (for later chapters); an array is used as given (Step 1 "specified by the
+        user").
     seed : int or None
         Seed for ``'random'`` / ``'kmeans++'``.
     max_iter : int
@@ -142,7 +146,7 @@ def kmeans_lloyd(X: np.ndarray, k: int, init: str | np.ndarray = "random", seed:
     Empty clusters keep their previous centroid (documented choice; the book does not say, MATLAB's Statistics
     ``kmeans`` would error or apply ``'EmptyAction'``).  Ties in Eq. (3.36) go to the lowest cluster index (as
     ``find(c == min(c))`` → ``cc(1)`` in ``kmeans.m``).  Parity: reimplemented (text only); property tests:
-    ``J`` non-increasing, agreement with :func:`kmeans_gray` on 1-D data with ``init='equal'``.
+    ``J`` non-increasing, agreement with :func:`kmeans_gray` on 1-D data when given ``kmeans.m``'s start vector.
     """
     X = np.asarray(X, dtype=np.float64)
     if X.ndim == 1:

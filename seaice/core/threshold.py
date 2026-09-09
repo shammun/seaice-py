@@ -130,7 +130,8 @@ def otsu_criterion(counts: np.ndarray) -> OtsuCurves:
         sigma_B2_otsu = (mG * P0 - m) ** 2 / (P0 * (1.0 - P0))
         sigma_B2 = np.where(P1 == 0, np.nan, sigma_B2_otsu)  # NaN where a class is empty (P0 == 0 is already 0/0)
         eta = sigma_B2 / sigma_G2 if sigma_G2 > 0 else np.full(L, np.nan)  # Eq. (3.20)
-    # Eq. (3.21): exhaustive search over 0 ≤ t < L-1 (otsuthresh loops k = 1..num_bins-1), NaN never wins
+    # Eq. (3.21): exhaustive search over 0 ≤ t < L-1 (otsuthresh loops k = 1..num_bins-1), NaN never wins.
+    # The book writes "0 < t < L-1" but t = 0 (class C0 = {0}) is a legal split and MATLAB includes it — so do we.
     cand = sigma_B2_otsu[: L - 1]
     finite = np.isfinite(cand)
     if finite.any():
@@ -379,15 +380,18 @@ def _sigma_b2_matrix_n2(omega: np.ndarray, mu: np.ndarray, mu_t: float) -> np.nd
 
 
 def _sigma_b2_exhaustive_n3(omega: np.ndarray, mu: np.ndarray, mu_t: float) -> tuple[float, np.ndarray]:
-    """Exhaustive Eq. (3.27) for three thresholds (``0 < t1 < t2 < t3 < L-1``) — vectorised over ``t3``.
+    """Exhaustive Eq. (3.27) for three thresholds (``0 ≤ t1 < t2 < t3 < L-1``) — vectorised over ``t3``.
 
-    Returns ``(maxval, thresholds)`` with tied maximisers averaged like the N ≤ 2 branches.
+    The book prints ``0 < t1`` in Eq. (3.27) but, exactly as in the N ≤ 2 branches (``otsuthresh`` loops
+    ``k = 1..255`` → ``t = 0`` included; the N = 2 matrix allows ``R = 1``) and in MATLAB itself, ``t1 = 0`` (class 1
+    = bin 0 alone) is a candidate: 1-based ``i`` starts at 1.  Returns ``(maxval, thresholds)`` with tied
+    maximisers averaged like the N ≤ 2 branches.
     """
     nb = omega.size
     best = -np.inf
     tied: list[np.ndarray] = []
     with np.errstate(divide="ignore", invalid="ignore"):
-        for i in range(2, nb - 2):  # 1-based bin index of the last bin in class 1 (0 < t1, Eq. 3.27)
+        for i in range(1, nb - 2):  # 1-based bin index of the last bin in class 1 (t1 = i - 1 >= 0)
             w0 = omega[i - 1]
             if w0 <= 0:
                 continue
@@ -457,7 +461,13 @@ def multithresh(A: np.ndarray, N: int = 1) -> tuple[np.ndarray, float]:
     * The degenerate-input branches (fewer distinct values than ``N + 1``) reproduce ``getDegenerateThresholds``
       and emit a ``RuntimeWarning`` instead of MATLAB's ``images:multithresh:degenerateInput`` warning.
 
-    Parity: exact for N ≤ 2 (uint8 inputs), near if a single-precision bin edge differs.
+    * When more than ``N`` distinct values collapse into ``≤ N`` of the 256 histogram bins (only possible for
+      uint16 / int16 / float inputs whose spread is tiny compared with their range) no finite split exists: MATLAB
+      warns ``noConvergence`` and, for N < 3, still returns *all* unique values (more than ``N`` thresholds); here
+      the degenerate rule is applied to the distinct bin values instead so that exactly ``N`` thresholds come back.
+
+    Parity: exact for N ≤ 2 (uint8 / uint16 / double inputs, measured bit-identical vs R2025a); approx for int16
+    (saturating ``single(A − minA)`` not emulated); reimplemented for N = 3.
     """
     A = np.asarray(A)
     N = int(N)
@@ -515,9 +525,22 @@ def multithresh(A: np.ndarray, N: int = 1) -> tuple[np.ndarray, float]:
         thresh = _map_to_original_scale(thresh_raw, minA, maxA, A.dtype)
         metric = float(maxval / np.sum(p * (k - mu_t) ** 2))
         return thresh, metric
+    # checkForDegenerateInput: NaN/Inf-free unique values; degenerate iff numel(unique(A)) <= N
     uniq = np.unique(A[np.isfinite(A)] if np.issubdtype(A.dtype, np.floating) else A)
-    warnings.warn(f"multithresh: degenerate input, only {uniq.size} distinct values for N = {N}", RuntimeWarning)
-    return _cast_like(_degenerate_thresholds(uniq, N), A.dtype), 0.0
+    if uniq.size <= N:
+        warnings.warn(f"multithresh: degenerate input, only {uniq.size} distinct values for N = {N} "
+                      "(MATLAB images:multithresh:degenerateInput)", RuntimeWarning)
+        return _cast_like(_degenerate_thresholds(uniq, N), A.dtype), 0.0
+    # More than N distinct values but no finite split: they collapse into <= N non-empty bins of the 256-bin pdf.
+    # PARITY: approx — MATLAB warns images:multithresh:noConvergence and returns either all unique values (N < 3,
+    # i.e. > N thresholds) or fminsearch's last iterate (N = 3); the (N,) contract is honoured here by applying
+    # getDegenerateThresholds to the distinct *bin* values mapped back to the input scale.
+    warnings.warn(f"multithresh: no finite split for N = {N} ({uniq.size} distinct values fall into "
+                  f"{int(np.count_nonzero(p > 0))} histogram bins; MATLAB images:multithresh:noConvergence)",
+                  RuntimeWarning)
+    bins = np.flatnonzero(p > 0).astype(np.float64)
+    bin_vals = np.unique(_map_to_original_scale(bins, minA, maxA, A.dtype).astype(np.float64))
+    return _cast_like(_degenerate_thresholds(bin_vals, N), A.dtype), 0.0
 
 
 def _cast_like(th: np.ndarray, dtype: np.dtype) -> np.ndarray:
