@@ -224,8 +224,10 @@ def regionprops(L, properties: str | tuple[str, ...] | list[str] | None = None, 
     -------
     list of :class:`RegionProps`, one per label ``1 … max(L)``, in label order (MATLAB's struct array order).
 
-    Parity target: exact (same formulas as R2025a); ``Perimeter`` depends on the boundary tracer and is
-    ``near`` where the tracer's spur handling could differ (it is not used by any ch6 decision).
+    Parity: **exact** — measured ≤ 1.07e-14 against MATLAB R2025a across 40 shapes × 10 properties and all 344
+    components of the three real masks, in both MATLAB call forms (`reports/ch06_verification.md`).  ``Perimeter``
+    is included in that and is exact; the earlier ``near`` caveat about the boundary tracer was written before the
+    measurement and is withdrawn (corrected 2026-09-10, review finding S6).
     """
     lab = _as_label_image(L, conn)
     if properties is None or (isinstance(properties, str) and properties.lower() == "all"):

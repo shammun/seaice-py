@@ -938,7 +938,12 @@ class TestL2Polygon:
 
     @pytest.mark.parametrize("k", list(range(7)))
     def test_clip_polygon_rect_vs_polybool(self, k):
-        """``polybool`` rotates the start vertex, reverses the traversal and closes the ring: compare **sets**."""
+        """``polybool`` rotates the start vertex and reverses the traversal: compare **sets**, never order.
+
+        Both close the ring: the port appends a copy of the first vertex as ``polybool`` does (ch06 verification
+        open item 2 -- with the chapter's ``Dmin = 0`` that duplicate survives ``snakeinterp``, and closing it took
+        ``GVF_distance.m``'s ``bw1`` from 61 to 7 differing pixels of 31 730).
+        """
         d = ref("geom")
         f = FX.polygon_fixtures()
         x, y = f[f"pb{k}_x"].ravel(), f[f"pb{k}_y"].ravel()
@@ -948,8 +953,11 @@ class TestL2Polygon:
         mine = {(round(a, 9), round(b, 9)) for a, b in zip(cx, cy)}
         theirs = {(round(a, 9), round(b, 9)) for a, b in zip(rx, ry)}
         assert mine == theirs
-        # MATLAB closes the ring, the port does not -> exactly one extra vertex whenever the clip is non-empty
-        assert rx.size == (cx.size + 1 if cx.size else 0)
+        # Both rings are closed, so the vertex counts now agree exactly.
+        assert rx.size == cx.size
+        if cx.size:
+            assert (cx[0], cy[0]) == (cx[-1], cy[-1])
+            assert (rx[0], ry[0]) == (rx[-1], ry[-1])
         m_py = POLY.poly2mask(cx, cy, 30, 40) if cx.size >= 3 else np.zeros((30, 40), bool)
         assert int((m_py != np.asarray(d[f"pbm{k}"]).astype(bool)).sum()) == 0
 
@@ -962,6 +970,29 @@ class TestL2Polygon:
         theirs = {(round(a, 9), round(b, 9))
                   for a, b in zip(np.asarray(d["pbix"]).ravel(), np.asarray(d["pbiy"]).ravel())}
         assert {(round(a, 9), round(b, 9)) for a, b in zip(cx, cy)} == theirs
+
+    @pytest.mark.parametrize("name", ["pg_test", "pg_cw", "pg_tri", "pg_sq", "pg_bow"]
+                             + [f"pg_rand{k}" for k in range(10)]
+                             + ["pc_collinear", "pc_dup", "pc_two", "pm_int", "pm_half"])
+    def test_polyarea(self, name):
+        """MATLAB ``polyarea`` on 20 polygons, each open and closed (reviewer finding: this had no L2 row).
+
+        Covers the clockwise case, a self-intersecting bowtie (0 on both sides), collinear and duplicate point
+        sets, a two-point and a one-point degenerate input.  A repeated first vertex must not change the area.
+        """
+        d = ref("polyarea")
+        f = FX.polygon_fixtures()
+        x = f[f"{name}_x"].ravel()
+        y = f[f"{name}_y"].ravel()
+        assert abs(POLY.polyarea(x, y) - float(np.asarray(d[f"pa_{name}"]).ravel()[0])) < 1e-12
+        assert abs(POLY.polyarea(np.r_[x, x[0]], np.r_[y, y[0]])
+                   - float(np.asarray(d[f"pac_{name}"]).ravel()[0])) < 1e-12
+
+    def test_polyarea_degenerate(self):
+        d = ref("polyarea")
+        assert POLY.polyarea([3.0], [4.0]) == float(np.asarray(d["pa_one"]).ravel()[0]) == 0.0
+        assert abs(POLY.polyarea(np.asarray(d["ch_probe_x"]).ravel(), np.asarray(d["ch_probe_y"]).ravel())
+                   - float(np.asarray(d["pa_hull"]).ravel()[0])) < 1e-12
 
     def test_polyxpoly(self):
         d = ref("geom")
@@ -1173,7 +1204,11 @@ class TestL2ForTest:
         assert maxdiff(qy, d["qy"]) < 1e-12
 
     def test_clip_and_interp(self):
-        """The clip has the same vertex set; MATLAB's ``polybool`` also **closes** the ring (one extra point)."""
+        """``clip_polygon_rect`` reproduces ``polybool``'s **closed** ring: same vertex set, same point count.
+
+        (Contract fixed by ch06 verification open item 2; before the fix the port returned the open ring and
+        was one point short here and after ``snakeinterp``.)
+        """
         d = ref("for_test")
         r = self._pipeline()
         XPB = np.asarray(d["XPB"]).ravel()
@@ -1181,9 +1216,15 @@ class TestL2ForTest:
         theirs = {(round(a, 9), round(b, 9)) for a, b in zip(XPB, YPB)}
         assert {(round(a, 9), round(b, 9)) for a, b in zip(r["xc"], r["yc"])} == theirs
         assert XPB[0] == XPB[-1] and YPB[0] == YPB[-1]          # polybool returns a closed ring
-        assert XPB.size == r["xc"].size + 1
-        # ...and with Dmin = 0 that duplicated vertex survives snakeinterp: 252 points instead of 251.
-        assert np.asarray(d["XI0"]).size == r["xi"].size + 1
+        assert r["xc"][0] == r["xc"][-1] and r["yc"][0] == r["yc"][-1]   # ...and so does the port now
+        assert XPB.size == r["xc"].size == 127
+        # the zero-length wrap segment sits at the same cyclic position on both sides
+        def zero_segments(px, py):
+            dd = np.abs(np.roll(px, -1) - px) + np.abs(np.roll(py, -1) - py)
+            return np.nonzero(dd == 0)[0].tolist()
+        assert zero_segments(r["xc"], r["yc"]) == zero_segments(XPB, YPB) == [126]
+        # with Dmin = 0 the duplicate survives snakeinterp -> 252 points on both sides
+        assert np.asarray(d["XI0"]).size == r["xi"].size == 252
         xi2, yi2 = SN.snakeinterp(XPB, YPB, 1.0, 0.0)           # start from MATLAB's own closed ring
         assert maxdiff(xi2, np.asarray(d["XI0"]).ravel()) == 0.0
         assert maxdiff(yi2, np.asarray(d["YI0"]).ravel()) == 0.0
@@ -1208,16 +1249,51 @@ class TestL2ForTest:
         assert worst < 1e-6, worst
 
     def test_final_contour_is_the_same_curve(self):
-        """Started from the port's open ring the parameterisation is shifted by one point, the curve is not."""
+        """After 50 iterations the two snakes are the same **curve**; the point count can differ by one.
+
+        The port's clip is ``polybool``'s ring *rotated and reversed* (the compiled GPC library normalises the
+        contour, see :meth:`test_residual_is_the_polybool_start_vertex`), so the float summation order inside
+        ``inv(A + gammaI) @ rhs`` differs and one ``d > dmax`` insertion flips at block 2: 778 points instead
+        of 777.  The curve is within 1e-3 px and the burnt mask is identical (``test_burnt_mask``).
+        """
         d = ref("for_test")
         r = self._pipeline()
         mlx = np.asarray(np.asarray(d["XB"]).ravel()[-1]).ravel()
         mly = np.asarray(np.asarray(d["YB"]).ravel()[-1]).ravel()
         x, y = r["blocks"][-1]
-        assert x.size == mlx.size
+        assert abs(x.size - mlx.size) <= 2, (x.size, mlx.size)   # measured 778 vs 777
         dist = np.hypot(x[:, None] - mlx[None, :], y[:, None] - mly[None, :])
         hausdorff = max(dist.min(axis=1).max(), dist.min(axis=0).max())
         assert hausdorff < 1e-3, hausdorff
+
+    def test_residual_is_the_polybool_start_vertex(self):
+        """Proof that the remaining difference is `polybool`'s vertex ordering, not the clip's geometry.
+
+        The port's closed ring is MATLAB's rotated by 30 and reversed.  Realigned to MATLAB's start vertex it
+        is bit-identical, and the evolution then reproduces MATLAB's 777 points to ~2e-6 px.
+        """
+        d = ref("for_test")
+        r = self._pipeline()
+        XPB = np.asarray(d["XPB"]).ravel()
+        YPB = np.asarray(d["YPB"]).ravel()
+        pts_ml = [(round(a, 12), round(b, 12)) for a, b in zip(XPB[:-1], YPB[:-1])]
+        pts_py = [(round(a, 12), round(b, 12)) for a, b in zip(r["xc"][:-1], r["yc"][:-1])]
+        k = pts_py.index(pts_ml[0])
+        rot = pts_py[k:] + pts_py[:k]
+        rev = rot[:1] + rot[1:][::-1]
+        assert rev == pts_ml, "the port's ring is not a rotation+reversal of polybool's"
+        ax = np.array([q[0] for q in rev] + [rev[0][0]])
+        ay = np.array([q[1] for q in rev] + [rev[0][1]])
+        assert maxdiff(ax, XPB) < 1e-9 and maxdiff(ay, YPB) < 1e-9
+        xs, ys = SN.snakeinterp(ax, ay, 1.0, 0.0)
+        for _ in range(10):
+            xs, ys = SN.snakedeform(xs, ys, 0.05, 0.0, 1.0, 0.5, r["px"], r["py"], 5, solver="dense")
+            xs, ys = SN.snakeinterp(xs, ys, 1.0, 0.0)
+        mlx = np.asarray(np.asarray(d["XB"]).ravel()[-1]).ravel()
+        mly = np.asarray(np.asarray(d["YB"]).ravel()[-1]).ravel()
+        assert xs.size == mlx.size == 777
+        dist = np.hypot(xs[:, None] - mlx[None, :], ys[:, None] - mly[None, :])
+        assert max(dist.min(axis=1).max(), dist.min(axis=0).max()) < 1e-5
 
     def test_burnt_mask(self):
         """The burnt pixel **set** and the resulting mask are identical (the point order is shifted by one)."""
@@ -1303,25 +1379,30 @@ class TestL2GVFDistance:
             assert maxdiff(s.y_interp, np.asarray(yi[i]).ravel()) < 1e-5, i
 
     def test_per_seed_clip_vertex_sets(self):
-        """The clip keeps the same vertices; MATLAB's ``polybool`` adds the closing one (Deviation: open ring)."""
+        """All 46 clips: same vertex multiset, same point count, both rings closed (open item 2 contract)."""
         d = ref("gvf_alg")
         r = self.result()
         xc = np.asarray(d["XC"]).ravel()
         yc = np.asarray(d["YC"]).ravel()
-        n_closed = 0
+        n = 0
         for i, s in enumerate(r.passes[0].seeds):
             mx = np.asarray(xc[i]).ravel()
             my = np.asarray(yc[i]).ravel()
-            # compare the vertex **sets** (polybool rotates the start and reverses the traversal); the
-            # coordinates carry the single-precision radius, hence the 1e-4 tolerance.
-            order_py = np.lexsort((s.y_clip, s.x_clip))
-            order_ml = np.lexsort((my[:-1], mx[:-1]))
-            assert maxdiff(s.x_clip[order_py], mx[:-1][order_ml]) < 1e-4, i
-            assert maxdiff(s.y_clip[order_py], my[:-1][order_ml]) < 1e-4, i
-            assert mx.size == s.x_clip.size + 1, i          # polybool closes the ring, the port does not
-            assert mx[0] == mx[-1] and my[0] == my[-1], i
-            n_closed += 1
-        assert n_closed == 46
+            assert mx.size == s.x_clip.size, (i, s.x_clip.size, mx.size)
+            assert mx[0] == mx[-1] and my[0] == my[-1], i               # polybool closes the ring
+            assert s.x_clip[0] == s.x_clip[-1] and s.y_clip[0] == s.y_clip[-1], i   # ...and so does the port
+            # Compare the vertex multisets of the **open** rings: each side closes its ring on its *own*
+            # first vertex, and `polybool` rotates the start and reverses the traversal, so the two closed
+            # rings duplicate different vertices.  The coordinates carry the single-precision radius, hence
+            # the 1e-4 tolerance.
+            px_, py_ = s.x_clip[:-1], s.y_clip[:-1]
+            mx_, my_ = mx[:-1], my[:-1]
+            order_py = np.lexsort((py_, px_))
+            order_ml = np.lexsort((my_, mx_))
+            assert maxdiff(px_[order_py], mx_[order_ml]) < 1e-4, i
+            assert maxdiff(py_[order_py], my_[order_ml]) < 1e-4, i
+            n += 1
+        assert n == 46
 
     def test_per_seed_final_curves(self):
         """After 100 snake iterations the two contours are the same **curve** (Hausdorff), not the same list.
@@ -1335,12 +1416,16 @@ class TestL2GVFDistance:
         xf = np.asarray(d["XF"]).ravel()
         yf = np.asarray(d["YF"]).ravel()
         worst = 0.0
+        n_same = 0
         for i, s in enumerate(r.passes[0].seeds):
             a = np.asarray(xf[i]).ravel()
             b = np.asarray(yf[i]).ravel()
+            n_same += int(s.x_final.size == a.size)
             dist = np.hypot(s.x_final[:, None] - a[None, :], s.y_final[:, None] - b[None, :])
             worst = max(worst, max(dist.min(axis=1).max(), dist.min(axis=0).max()))
-        assert worst < 1.0, worst          # measured 0.479 px over the 46 seeds
+        assert worst < 1.0, worst          # measured 0.4794 px over the 46 seeds
+        # closing the ring (open item 2) took the exact-point-count agreement from 2/46 to 13/46
+        assert n_same >= 13, n_same
 
     def test_burnt_mask(self):
         """The segmentation result: at most 0.5 % of the ice pixels differ (measured 61 of 31 730 = 0.19 %)."""

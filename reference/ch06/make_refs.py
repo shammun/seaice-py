@@ -750,6 +750,35 @@ def ref_strel():
     return run_ref(code, ["se3", "se5", "n3", "n5", "s3", "s5"], REF / "strel.mat", workdir=SCRATCH)
 
 
+# ------------------------------------------------------------------------------------------------------------
+# Group 12: polyarea -- MATLAB's own shoelace area (core.polygon.polyarea had no L2 reference; reviewer finding)
+# ------------------------------------------------------------------------------------------------------------
+def ref_polyarea():
+    lines = [f"load({q(REF / 'inputs.mat')});"]
+    v: list[str] = []
+
+    def add(code: str, *names: str) -> None:
+        lines.append(code)
+        v.extend(names)
+
+    names = (["pg_test", "pg_cw", "pg_tri", "pg_sq", "pg_bow"]
+             + [f"pg_rand{k}" for k in range(10)]
+             + ["pc_collinear", "pc_dup", "pc_two", "pm_int", "pm_half"])
+    for nm in names:
+        add(f"pa_{nm} = polyarea({nm}_x, {nm}_y);", f"pa_{nm}")
+        # closed ring (first vertex repeated): MATLAB's shoelace is unaffected by the zero-length segment
+        add(f"pac_{nm} = polyarea([{nm}_x {nm}_x(1)], [{nm}_y {nm}_y(1)]);", f"pac_{nm}")
+    # the convex hull of the regionprops probe, and a single point / two points (degenerate)
+    add("pa_hull = polyarea(ch_probe_x, ch_probe_y);", "pa_hull")
+    add("pa_one = polyarea([3], [4]);", "pa_one")
+    lines.insert(1, "sp__ = regionprops(logical(sh_probe), 'ConvexHull'); h__ = sp__(1).ConvexHull;"
+                    " ch_probe_x = h__(:,1); ch_probe_y = h__(:,2);")
+    v.extend(["ch_probe_x", "ch_probe_y"])
+    code = "\n".join(lines) + "\n"
+    (VERIFY / "polyarea_code.m").write_text(code, encoding="utf-8")
+    return run_ref(code, v, REF / "polyarea.mat", workdir=SCRATCH, timeout=900)
+
+
 ALL = {
     "unit": ref_unit,
     "gvf": ref_gvf,
@@ -762,6 +791,7 @@ ALL = {
     "kmean_alg": ref_kmean_alg,
     "extra": ref_extra,
     "strel": ref_strel,
+    "polyarea": ref_polyarea,
 }
 
 

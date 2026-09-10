@@ -98,6 +98,12 @@ def clip_polygon_rect(x, y, x_range: tuple[float, float], y_range: tuple[float, 
         poly = out
     if not poly:
         return np.zeros(0), np.zeros(0)
+    # NOTE (ch06 verification, open item 2): MATLAB's `polybool` returns a **closed** ring -- it appends a copy of
+    # the first vertex.  With the chapter's `Dmin = 0` that duplicate survives `snakeinterp` (a zero-length segment
+    # is never removed), so it is carried into `snakedeform` and changes the converged contour.  Closing the ring
+    # here took `GVF_distance.m`'s `bw1` from 61 to 7 differing pixels of 31 730 against MATLAB.
+    if poly[0] != poly[-1]:
+        poly = poly + [poly[0]]
     arr = np.asarray(poly, dtype=np.float64)
     return arr[:, 0], arr[:, 1]
 
@@ -273,7 +279,13 @@ def convhull(x, y, simplify: bool = True) -> np.ndarray:
 
 
 def polyarea(x, y) -> float:
-    """MATLAB ``polyarea``: the (unsigned) shoelace area of a simple polygon.  Parity: exact."""
+    """MATLAB ``polyarea``: the (unsigned) shoelace area of a simple polygon.
+
+    Parity: **reimplemented** -- the shoelace formula is exact for a simple polygon and agrees with MATLAB on the
+    L1 fixtures, but there is no MATLAB reference run for it (review finding S6, 2026-09-10).  Results for a
+    self-intersecting polygon are the signed-area cancellation both implementations happen to produce, not a
+    guaranteed match.
+    """
     x = np.asarray(x, dtype=np.float64).ravel()
     y = np.asarray(y, dtype=np.float64).ravel()
     return float(0.5 * np.abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
@@ -299,7 +311,10 @@ def polygeom(x, y) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
     The M-file's own self-test (3×5 rectangle with its long axis at 30°) gives ``area 15``,
     ``centroid (3.415, 6.549)``, ``perimeter 16``, ``I1 11.249``, ``ang1 30°`` — reproduced by this port.
-    Parity: exact (same closed-form integrals; ``eig`` of a symmetric 2×2 → ``numpy.linalg.eigh``).
+    Parity: **exact** for ``geom``, ``iner``, ``I1``, ``I2`` and ``J`` (same closed-form integrals);
+    **near** for ``ang1``/``ang2``, whose sign follows the eigenvector convention -- LAPACK's sign is arbitrary,
+    so the port fixes it so the largest component is positive, which reproduces the M-file's own ``ang1 = 30°``.
+    The reference test only asserts the angles agree modulo π (corrected 2026-09-10, review finding S6).
     """
     x = np.asarray(x, dtype=np.float64).ravel()
     y = np.asarray(y, dtype=np.float64).ravel()

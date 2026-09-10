@@ -277,7 +277,9 @@ def initialize_contours(bw: np.ndarray, *, metric: str = "cityblock", se_radius:
     Parity: exact (script form).
     """
     bw = np.asarray(bw) != 0
-    img_dist = bwdist(~bw, metric)  # float32, as MATLAB's single-precision bwdist
+    # Review S3: `core.distance.bwdist` returns float64, not float32 -- MATLAB returns `single` and we keep
+    # float64 deliberately (see its module docstring).  Harmless for 'cityblock', whose values are integers.
+    img_dist = bwdist(~bw, metric)
     imgd = -img_dist.astype(np.float64)
     imgd[~bw] = -np.inf
     if form == "script":
@@ -524,7 +526,9 @@ def gvf_distance(I: np.ndarray, *, sigma: float = 0.0, GradientOn: bool = True, 
     Every ch6 driver sets ``timer = 1``, so one pass is run.
 
     Parameters follow the M-file's argument list; ``se_radius`` replaces the ``se = strel('disk', 3)`` object
-    (MATLAB's octagonal disk, 7×7/37 px — :func:`seaice.core.morphology.strel`).
+    (MATLAB's octagonal disk, **5×5 / 25 px** — :func:`seaice.core.morphology.strel`; corrected 2026-09-10 from
+    ``reference/ch06/strel.mat``, review finding S2.  This is the only printed evidence for ``T_seed``, so the
+    number matters to ch7/ch9).
 
     Extra keyword arguments not in the M-file
     -----------------------------------------
@@ -600,7 +604,10 @@ def seaice_kmean_gvf(I: np.ndarray, *, kms0: int = 3, sigma: float = 0.0, Gradie
 
     Returns
     -------
-    :class:`KmeanGVF`.  Parity target: exact except the k-means step (see above).
+    :class:`KmeanGVF`.  Parity: **near** -- k-means cluster centres and the ``bk``/``bw0`` masks match MATLAB
+    exactly (0 px), while the three-level ``out`` differs on 0.177 % of pixels through the same ``ceil`` and
+    single-precision effects as :func:`gvf_distance` (`reports/ch06_verification.md` Deviations 1-3; corrected
+    2026-09-10, review finding S6).
     """
     I = np.asarray(I)
     gray = rgb2gray_matlab(I) if I.ndim == 3 else I

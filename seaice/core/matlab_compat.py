@@ -131,17 +131,21 @@ def _del2_along_columns(f: np.ndarray, x: np.ndarray) -> np.ndarray:
     n = f.shape[0]
     g = np.zeros_like(f)
     h = np.diff(x)
-    if n > 2:
-        df = np.diff(f, axis=0)  # df[i] = f[i+1] - f[i]
-        hi = h[1:n - 1][:, None]  # h(2:n-1) in MATLAB 1-based terms
-        hm = h[0:n - 2][:, None]
-        g[1:n - 1] = (df[1:n - 1] / hi - df[0:n - 2] / hm) / (hi + hm)
-    if n > 3:
-        g[0] = g[1] * (h[0] + h[1]) / h[1] - g[2] * h[0] / h[1]
-        g[n - 1] = -g[n - 3] * h[n - 2] / h[n - 3] + g[n - 2] * (h[n - 2] + h[n - 3]) / h[n - 3]
-    elif n == 3:
-        g[0] = g[1]
-        g[2] = g[1]
+    # NOTE (ch06 verification, open item 4): on input containing +/-Inf the differences below evaluate Inf - Inf
+    # and numpy warns, where MATLAB silently produces NaN.  Suppress the warning so the values still match
+    # MATLAB exactly (ch05 precedent S8: `imimposemin`'s errstate).
+    with np.errstate(invalid="ignore"):
+        if n > 2:
+            df = np.diff(f, axis=0)  # df[i] = f[i+1] - f[i]
+            hi = h[1:n - 1][:, None]  # h(2:n-1) in MATLAB 1-based terms
+            hm = h[0:n - 2][:, None]
+            g[1:n - 1] = (df[1:n - 1] / hi - df[0:n - 2] / hm) / (hi + hm)
+        if n > 3:
+            g[0] = g[1] * (h[0] + h[1]) / h[1] - g[2] * h[0] / h[1]
+            g[n - 1] = -g[n - 3] * h[n - 2] / h[n - 3] + g[n - 2] * (h[n - 2] + h[n - 3]) / h[n - 3]
+        elif n == 3:
+            g[0] = g[1]
+            g[2] = g[1]
     return g
 
 

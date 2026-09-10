@@ -23,8 +23,9 @@ Literal steps (``for_test.m`` lines 4–121)::
 
 Note the quiver grid: ``xSpace`` spans ``size(bw, 1)`` = the number of **rows** but is passed to ``interp2`` as
 the **column** coordinate (and ``ySpace`` the other way round).  That is what the script does, so it is what is
-reproduced here — on the 108x148 ``test8.jpg`` both ranges stay inside the image, so the field is merely sampled
-on a skewed grid.  Note also that ``for_test.m`` clips **before** interpolating, while ``GVF_distance.m``
+reproduced here.  On the 108x148 ``test8.jpg`` that means ``ySpace = 1:148/64:148`` is used as the **row**
+coordinate into a 108-row field, so 1088 of the 4096 quiver samples (about 27 %) fall off the bottom of the image
+and come back NaN -- in MATLAB's ``interp2`` exactly as here (corrected 2026-09-10, review finding S7).  Note also that ``for_test.m`` clips **before** interpolating, while ``GVF_distance.m``
 interpolates first — reproduced in each place.
 
 Usage: ``python scripts/ch06_for_test.py [--num 150] [--iter 50] [--r 20] [--x0 80] [--y0 40]

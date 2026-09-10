@@ -354,8 +354,10 @@ def homomorphic_butterworth(im: np.ndarray, d: float, n: float = 1.0, *, shape: 
     hits and no `.m` file calls it.  It is ported as a documented orphan utility so the chapter's file
     inventory is complete.
 
-    # DEVIATION: `unverified` — nothing in the book or the shipped code exercises this function, so there is no
-    # reference output to compare against; it is smoke-tested only.
+    # DEVIATION: `exact` — measured against MATLAB R2025a at ≤ 1.14e-12 (`reports/ch06_verification.md`,
+    # `tests/test_ch06.py::TestL2Extras::test_homofil`).  Nothing in the book or the shipped code *calls* this
+    # function and it matches no book section, so its traceability is incomplete — but its parity is not
+    # (corrected 2026-09-10, review finding S6; it was labelled `unverified` before it was measured).
 
     Parameters
     ----------
