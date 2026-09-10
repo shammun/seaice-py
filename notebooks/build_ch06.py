@@ -76,12 +76,12 @@ separated by snake boundaries; Chapters 7–9 consume it.
 | `GVF_distance.m` (§6.3.3 + §6.4 Algorithm 1) | `seaice.ch06_gvf_snake.gvf_distance` | near (every stage 0 px / 0.0; only the snake discretisation differs — see the honest close) |
 | `seaice_kmean_GVF_forenhancement.m` (Algorithm 1 twice + k-means) | `ch06_gvf_snake.seaice_kmean_gvf` | near (k-means stage `bk` 0 px vs MATLAB's `rng(0)` run) |
 | `sea_ice_demo.m` (the driver) | `scripts/ch06_sea_ice_demo.py` | near (the `ice_shape_enhancement`/`sea_ice_model` tail belongs to Ch. 7/8) |
-| `for test/dist.m` (§6.3.3 seeds and circles) | `ch06_gvf_snake.initialize_contours`, `scripts/ch06_dist.py` | near (radii are `single` in MATLAB) |
+| `for test/dist.m` (§6.3.3 seeds and circles) | `ch06_gvf_snake.initialize_contours`, `scripts/ch06_dist.py` | exact (`bw`, `img_Dist`, `Dis_img`, `dis`, labels and seed centroids 0 px / 0.0; the radii and initial circles are evaluated in MATLAB's own **single** precision) |
 | `for test/for_test.m` (§6.1.2/§6.2 single contour) | `scripts/ch06_for_test.py` | exact (mask 0 px) |
 | MATLAB `del2` (Eq. 6.52c inside `GVF.m`) | `core.matlab_compat.del2` | exact (21 cases 0.0) |
 | MATLAB `regionprops` (Area, Solidity, axes, Perimeter…) | **`core.regionprops`** | exact (≤ 1.07e-14 on 40 shapes and on all 344 real components) |
 | `polybool('intersection', …)` (Mapping Toolbox) | `core.polygon.clip_polygon_rect` | reimplemented (vertex set and mask identical) |
-| `polygeom.m`, `minboundrect.m`, `roipoly`/`poly2mask`, `polyxpoly`, `convhull` | `core.polygon.*` | near / exact |
+| `polygeom.m`, `minboundrect.m`, `roipoly`/`poly2mask`, `polyxpoly`, `polyarea`, `convhull` | `core.polygon.*` | exact, except `polygeom`'s principal-axis **angles** and `convhull`'s vertex list (both `near`) |
 | `homofil.m` (orphan: no caller, no book section) | `core.filters.homomorphic_butterworth` | exact (≤ 1.14e-12) |
 | `ice_shape_enhancement.m`, `sea_ice_model.m`, `SeaIce_Image_Structure.m`, `color_hist*.m` | deferred to Ch. 7 / Ch. 8 / Appendix B | — |
 | *(text only: Eqs. 6.6–6.13, 6.29, 6.57/6.58)* | `ch06_gvf_snake.{line,edge,termination,external}_energy`, `traditional_snake`, `core.morphology.regional_maxima_by_reconstruction` | reimplemented |
@@ -492,6 +492,13 @@ $\mu \le 1/4$, and footnote 3 (p. 125) fixes **μ = 0.1 for every GVF snake in t
 unchanged apart from replacing $\partial E_{ext}/\partial x$ by $-u$ (Eq. 6.56), i.e. `snakedeform`'s $+\kappa v$.
 The mirror boundary condition of `BoundMirrorExpand/Ensure` is the natural condition $\nabla u \cdot d\sigma = 0$
 of Eq. (6.46).
+
+One MATLAB detail the port had to copy: `GVF.m` rescales its edge map with `f = (f - min(f))/(max(f) - min(f))`
+**in the class of its input**. Every driver here sets `GradientOn = 1`, so `f = abs(gradient2(double(I)))` is
+already `double` and the rescaling is ordinary floating-point arithmetic — that is the path all the figures below
+use. With `GradientOn = 0` the raw `uint8` image is passed instead, and MATLAB evaluates the same expression in
+`uint8`: the subtraction *saturates* at 0 and the division *rounds*, so the edge map collapses to a 0/1 image.
+`core.snake.gvf` reproduces that integer-class behaviour rather than quietly promoting to double.
 """)
 code(r'''
 # MATLAB writes the 5-point Laplacian of Eq. (6.52c) as 4*del2 — check the identity, and the CFL number
@@ -666,7 +673,7 @@ init_s = initialize_contours(bw_s, se_radius=DP["se_radius"])       # se = strel
 print(f"dist.m on {'sea_ice_test.jpg' if FROM_BOOK else 'the substitute'} (transposed to {bw_s.shape[0]}x{bw_s.shape[1]}): "
       f"{int(bw_s.sum())} ice px, {int(init_s.dis.sum())} local maxima -> imdilate(strel('disk', {DP['se_radius']})) -> "
       f"{init_s.num} seeds  ({time.perf_counter() - t0:.1f} s)"
-      f"{matlab_ref('bw, img_Dist, Dis_img, dis all 0 px; 540 seeds; radii <= 4.5e-7')}")
+      f"{matlab_ref('bw, img_Dist, Dis_img and dis all 0 px; 540 seeds; the radii are computed in single, as MATLAB does')}")
 if init_s.num:
     print(f"radii r = D(seed)/sqrt(2): min {init_s.radii.min():.2f}, median {np.median(init_s.radii):.2f}, "
           f"max {init_s.radii.max():.2f} px; {int((init_s.radii == 2.0).sum())} seeds take the 'r == 0 -> 2' fallback")
@@ -759,7 +766,7 @@ print(f"  bwlabel(bw, 4): {rec.num} components; failing the Ch. 9 p. 205 criteri
 if init is not None:
     print(f"  {int(init.dis.sum())} local maxima -> {init.num} seeds; radii min {init.radii.min():.2f}, "
           f"median {np.median(init.radii):.2f}, max {init.radii.max():.2f}"
-          f"{matlab_ref('171 maxima px, 46 seeds, centroids <= 1e-12, radii <= 1e-6')}")
+          f"{matlab_ref('171 maxima px, 46 seeds; centroids and single-precision radii identical')}")
 print(f"  {res.n_seeds_run} snakes run; boundaries burnt: {int(res.bw.sum()) - int(res.bw1.sum())} px "
       f"('residue ice'); 4-connected floes {n_before} -> {n_after}")
 
@@ -987,7 +994,7 @@ md(r"""
 
 | MATLAB | Python (`seaice`) | Parity | Note |
 |---|---|---|---|
-| `GVF(f, mu, ITER)` | `core.snake.gvf(f, mu, iters)` | exact | normalises `f` to [0, 1] internally; `mu*4*del2(u)` = μ·(5-point Laplacian); refuses μ > 0.25 (CFL, Eq. 6.55) |
+| `GVF(f, mu, ITER)` | `core.snake.gvf(f, mu, iters)` | exact | normalises `f` to [0, 1] **in the input's class** (an integer edge map saturates and rounds); `mu*4*del2(u)` = μ·(5-point Laplacian); refuses μ > 0.25 (CFL, Eq. 6.55) |
 | `del2(u)` | `core.matlab_compat.del2` | exact | MATLAB's `del2` is $\nabla^2/4$ with **linearly extrapolated borders** — never `scipy.ndimage.laplace` |
 | `BoundMirrorExpand/Ensure/Shrink` | `core.snake.bound_mirror_*` | exact | `expand` == `np.pad(A, 1, 'reflect')`; the natural BC $\nabla u\cdot d\sigma = 0$ (Eq. 6.46) |
 | `gradient2(a)` / `abs(gradient2(a))` | `core.snake.gradient2` / `gradient2_magnitude` | exact | MATLAB-4 `gradient` semantics: `np.gradient(a)[::-1]`; the 1-output form is complex |
@@ -1001,8 +1008,9 @@ md(r"""
 | `strel('disk', 3)` / `('disk', 5)`, `imdilate` | `core.morphology.strel / imdilate` (ch04) | exact | disk 3 = **5×5, 25 px** octagon; disk 5 = 9×9, 69 px |
 | `regionprops(BW, 'Area' \| 'Solidity' \| 'MajorAxisLength' \| 'MinorAxisLength' \| 'Centroid' \| 'Perimeter')` | **`core.regionprops`** | exact (≤ 1.07e-14) | scikit-image differs (perimeter +5.5 %, axes, orientation +90°) — never use it for these |
 | `polybool('intersection', rect, poly)` (Mapping TB) | `core.polygon.clip_polygon_rect` | reimplemented | Sutherland–Hodgman; same vertex set and mask; MATLAB also **closes** the ring |
-| `roipoly(I, x, y)` / `poly2mask`, `polyxpoly`, `convhull` | `core.polygon.roipoly / poly2mask / polyxpoly / convhull` | exact / near | line-by-line port of `eml/poly2mask.m` |
-| `polygeom`, `minboundrect` | `core.polygon.polygeom / minboundrect` | near / exact | Sommer and D'Errico File Exchange code; needed by Ch. 8/9 |
+| `roipoly(I, x, y)` / `poly2mask`, `polyxpoly`, `polyarea` | `core.polygon.roipoly / poly2mask / polyxpoly / polyarea` | exact | line-by-line port of `eml/poly2mask.m`; masks 0 px |
+| `convhull(x, y)` | `core.polygon.convhull` | near | the same hull *polygon*, but MATLAB keeps the collinear points of a hull edge, so the vertex list is longer |
+| `polygeom`, `minboundrect` | `core.polygon.polygeom / minboundrect` | exact geometry; `near` for `polygeom`'s `ang1`/`ang2` | Sommer and D'Errico File Exchange code; an eigenvector's sign is arbitrary, so the principal-axis angles can differ by ±π (the axes are the same); needed by Ch. 8/9 |
 | `kmeans(double(I(:)), 3, 'EmptyAction','singleton')` (Statistics TB) | `core.clustering.kmeans_lloyd(init='kmeans++')` | approx (labels) | ch6 ships no `kmeans.m`, so this is **not** ch3's histogram k-means; compare sorted centres, never labels |
 | `graythresh`, `im2bw`, `bwlabel`, `bwareaopen`, `rgb2gray` | `core.threshold`, `core.connectivity`, `core.matlab_compat` (ch02–ch05) | exact | in ch6 `graythresh` always sees the **gray** image |
 | `snakedisp(x, y, style)`, `quiver`, `label2rgb` | `core.plotting.snake_plot / quiver_field / label2rgb` | display only | `snake_plot` closes the curve and converts 1-based → 0-based axes |
@@ -1023,17 +1031,20 @@ the boundary pixels labelled *residue ice*.
 **Verification status (from `reports/ch06_verification.md`, MATLAB R2025a running the original `.m` code).**
 `exact` on 200+ controlled cases: `del2`, `GVF` (44 cases, plus `u`, `v`, `px`, `py` on both book images),
 `gradient2`, `xconv2`, `gaussianMask/Blur`, `snake_matrix`, `snakedeform` (dense solver), `snakeinterp`,
-`snakeindex`, `interp2('*linear', 0)`, `poly2mask`/`roipoly`, `bwperim`, and — the chapter's highest risk —
+`snakeindex`, `interp2('*linear', 0)`, `poly2mask`/`roipoly`, `polyarea`, `polyxpoly`, `minboundrect`, `homofil`,
+`bwperim`, and — the chapter's highest risk —
 **`core.regionprops`** (≤ 1.07e-14 on 40 constructed shapes and on all 344 components of the three real masks, so
 the `Rc = 0.9` / `Rl = 2` decision sets are identical to MATLAB's). `near` for the two pipelines: every stage
-(mask, edge map, GVF field, criteria, `bw2`, distance map, maxima, seeds, centroids, radii) is 0 px / 0.0 against
-MATLAB, and the differences are confined to the snake's *discretisation* — MATLAB's `polybool` closes the clipped
+(mask, edge map, GVF field, criteria, `bw2`, distance map, maxima, seeds and centroids) is 0 px / 0.0 against
+MATLAB — the seed radii and initial circles are now evaluated in MATLAB's own single precision as well — and the
+remaining differences are confined to the snake's *discretisation* — MATLAB's `polybool` closes the clipped
 ring while Sutherland–Hodgman did not, and on a 500–2800-point contour hundreds of point spacings sit exactly at
 `Dmax`, so a 1e-13 perturbation changes the point count. The final curves stay well inside a pixel of MATLAB's
 and only a fraction of a percent of the burnt mask pixels differ; the FFT snake solver (needed to make the
 chapter run in seconds instead of minutes) is itself part of that bound. `reimplemented`: `clip_polygon_rect`
 (vertex set and rasterised mask identical to `polybool`), the Eq. (6.6)–(6.13) energies and the traditional
-snake, and Eqs. (6.57)/(6.58). `approx`: the k-means *labels* (any k-means is initialisation dependent — but the
+snake, and Eqs. (6.57)/(6.58). `near` also for `polygeom`'s principal-axis angles and `convhull`'s vertex
+list (the polygon itself is identical, which is what `Solidity` depends on). `approx`: the k-means *labels* (any k-means is initialisation dependent — but the
 derived mask `bk` matched MATLAB's `rng(0)` run pixel-for-pixel on both book images). **Not verified as
 figures**: Figs. 6.2, 6.3, 6.5–6.13 and 6.18–6.21 — the aerial floe-field and model-basin images were never
 shipped and no `.m` file produces them, so the notebook shows the *mechanism* on seeded synthetic fixtures and
@@ -1051,7 +1062,9 @@ last two stages are `ice_shape_enhancement` (book §7.1) and `sea_ice_model` (§
 
 **Pitfalls to carry forward.** MATLAB's `del2` is $\nabla^2/4$ with extrapolated borders; `strel('disk', 3)` is a
 5×5 / 25-px octagon (not 7×7); `regionprops`'s axes, `Solidity` and `Perimeter` must come from `core.regionprops`,
-never from scikit-image; `bwdist` is *single* and the seed radii inherit that; `t = 0:0.05:6.28` gives 126 points
+never from scikit-image; `bwdist` is *single* and the seed radii and initial circles inherit that, so the port
+evaluates them in single too (MATLAB promotes `single op double` to double and rounds to single **once**, which a
+naive all-float32 expression gets wrong by 1 ulp); `t = 0:0.05:6.28` gives 126 points
 and an **unclosed** circle; the shipped code normalises the GVF force per pixel (`px = u/(|v| + 1e-10)`), which is
 Xu & Prince's demo convention, not the book's Eq. (6.56); and a dense `inv(A + γI)` per `snakeinterp` is
 unusable at chapter scale — the circulant FFT solve is what makes the notebook run in seconds.
