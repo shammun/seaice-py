@@ -159,6 +159,21 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "description": "Distinct ice floes separated by leads over open water, in a tall strip; "
                        "394×1038 RGB like the book's sea_ice_test.jpg (Figure 7.22)",
     },
+    # --- ch08: Figure 8.8 (the raw sea-ice image of the section 8.2 "real ice field" case study) is the SAME
+    # photograph as ch07's Figure 7.22 / ch06's sea_ice_test.jpg, printed transposed and inverted (NCC 0.982
+    # against the inverted transpose; the Fig. 8.8 bitmap correlates 0.974 with the Fig. 7.22 bitmap).  ch08
+    # therefore gets its own key pointing at the same 394x1038 NASA scene, so every crop and pixel index in the
+    # ch08 notebook stays valid.  Section 8.3 works from the two shipped .mat files, which have no public
+    # substitute; without them the notebook derives its floe field from this image through the ch06/ch07 pipeline.
+    ("ch08", "sea_ice_test.jpg"): {
+        "url": _NASA_WORLDVIEW_394 + "&TIME=2019-07-25&BBOX=73.60,-151.20,75.60,-150.4409",
+        "filename": "nasa_modis_terra_beaufort_floes_394x1038_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack ice, "
+                  "25 July 2019, 73.60-75.60 N 151.20-150.44 W",
+        "licence": _NASA_PD,
+        "description": "Distinct ice floes separated by leads over open water, in a tall strip; "
+                       "394x1038 RGB like the book's sea_ice_test.jpg (Figure 8.8 = Figure 7.22)",
+    },
 }
 
 
