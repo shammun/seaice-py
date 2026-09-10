@@ -41,6 +41,11 @@ _NASA_WORLDVIEW_148 = (
     "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
     "&WIDTH=148&HEIGHT=108&WRAP=DAY"
 )
+_NASA_WORLDVIEW_202 = (
+    "https://wvs.earthdata.nasa.gov/api/v1/snapshot?REQUEST=GetSnapshot"
+    "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
+    "&WIDTH=202&HEIGHT=201&WRAP=DAY"
+)
 _NASA_PD = "NASA imagery is in the public domain (https://www.earthdata.nasa.gov/engage/open-data-services-and-software/data-and-information-policy)"
 
 #: ``{(chapter, book file name lower-cased): {"url", "filename", "credit", "licence", "description"}}``
@@ -110,7 +115,8 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
     # `sea_ice_test.jpg` (394×1038 RGB, the tall shipborne view used by sea_ice_demo.m and for test/dist.m) and
     # `test8.jpg` (148×108 RGB, the small GVF-snake demo image of for test/for_test.m, whose initial contour is a
     # circle of radius 20 centred on (x0, y0) = (80, 40), so the substitute must carry a floe boundary there).
-    # `alg_seg_gray.jpg` also ships in `for test/` but no .m file reads it, so it gets no substitute.
+    # `alg_seg_gray.jpg` (202×201) is read by no .m file but the analysis identified it as **Figure 6.15(a)**
+    # (NCC 0.9882 against the inverted PDF bitmap), so the chapter adds a script for Fig. 6.15 and it needs one too.
     ("ch06", "sea_ice_test.jpg"): {
         "url": _NASA_WORLDVIEW_394 + "&TIME=2019-07-25&BBOX=73.60,-151.20,75.60,-150.4409",
         "filename": "nasa_modis_terra_beaufort_floes_394x1038_2019-07-25.jpg",
@@ -128,6 +134,15 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "licence": _NASA_PD,
         "description": "Individual floes on dark water with a floe boundary crossing the snake's initial circle "
                        "at (80, 40); 148×108 RGB like the book's test8.jpg",
+    },
+    ("ch06", "alg_seg_gray.jpg"): {
+        "url": _NASA_WORLDVIEW_202 + "&TIME=2019-07-25&BBOX=74.60,-151.00,75.10,-150.4975",
+        "filename": "nasa_modis_terra_beaufort_floes_202x201_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack ice, "
+                  "25 July 2019, 74.60–75.10°N 151.00–150.50°W",
+        "licence": _NASA_PD,
+        "description": "Large distinct floes with clear boundaries and open leads; 202×201 RGB like the book's "
+                       "alg_seg_gray.jpg (Figure 6.15(a))",
     },
 }
 
