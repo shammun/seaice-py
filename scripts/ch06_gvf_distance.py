@@ -9,6 +9,13 @@ bitmap on page 27 of the chapter PDF), and the six panels below are exactly its 
 * (b) the binary image ``im2bw(I, graythresh(I))``,
 * (c) its city-block distance transform,
 * (d) the binary image with the regional maxima marked '+',
+
+  Note on (c)/(d): the shipped ``GVF_distance.m`` computes the distance map and its regional maxima on **bw2**,
+  i.e. only the components that failed the ``Ra``/``Rc``/``Rl`` re-segmentation criteria of book Ch. 9 p. 205,
+  whereas book Fig. 6.15(c)/(d) show them for the whole binary image (Algorithm 1 step 3: "D <- distance map of
+  SEGMENTATION").  This script is faithful to the shipped code, so its panels (c)/(d) cover fewer floes than the
+  printed figure; panels (a), (b), (e) and (f) are directly comparable with p. 136.
+
 * (e) the binary image with the merged seeds '+' and the initial circles,
 * (f) the segmentation result: the GVF-snake boundaries superimposed, so the connected floes are separated.
   "Note that the edge pixels are specifically labeled as *residue ice* for special handling in subsequent use."
@@ -93,6 +100,10 @@ def main(argv: list[str] | None = None) -> int:
     n_after = int(label_components(res.bw1, 4).max())
     print(f"boundaries burnt into the mask: {burnt} pixels (the 'residue ice' of p. 135); "
           f"connected floes {n_before} -> {n_after}")
+    # Review S9: the two guards the M-code does not have must be visible, not silent.
+    print(f"guards (review S9): {res.n_skipped} contour(s) skipped for < 3 vertices after the polybool clip; "
+          f"{res.n_below_range} burn point(s) dropped below the image (MATLAB has no lower guard and would "
+          f"error), {res.n_above_range} dropped by the M-code's own 'xx <= s2 & yy <= s1'")
     print(f"wall clock {elapsed:.1f} s (solver = {args.solver})")
 
     written = [

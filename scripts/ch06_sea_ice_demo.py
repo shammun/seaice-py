@@ -96,6 +96,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{tag}: {rec.num} components, {rec.k.size} failing the criteria, {pr.n_seeds} seeds "
               f"({pr.n_seeds_run} run); {int(pr.bw.sum()) - int(pr.bw1.sum())} boundary pixels burnt; "
               f"floes {int(label_components(pr.bw, 4).max())} -> {int(label_components(pr.bw1, 4).max())}")
+        # Review S9: the guards the M-code does not have, counted rather than silent.
+        print(f"  guards: {pr.n_skipped} contour(s) skipped (< 3 vertices after the polybool clip), "
+              f"{pr.n_below_range} burn point(s) below the image (MATLAB would error), "
+              f"{pr.n_above_range} above it (the M-code's own guard)")
     print(f"out = bw1 + 0.5*bw0: levels {np.unique(seg).tolist()}; "
           f"bright ice {int((seg == 1).sum())} px, slush {int((seg == 0.5).sum())} px, "
           f"water {int((seg == 0).sum())} px")

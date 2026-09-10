@@ -67,6 +67,37 @@ def to_uint8_saturating(x: np.ndarray) -> np.ndarray:
     return np.clip(matlab_round(np.asarray(x, dtype=np.float64)), 0, 255).astype(np.uint8)
 
 
+def saturate_to_class(x: np.ndarray | float, dtype) -> np.ndarray:
+    """The result of one MATLAB **integer-class** arithmetic operation: round half away from zero, then saturate.
+
+    MATLAB evaluates ``a - b``, ``a ./ b`` etc. *in the class of the operands* when one of them is an integer
+    type: ``uint8(3) - uint8(200)`` is ``0`` (saturation, not wrap-around) and ``uint8(3) / uint8(2)`` is ``2``
+    (rounding, not truncation).  numpy wraps and truncates instead, so every step of a chain that MATLAB keeps
+    in an integer class has to be pushed through this function separately — the intermediate values are *not*
+    the float64 ones.  See ``GVF.m`` lines 21–23 and ``gradient2.m`` lines 38–48, both of which are handed a
+    ``uint8`` image by ``GVF_distance.m`` when ``GradientOn = 0``.
+
+    The values are returned as **float64 carrying the integer class's values**, which is what MATLAB itself
+    produces as soon as the result is stored in a ``double`` array (``B = zeros(...)`` in ``BoundMirrorExpand.m``,
+    ``y = zeros(m, n)`` in ``gradient2.m``).
+
+    Parameters
+    ----------
+    x : array_like
+        The exact (float64) value of the operation.
+    dtype : numpy integer dtype
+        The MATLAB class the operation is evaluated in.
+
+    Notes
+    -----
+    The arithmetic is carried out in float64, which represents every ``int8``…``uint32`` value exactly; for
+    ``int64``/``uint64`` operands above ``2**53`` the intermediate would lose precision (MATLAB would not).  No
+    code in this project uses 64-bit integer images.
+    """
+    info = np.iinfo(dtype)
+    return np.clip(matlab_round(np.asarray(x, dtype=np.float64)), info.min, info.max)
+
+
 def rgb2gray_matlab(rgb: np.ndarray) -> np.ndarray:
     """MATLAB ``rgb2gray`` (NTSC luminance, double precision, rounded back to the input integer class).
 
@@ -182,6 +213,11 @@ def del2(f: np.ndarray, hx: float | np.ndarray = 1.0, hy: float | np.ndarray | N
     if a.ndim != 2:
         raise ValueError("del2 supports 1-D and 2-D input only")
     if a.shape[1] == 1:  # column vector: one-dimensional case, v = g, divided by ndims(f) = 2
+        # NOTE (ch06 review nit): this branch uses `hx` and ignores `hy`.  R2025a's `del2.m` builds `loc` from
+        # `parse_inputs`, which for a vector input keeps only one location vector, so `del2(colvec, hx, hy)`
+        # would take `v{2}` (i.e. `hy`) as `loc{1}` instead.  Unreachable from ch06 -- `GVF.m` only ever calls
+        # `del2(u)` on a 2-D field -- and no other chapter calls the 3-argument form on a vector, so the
+        # divergence is documented here rather than reproduced.
         loc0 = hx * np.arange(1, a.shape[0] + 1) if np.isscalar(hx) else np.asarray(hx, dtype=np.float64)
         v = _del2_along_columns(a, np.asarray(loc0, dtype=np.float64)) / 2.0
         return (v.T if rflag else v).reshape(np.shape(f))

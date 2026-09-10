@@ -43,6 +43,7 @@ from .core.filters import fspecial, imfilter
 from .core.matlab_compat import imcomplement, rgb2gray_matlab, to_uint8_saturating
 from .core.morphology import imclose, imdilate, imimposemin, imopen, imreconstruct, imregionalmin, \
     reconstruct_by_erosion, strel
+from .core.regionprops import regionprops
 from .core.threshold import graythresh, im2bw
 from .core.watershed import watershed
 
@@ -344,15 +345,17 @@ def component_centroids(mask: np.ndarray, conn: int = 8) -> np.ndarray:
 
     MATLAB source: the commented block of ``marker_watershed.m`` lines 18–25 (one-pixel markers at
     ``floor(Centroid)``).  Parity: exact by definition (mean of indices).
+
+    Since chapter 6 this is a **thin wrapper** over :func:`seaice.core.regionprops.regionprops` (rule 9, ch06
+    review finding S8): ch06's ``GVF_distance.m`` needs the same ``Centroid`` and the primitive was promoted to
+    ``core``, so there is one code path.  The signature, the ``bwlabel`` ordering and the ``(x, y)`` 1-based
+    return are unchanged.
     """
     lab = label_components(mask, conn)
-    n = int(lab.max())
-    out = np.zeros((n, 2), dtype=np.float64)
-    rows, cols = np.nonzero(lab)
-    for k in range(1, n + 1):
-        sel = lab[rows, cols] == k
-        out[k - 1] = (cols[sel].mean() + 1.0, rows[sel].mean() + 1.0)
-    return out
+    stats = regionprops(lab, ("Centroid",))
+    if not stats:
+        return np.zeros((0, 2), dtype=np.float64)
+    return np.array([s.Centroid for s in stats], dtype=np.float64).reshape(-1, 2)
 
 
 def marker_watershed(bw: np.ndarray, metric: str = "cityblock", radius: int = 5, point_markers: bool = False,

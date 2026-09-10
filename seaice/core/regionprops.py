@@ -98,8 +98,15 @@ def _as_label_image(L, conn: int) -> np.ndarray:
     taken as a label matrix, even when it holds a single region — re-labelling it would silently change the
     connectivity the caller chose.  ``bool`` and unsigned/float arrays whose maximum is <= 1 are treated as
     binary images.
+
+    A **0-size** input returns an empty label image (``regionprops`` on it gives an empty stats list, as MATLAB
+    does); without the guard the ``a.min()``/``a.max()`` reductions below raise
+    ``ValueError: zero-size array to reduction`` for a 0x0 float array while the bool path happened to work
+    (ch06 review nit).
     """
     a = np.asarray(L)
+    if a.size == 0:
+        return np.zeros(a.shape, dtype=np.int64)
     if a.dtype == np.bool_:
         return label_components(a, conn)
     if np.issubdtype(a.dtype, np.signedinteger):
@@ -342,6 +349,13 @@ def _ellipse_params(st: RegionProps, x: np.ndarray, y: np.ndarray, xbar: float, 
     uxy = float(np.sum(xs * ys) / N)
     common = np.sqrt((uxx - uyy) ** 2 + 4.0 * uxy ** 2)
     st.MajorAxisLength = float(2.0 * np.sqrt(2.0) * np.sqrt(uxx + uyy + common))
+    # DEVIATION: `near` in an unobserved corner (ch06 review nit).  MATLAB's `ComputeEllipseParams` writes
+    # `2*sqrt(2)*sqrt(uxx + uyy - common)` with **no clamp**; for a perfectly degenerate region floating-point
+    # noise can make `uxx + uyy - common` a tiny negative number (~-1e-17) and MATLAB then returns a *complex*
+    # MinorAxisLength, which every downstream comparison (`rl = l ./ w` in `GVF_distance.m` line 100) would
+    # silently turn complex too.  The clamp to 0 keeps the value real.  Never observed on any fixture or book
+    # image: the smallest `uxx + uyy - common` measured is +1/12 (a single-pixel region), and the clamp has
+    # never changed a value in the ch05/ch06 references.
     st.MinorAxisLength = float(2.0 * np.sqrt(2.0) * np.sqrt(max(uxx + uyy - common, 0.0)))
     st.Eccentricity = float(2.0 * np.sqrt((st.MajorAxisLength / 2.0) ** 2 - (st.MinorAxisLength / 2.0) ** 2)
                             / st.MajorAxisLength) if st.MajorAxisLength else 0.0

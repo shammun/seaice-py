@@ -100,8 +100,15 @@ def clip_polygon_rect(x, y, x_range: tuple[float, float], y_range: tuple[float, 
         return np.zeros(0), np.zeros(0)
     # NOTE (ch06 verification, open item 2): MATLAB's `polybool` returns a **closed** ring -- it appends a copy of
     # the first vertex.  With the chapter's `Dmin = 0` that duplicate survives `snakeinterp` (a zero-length segment
-    # is never removed), so it is carried into `snakedeform` and changes the converged contour.  Closing the ring
-    # here took `GVF_distance.m`'s `bw1` from 61 to 7 differing pixels of 31 730 against MATLAB.
+    # is never removed, `IDX = (d < dmin)` being false for it), so it is carried into `snakedeform`; the MATLAB
+    # reference records `XI0` at 252 points against an open ring's 251.  Closing it here is therefore the correct
+    # contract, and what it bought is *structural*, not a lower pixel count: contours matching MATLAB's exact
+    # point count went from **2 of 46 to 13 of 46**, and all **46/46** clipped polygons are now closed at
+    # MATLAB's exact count.  The pixel counts did not move (`GVF_distance.m`'s `bw1`: 61 -> 63 differing pixels
+    # of 31 730, 59 of them unchanged).  The residual 0.19 % is `polybool`'s **start-vertex rotation**, which the
+    # verifier proved is not reproducible: 0 of 46 clips follow max-y, min-y, max-x, min-x or lexicographic
+    # order.  A rotated start vertex shifts `snakeindex`'s insertion parity by one, the +-1 instability
+    # quantified in `reports/ch06_verification.md` Deviation 3.
     if poly[0] != poly[-1]:
         poly = poly + [poly[0]]
     arr = np.asarray(poly, dtype=np.float64)
@@ -256,8 +263,11 @@ def convhull(x, y, simplify: bool = True) -> np.ndarray:
     Built on ``scipy.spatial.ConvexHull``; degenerate inputs (fewer than three points, or all points collinear)
     are handled explicitly because Qhull raises for them while the callers here need the two extreme points.
 
-    Parity: exact for the hull **vertex set**; the starting vertex may differ from MATLAB's (immaterial for
-    every use in this project — filling, rasterising and rotating-caliper loops are all rotation invariant).
+    Parity: **near** (`reports/ch06_verification.md`).  Two documented differences from MATLAB, neither of which
+    changes any value this project derives from the hull: the starting vertex may differ (filling, rasterising
+    and the rotating-caliper loop are all rotation invariant), and MATLAB's `convhull` **keeps collinear hull
+    points** while Qhull's ``'Qt'`` merges them, so this returns a subset of MATLAB's index list
+    (`tests/test_ch06.py` asserts ``mine <= theirs`` for exactly that reason).  The hull *polygon* is identical.
     """
     from scipy.spatial import ConvexHull, QhullError
 

@@ -195,17 +195,26 @@ def gvf_force_field(gray: np.ndarray, *, sigma: float = 0.0, gradient_on: bool =
 
     Book: Eq. (6.7)/(6.11) for the edge map ``f = |∇I|`` and Eqs. (6.41)/(6.53) for the GVF diffusion.
 
-    # DEVIATION: `exact` to the script, but the **book's Eq. (6.56) uses the GVF field v itself**, not
-    # ``v/|v|``.  The unit normalisation is Xu & Prince's demo convention: it makes the effective external force
-    # weight ``kappa`` the same everywhere and keeps a non-zero force even in flat regions.  ``normalize=False``
-    # gives the book form.
+    # DEVIATION: `exact` to the script for `normalize=True`, but the **book's Eq. (6.56) uses the GVF field v
+    # itself**, not ``v/|v|``.  The unit normalisation is Xu & Prince's demo convention: it makes the effective
+    # external force weight ``kappa`` the same everywhere and keeps a non-zero force even in flat regions.
+    # ``normalize=False`` gives the book form.
+
+    The **class** of ``f``/``f2`` is preserved, because MATLAB's is (ch06 review finding M1).  ``I`` arrives as
+    ``uint8`` from ``rgb2gray``; ``gaussianBlur`` returns a double (``xconv2`` goes through ``fft2``) and
+    ``abs(gradient2(double(f)))`` is a double, but with ``sigma = 0`` **and** ``GradientOn = 0`` the M-code hands
+    ``GVF`` the raw uint8 image, and ``GVF.m``'s normalisation then runs in uint8 and binarises the edge map (see
+    :func:`seaice.core.snake.gvf`).  With ``GVFOn = 0`` the same uint8 array reaches ``gradient2``, which
+    differences it in uint8 (see :func:`seaice.core.snake.gradient2`).  Both are reproduced rather than silently
+    computed in float64; the ``GradientOn = 1`` path used by every driver, script and figure is unchanged.
 
     Returns
     -------
-    (f2, u, v, px, py) : the edge map, the raw GVF field and the (normalised) external force field.
+    (f2, u, v, px, py) : the edge map, the raw GVF field and the (normalised) external force field.  ``f2`` has
+    the class MATLAB gives it — ``uint8`` for the ``sigma = 0, GradientOn = 0`` branch, float64 otherwise.
     """
-    f = gaussian_blur(gray, sigma) if sigma else np.asarray(gray, dtype=np.float64)
-    f2 = gradient2_magnitude(np.asarray(f, dtype=np.float64)) if gradient_on else np.asarray(f, dtype=np.float64)
+    f = gaussian_blur(gray, sigma) if sigma else np.asarray(gray)     # GVF_distance.m:50-54 (`f = I`, uint8)
+    f2 = gradient2_magnitude(np.asarray(f, dtype=np.float64)) if gradient_on else np.asarray(f)  # :57-61
     if gvf_on:
         u, v = gvf(f2, mu, num)
     else:
@@ -222,6 +231,25 @@ def gvf_force_field(gray: np.ndarray, *, sigma: float = 0.0, gradient_on: bool =
 # ==============================================================================================================
 # §6.3.3 / Algorithm 1 — contour initialization from the distance transform
 # ==============================================================================================================
+
+def _circle(cx: float, cy: float, r) -> tuple[np.ndarray, np.ndarray]:
+    """``x = double(cen(1) + r*cos(t)); y = double(cen(2) + r*sin(t))`` — ``GVF_distance.m`` lines 129–130.
+
+    The arithmetic is carried out in the **class of ``r``** (review S4): MATLAB promotes the double ``cen`` and
+    ``cos(t)`` down to single when ``r`` is a single (which it is, ``bwdist`` returning single), and the
+    ``double(...)`` wrapper only converts the finished coordinates.  ``r`` from the ``r == 0 → 2`` fallback is a
+    double, and then the whole expression stays in double.
+    """
+    if np.asarray(r).dtype == np.float32:
+        # MATLAB `single op double`: each operation is evaluated in double and rounded to single once, so
+        # `r*cos(t)` and `cen + (...)` each take one float32 rounding (verified against `dist_script.mat`).
+        rd = np.float64(r)
+        x = np.float32(np.float64(cx) + np.float32(rd * np.cos(CIRCLE_T))).astype(np.float64)
+        y = np.float32(np.float64(cy) + np.float32(rd * np.sin(CIRCLE_T))).astype(np.float64)
+        return x, y
+    r = float(r)
+    return cx + r * np.cos(CIRCLE_T), cy + r * np.sin(CIRCLE_T)
+
 
 @dataclass
 class ContourInit:
@@ -274,6 +302,17 @@ def initialize_contours(bw: np.ndarray, *, metric: str = "cityblock", se_radius:
         (``abs(img_Dist(...)/sqrt(2))``); ``GVF_distance.m`` line 125 omits the ``abs``.  Harmless — ``bwdist``
         is never negative.
 
+    Single precision (ch06 review finding S4)
+    -----------------------------------------
+    MATLAB's ``bwdist`` returns **single**, so ``GVF_distance.m`` line 125 ``r = img_Dist(...)/sqrt(2)`` is a
+    single, lines 129–130 ``x = double(cen(1) + r*cos(t))`` evaluate the whole circle in single and only then
+    cast to double.  :func:`seaice.core.distance.bwdist` deliberately returns float64 (its module docstring
+    explains why), so the two casts are applied here instead: the radius is computed as
+    ``float32(float32(D)/sqrt(2))`` and the circle as ``float64(float32(cx) + float32(r)*float32(cos t))``.
+    ``r == 0 → r = 2`` assigns a **double** literal in MATLAB, so that fallback circle is computed in double —
+    reproduced.  Without the casts the radii were off by ≤ 4.5e-7 and the circle coordinates by ≤ 3.1e-5, which
+    the downstream ``ceil`` turns into whole-pixel differences.
+
     Parity: exact (script form).
     """
     bw = np.asarray(bw) != 0
@@ -305,12 +344,17 @@ def initialize_contours(bw: np.ndarray, *, metric: str = "cityblock", se_radius:
         cx, cy = centroids[n]
         rr = int(matlab_round(cy)) - 1
         cc = int(matlab_round(cx)) - 1
-        val = float(img_dist[min(max(rr, 0), M - 1), min(max(cc, 0), N - 1)]) / radius_divisor
-        r = abs(val) if abs_radius else val
+        # `img_Dist` is `single` in MATLAB (bwdist) -> `r` is single (review S4).
+        d = np.float32(img_dist[min(max(rr, 0), M - 1), min(max(cc, 0), N - 1)])
+        # `single / double` in MATLAB: the quotient is evaluated in double and rounded to single **once**
+        # (verified against `reference/ch06/dist_script.mat`: rounding sqrt(2) to single first is 1 ulp off).
+        r = np.float32(np.float64(d) / np.float64(radius_divisor))
+        if abs_radius:
+            r = np.float32(abs(r))
         if r == 0:
-            r = min_radius
-        radii[n] = r
-        contours.append((cx + r * np.cos(CIRCLE_T), cy + r * np.sin(CIRCLE_T)))
+            r = np.float64(min_radius)  # MATLAB `r = 2` is a double literal -> the circle is built in double
+        radii[n] = float(r)
+        contours.append(_circle(cx, cy, r))
     return ContourInit(bw=bw, img_dist=img_dist, minima_map=minima_map, dis=dis, dis_dilated=dis_dilated,
                        label=label, num=num, centroids=centroids, radii=radii, contours=contours)
 
@@ -336,6 +380,15 @@ class SeedRecord:
     x_final: np.ndarray | None = None
     y_final: np.ndarray | None = None
     burnt_rc: np.ndarray | None = None  # 0-based (row, col) pairs written to 0
+    #: Review S9 — points dropped by the *lower* bound of the burn guard (``ceil(x) < 1`` or ``ceil(y) < 1``).
+    #: ``GVF_distance.m`` line 150 tests only ``xx(i) <= s2 & yy(i) <= s1``, so MATLAB would index with 0 or a
+    #: negative subscript there and **error**.  Counted, never silently swallowed.
+    n_below_range: int = 0
+    #: Points dropped by the guard the M-code does have (``ceil(x) > s2`` or ``ceil(y) > s1``).
+    n_above_range: int = 0
+    #: True when the contour was skipped before deformation because ``polybool`` left fewer than 3 vertices
+    #: (``snakeinterp``/``snakedeform`` would raise; MATLAB errors too).  A skipped seed has no ``x_final``.
+    skipped: bool = False
 
 
 @dataclass
@@ -355,6 +408,15 @@ class PassRecord:
     init: ContourInit | None = None
     seeds: list[SeedRecord] = field(default_factory=list)
     stopped: bool = False            # True when `length(k) == 0` broke the loop
+    #: Review S9 — seeds whose clipped initial contour had fewer than 3 vertices and were skipped (MATLAB errors).
+    #: They are recorded in ``skipped_seeds`` (``rec.seeds`` keeps holding deformed contours only, so existing
+    #: consumers may still assume ``s.x_final is not None`` there).
+    n_skipped: int = 0
+    skipped_seeds: list[SeedRecord] = field(default_factory=list)
+    #: Review S9 — contour points dropped by the burn guard, split by which bound rejected them.  MATLAB has no
+    #: lower bound (``GVF_distance.m`` line 150), so any non-zero ``below`` is a place where MATLAB would crash.
+    n_below_range: int = 0
+    n_above_range: int = 0
 
 
 @dataclass
@@ -373,6 +435,21 @@ class GVFDistance:
     bw1: np.ndarray
     n_seeds: int = 0
     n_seeds_run: int = 0
+
+    @property
+    def n_skipped(self) -> int:
+        """Review S9: contours skipped because ``polybool`` left fewer than 3 vertices (MATLAB would error)."""
+        return sum(p.n_skipped for p in self.passes)
+
+    @property
+    def n_below_range(self) -> int:
+        """Review S9: burn points dropped by the **lower** bound the M-code does not have (MATLAB would error)."""
+        return sum(p.n_below_range for p in self.passes)
+
+    @property
+    def n_above_range(self) -> int:
+        """Burn points dropped by ``GVF_distance.m`` line 150's own ``xx <= s2 & yy <= s1`` test."""
+        return sum(p.n_above_range for p in self.passes)
 
 
 @dataclass
@@ -465,17 +542,24 @@ def _run_snake_passes(bw1: np.ndarray, px: np.ndarray, py: np.ndarray, *, iter: 
         for n1 in range(run):
             if progress is not None:
                 progress(n1, run)
-            cx, cy = init.centroids[n1]
             r = float(init.radii[n1])
-            x = cx + r * np.cos(CIRCLE_T)
-            y = cy + r * np.sin(CIRCLE_T)
+            # The circle is the one `initialize_contours` already built (single precision where MATLAB's is,
+            # review S4) -- recomputing it here in float64 was the second source of the residual `ceil` flips.
+            x, y = init.contours[n1]
+            x, y = x.copy(), y.copy()
             xi, yi = snakeinterp(x, y, Dmax, Dmin)
             # polybool('intersection', s_2, s_1, x, y): clip to the image rectangle (see core.polygon)
             xc, yc = clip_polygon_rect(xi, yi, (0.0, float(s2)), (0.0, float(s1)))
-            if xc.size < 3:
-                continue
             seed = SeedRecord(index=n1, centroid=init.centroids[n1].copy(), radius=r, x_circle=x, y_circle=y,
                               x_interp=xi, y_interp=yi, x_clip=xc, y_clip=yc)
+            if xc.size < 3:
+                # DEVIATION: `near` (review S9) -- the M-code has no such test: `snakeinterp`/`snakedeform` would
+                # be called on a degenerate polygon and MATLAB would error.  Skipping keeps the port usable on
+                # images the authors never ran, and the count is reported so a divergence cannot hide.
+                seed.skipped = True
+                rec.n_skipped += 1
+                rec.skipped_seeds.append(seed)  # kept out of `rec.seeds`, which holds deformed contours only
+                continue
             xs, ys = xc, yc
             n_blocks = int(np.ceil(iter / 5))
             floor5 = int(np.floor(iter / 5))
@@ -488,8 +572,17 @@ def _run_snake_passes(bw1: np.ndarray, px: np.ndarray, py: np.ndarray, *, iter: 
             seed.x_final, seed.y_final = xs, ys
             xx = np.ceil(xs).astype(np.int64)
             yy = np.ceil(ys).astype(np.int64)
-            ok = (xx <= s2) & (yy <= s1)  # the script has no lower guard; the polybool clip supplies it
-            ok &= (xx >= 1) & (yy >= 1)
+            above = (xx <= s2) & (yy <= s1)   # GVF_distance.m:150 -- `if xx(i) <= s2 & yy(i) <= s1`
+            # DEVIATION: `near` (review S9) -- the M-code has **no lower guard**, so a contour point with
+            # `ceil(x) <= 0` would be a 0 or negative subscript and MATLAB would error on line 151.  The guard is
+            # kept (the polybool clip makes it unreachable on the book's images) and every point it drops is
+            # counted, so a divergence from MATLAB shows up in the printed summary instead of vanishing.
+            below = (xx >= 1) & (yy >= 1)
+            ok = above & below
+            seed.n_above_range = int((~above).sum())
+            seed.n_below_range = int((above & ~below).sum())
+            rec.n_above_range += seed.n_above_range
+            rec.n_below_range += seed.n_below_range
             bw1[yy[ok] - 1, xx[ok] - 1] = 0
             seed.burnt_rc = np.column_stack([yy[ok] - 1, xx[ok] - 1])
             rec.seeds.append(seed)
@@ -605,9 +698,9 @@ def seaice_kmean_gvf(I: np.ndarray, *, kms0: int = 3, sigma: float = 0.0, Gradie
     Returns
     -------
     :class:`KmeanGVF`.  Parity: **near** -- k-means cluster centres and the ``bk``/``bw0`` masks match MATLAB
-    exactly (0 px), while the three-level ``out`` differs on 0.177 % of pixels through the same ``ceil`` and
-    single-precision effects as :func:`gvf_distance` (`reports/ch06_verification.md` Deviations 1-3; corrected
-    2026-09-10, review finding S6).
+    exactly (0 px), while the three-level ``out`` differs on **0.185 %** of pixels through the same ``ceil``
+    and single-precision effects as :func:`gvf_distance` (`reports/ch06_verification.md` Deviations 1-3;
+    corrected 2026-09-10, review finding S6 and the verifier's stale-number item).
     """
     I = np.asarray(I)
     gray = rgb2gray_matlab(I) if I.ndim == 3 else I

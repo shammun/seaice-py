@@ -31,7 +31,7 @@ from functools import lru_cache
 import numpy as np
 
 from .interp import interp2
-from .matlab_compat import del2
+from .matlab_compat import del2, saturate_to_class
 
 #: Contour length from which :func:`snakedeform` switches to the FFT (circulant) solver by default.
 CIRCULANT_MIN_N = 32
@@ -57,7 +57,18 @@ def bound_mirror_expand(A: np.ndarray) -> np.ndarray:
     derivative, which a mirror about the border row/column realises.  MATLAB source:
     ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/BoundMirrorExpand.m``.
 
-    Equivalent to ``np.pad(A, 1, mode='reflect')`` (asserted in the tests).  Parity: exact.
+    Equivalent to ``np.pad(A, 1, mode='reflect')`` (asserted in the tests).
+
+    ``B = zeros(m+2, n+2)`` in the M-code is a **double**, so an integer-class ``A`` is promoted here — that is
+    where ``GVF.m``'s uint8 arithmetic (see :func:`gvf`) stops.
+
+    # DEVIATION: `near` on degenerate shapes (ch06 review nit).  MATLAB's `BoundMirrorExpand` **runs** on a 1xN
+    # or Mx1 matrix: every index list stays in range (`B` has m+2 >= 3 rows, so `B([3 m], ...)` is legal even
+    # for m = 1) and it returns a mirrored strip, so `GVF.m` on a 1xN image works there.  This port raises
+    # `ValueError` for `m < 2 or n < 2` instead, because a one-row "image" mirrors row 3 of `B` -- a row that is
+    # still all zeros at that point in the M-code -- into both border rows, which is an artefact rather than a
+    # boundary condition.  For every shape both implementations accept, the result is exact.  Unreachable from
+    # ch6 (all images are genuinely 2-D).
     """
     A = np.asarray(A, dtype=np.float64)
     m, n = A.shape
@@ -102,16 +113,28 @@ def bound_mirror_shrink(A: np.ndarray) -> np.ndarray:
 # gradient2 — the MATLAB-4 ``gradient`` semantics used to build the edge map f = |∇I|
 # --------------------------------------------------------------------------------------------------------------
 
-def _grad_first_axis(a: np.ndarray, ax: np.ndarray) -> np.ndarray:
+def _grad_first_axis(a: np.ndarray, ax: np.ndarray, int_dtype=None) -> np.ndarray:
     """Derivative of ``a`` along its **columns** (MATLAB's inner loop of ``gradient2.m``): one-sided at the two
-    edges, centred over ``ax(k+2) - ax(k)`` in the middle."""
+    edges, centred over ``ax(k+2) - ax(k)`` in the middle.
+
+    ``int_dtype`` is the MATLAB integer class the arithmetic must be evaluated in (``gradient2.m`` never casts
+    its input, so ``gradient2(uint8_image)`` subtracts and divides in uint8): both the difference and the
+    division by the spacing then saturate and round through :func:`seaice.core.matlab_compat.saturate_to_class`.
+    ``y = zeros(m, n)`` is a double in the M-code, so the *stored* result is float64 either way.
+    """
     m, n = a.shape
     y = np.zeros((m, n), dtype=np.float64)
+
+    def op(diff, d):
+        if int_dtype is None:
+            return diff / d
+        return saturate_to_class(saturate_to_class(diff, int_dtype) / d, int_dtype)
+
     if n > 1:
-        y[:, 0] = (a[:, 1] - a[:, 0]) / (ax[1] - ax[0])
-        y[:, n - 1] = (a[:, n - 1] - a[:, n - 2]) / (ax[n - 1] - ax[n - 2])
+        y[:, 0] = op(a[:, 1] - a[:, 0], ax[1] - ax[0])
+        y[:, n - 1] = op(a[:, n - 1] - a[:, n - 2], ax[n - 1] - ax[n - 2])
     if n > 2:
-        y[:, 1:n - 1] = (a[:, 2:n] - a[:, 0:n - 2]) / (ax[2:n] - ax[0:n - 2])[None, :]
+        y[:, 1:n - 1] = op(a[:, 2:n] - a[:, 0:n - 2], (ax[2:n] - ax[0:n - 2])[None, :])
     return y
 
 
@@ -127,9 +150,16 @@ def gradient2(a: np.ndarray, xax: float | np.ndarray = 1.0,
     not change under them).
 
     ``xax``/``yax`` may be scalar spacings or explicit coordinate vectors, exactly like MATLAB's; the default
-    unit spacing makes this identical to ``np.gradient(a)[::-1]``.  Parity: exact.
+    unit spacing makes this identical to ``np.gradient(a)[::-1]``.
+
+    An **integer-class** ``a`` (which ``GVF_distance.m`` produces with ``GradientOn = 0``, ``GVFOn = 0``:
+    ``[u, v] = gradient2(f2)`` on the raw uint8 image) is differenced and divided *in that class*, exactly as
+    ``gradient2.m`` does — negative differences saturate to 0 and the centred differences are rounded to
+    integers.  ``a = a.'`` in the M-code keeps the class, so both passes behave the same way.  Parity: exact.
     """
-    a = np.asarray(a, dtype=np.float64)
+    a = np.asarray(a)
+    int_dtype = a.dtype if np.issubdtype(a.dtype, np.integer) else None
+    a = a.astype(np.float64)
     if a.ndim != 2:
         raise ValueError("gradient2 expects a 2-D matrix")
     m, n = a.shape
@@ -139,8 +169,8 @@ def gradient2(a: np.ndarray, xax: float | np.ndarray = 1.0,
     ya = np.asarray(yax, dtype=np.float64)
     xa = xa * np.arange(n, dtype=np.float64) if xa.ndim == 0 else xa.ravel()
     ya = ya * np.arange(m, dtype=np.float64) if ya.ndim == 0 else ya.ravel()
-    xx = _grad_first_axis(a, xa)          # d/dcolumn  (first pass of the MATLAB loop)
-    yy = _grad_first_axis(a.T, ya).T      # d/drow     (second pass, on the transpose)
+    xx = _grad_first_axis(a, xa, int_dtype)          # d/dcolumn  (first pass of the MATLAB loop)
+    yy = _grad_first_axis(a.T, ya, int_dtype).T      # d/drow     (second pass, on the transpose)
     return xx, yy
 
 
@@ -184,7 +214,9 @@ def gvf(f: np.ndarray, mu: float, iters: int, *, check_cfl: bool = True) -> tupl
     Parameters
     ----------
     f : ndarray (M, N)
-        Edge map, larger on edges.  Normalised to ``[0, 1]`` **inside** the function, exactly as ``GVF.m`` does.
+        Edge map, larger on edges.  Normalised to ``[0, 1]`` **inside** the function, exactly as ``GVF.m`` does
+        — including the class of the arithmetic (see the note below): an **integer** ``f`` is normalised in its
+        own integer class, which is not the same as normalising the float64 values.
     mu : float
         Regularization coefficient of Eq. (6.41).
     iters : int
@@ -199,19 +231,41 @@ def gvf(f: np.ndarray, mu: float, iters: int, *, check_cfl: bool = True) -> tupl
     Notes
     -----
     Boundary handling is the mirror condition of Eq. (6.46) (``BoundMirrorExpand`` once, ``BoundMirrorEnsure``
-    at the top of every iteration, ``BoundMirrorShrink`` at the end).  A constant ``f`` makes the
-    normalisation ``(f − fmin)/(fmax − fmin)`` a ``0/0``; that is MATLAB's behaviour too (NaN field) and is
-    reported through ``np.errstate`` rather than silently patched.  Parity target: exact.
+    at the top of every iteration, ``BoundMirrorShrink`` at the end).  A constant **floating-point** ``f`` makes
+    the normalisation ``(f − fmin)/(fmax − fmin)`` a ``0/0``; that is MATLAB's behaviour too (NaN field) and is
+    reported through ``np.errstate`` rather than silently patched.  A constant *integer* ``f`` gives MATLAB's
+    integer ``0/0 = 0``, i.e. an all-zero field — reproduced.
+
+    Integer-class normalisation (ch06 review finding M1)
+    ----------------------------------------------------
+    ``GVF.m`` lines 21–23 are ``fmin = min(f(:)); fmax = max(f(:)); f = (f-fmin)/(fmax-fmin);`` with **no cast**.
+    ``GVF_distance.m`` line 61 hands it a ``uint8`` image whenever ``GradientOn = 0`` (``f2 = f`` with ``f = I``),
+    so MATLAB evaluates that line in uint8: the subtraction saturates and the division **rounds to an integer**,
+    which collapses the edge map to a 0/1 image thresholded at the mid-range ``(fmax+fmin)/2``.  Only then does
+    ``BoundMirrorExpand``'s ``B = zeros(...)`` promote it to double.  This port reproduces that through
+    :func:`seaice.core.matlab_compat.saturate_to_class` — the same "arithmetic in the input class" precedent as
+    ch05's ``imimposemin``.  A float64 ``f`` (every ``GradientOn = 1`` call, i.e. all three ch6 drivers and every
+    figure) takes the unchanged float path, bit for bit.  Parity target: exact.
     """
-    f = np.asarray(f, dtype=np.float64)
+    f = np.asarray(f)
     if check_cfl and mu > 0.25:
         raise ValueError(
             f"mu = {mu} violates the CFL condition (6.55) Δt ≤ ΔxΔy/(4μ) at Δt = Δx = Δy = 1 (needs μ ≤ 0.25); "
             "pass check_cfl=False to override")
-    fmin = float(f.min())
-    fmax = float(f.max())
-    with np.errstate(invalid="ignore", divide="ignore"):
-        f = (f - fmin) / (fmax - fmin)  # normalise f to [0, 1]
+    if np.issubdtype(f.dtype, np.integer):  # GVF.m lines 21-23 evaluated in the input class
+        dt = f.dtype
+        fmin = float(f.min())
+        fmax = float(f.max())
+        num = saturate_to_class(f.astype(np.float64) - fmin, dt)
+        den = float(saturate_to_class(fmax - fmin, dt))
+        # MATLAB integer division: x/0 is intmax (sign of x) but 0/0 is 0, and here num == 0 wherever den == 0.
+        f = np.zeros(f.shape, dtype=np.float64) if den == 0 else saturate_to_class(num / den, dt)
+    else:
+        f = f.astype(np.float64)
+        fmin = float(f.min())
+        fmax = float(f.max())
+        with np.errstate(invalid="ignore", divide="ignore"):
+            f = (f - fmin) / (fmax - fmin)  # normalise f to [0, 1]
     f = bound_mirror_expand(f)
     fx, fy = gradient2(f)  # MATLAB `gradient`; identical to gradient2 at unit spacing
     u = fx.copy()
@@ -340,17 +394,45 @@ def _inv_A_gamma(N: int, alpha: float, beta: float, gamma: float, book_index: bo
     return np.linalg.inv(A + gamma * np.eye(N))
 
 
-def snake_first_column(N: int, alpha: float, beta: float, gamma: float = 0.0) -> np.ndarray:
+def snake_first_column(N: int, alpha: float, beta: float, gamma: float = 0.0, *,
+                       book_index: bool = False) -> np.ndarray:
     """First column of ``A + γI`` for **constant** ``α``, ``β``, when ``A`` is a symmetric circulant matrix.
 
     With constant coefficients Eq. (6.36) collapses to ``a = e = β``, ``b = d = −α − 4β``, ``c = 2α + 6β``, so
     ``A`` is the circulant generated by ``[c, b, a, 0, …, 0, a, b]`` — which is why the book can call ``A + λI``
     "pentadiagonal and constant" (p. 121).  The wrap-around additions matter only for ``N <= 4``.
+
+    ``book_index`` selects the same convention as :func:`snake_matrix` (ch06 review finding S5: it used to be
+    accepted by :func:`snakedeform` and silently dropped on the ``'circulant'`` path).  It is evaluated here
+    rather than ignored, and the two branches provably coincide for constant coefficients:
+
+    ===============  =================================  =================================
+    coefficient      Eq. (6.36), ``book_index=True``     ``snakedeform.m``, ``False``
+    ===============  =================================  =================================
+    ``a``            ``β_{i−1}``           → ``β``       ``β_{i+1}``            → ``β``
+    ``b``            ``−2(β_i+β_{i−1})−α_i``  → ``−α−4β``  ``−α_i−2β_i−2β_{i+1}``  → ``−α−4β``
+    ``c``            ``β_{i+1}+4β_i+β_{i−1}+α_{i+1}+α_i`` → ``2α+6β``  ``α_i+α_{i−1}+β_{i+1}+4β_i+β_{i−1}`` → ``2α+6β``
+    ``d``            ``−2(β_{i+1}+β_i)−α_{i+1}`` → ``−α−4β``  ``−α_{i−1}−2β_i−2β_{i−1}`` → ``−α−4β``
+    ``e``            ``β_{i+1}``           → ``β``       ``β_{i−1}``            → ``β``
+    ===============  =================================  =================================
+
+    (measured agreement with the dense ``snake_matrix`` solve: 8.5e-14).  The flag therefore never changes the
+    returned column; it is threaded through so that a future non-constant-coefficient variant cannot silently
+    use the wrong convention.
     """
     N = int(N)
-    a = e = float(beta)
-    b = d = -float(alpha) - 4.0 * float(beta)
-    c = 2.0 * float(alpha) + 6.0 * float(beta)
+    al = float(alpha)
+    be = float(beta)
+    if book_index:  # Eq. (6.36) subscripts, constant alpha/beta
+        a = e = be
+        b = -2.0 * (be + be) - al
+        d = -2.0 * (be + be) - al
+        c = be + 4.0 * be + be + al + al
+    else:           # snakedeform.m lines 29-33, constant alpha/beta
+        a = e = be
+        b = -al - 2.0 * be - 2.0 * be
+        d = -al - 2.0 * be - 2.0 * be
+        c = al + al + be + 4.0 * be + be
     col = np.zeros(N, dtype=np.float64)
     col[0 % N] += c + float(gamma)
     col[1 % N] += b     # sub-diagonal:  A[i, i-1] = b
@@ -361,9 +443,9 @@ def snake_first_column(N: int, alpha: float, beta: float, gamma: float = 0.0) ->
 
 
 @lru_cache(maxsize=512)
-def _circulant_eigs(N: int, alpha: float, beta: float, gamma: float) -> np.ndarray:
-    """Eigenvalues of the circulant ``A + γI`` (its DFT), cached per ``(N, α, β, γ)``."""
-    return np.fft.fft(snake_first_column(N, alpha, beta, gamma))
+def _circulant_eigs(N: int, alpha: float, beta: float, gamma: float, book_index: bool = False) -> np.ndarray:
+    """Eigenvalues of the circulant ``A + γI`` (its DFT), cached per ``(N, α, β, γ, book_index)``."""
+    return np.fft.fft(snake_first_column(N, alpha, beta, gamma, book_index=book_index))
 
 
 def _solve_circulant(eigs: np.ndarray, rhs: np.ndarray) -> np.ndarray:
@@ -401,7 +483,10 @@ def snakedeform(x, y, alpha: float, beta: float, gamma: float, kappa: float,
     iters : int
         Number of Euler steps.
     book_index : bool
-        Passed to :func:`snake_matrix` (see its note on Eq. 6.36's subscripts).
+        Passed to :func:`snake_matrix` (``solver='dense'``) or to :func:`snake_first_column`
+        (``solver='circulant'``) — see their notes on Eq. (6.36)'s subscripts.  For the constant ``α``, ``β`` of
+        this book the two conventions give the same matrix, but the flag is now honoured on **both** paths
+        (ch06 review finding S5; it used to be silently dropped by the circulant solver).
     solver : {'auto', 'dense', 'circulant'}
         ``'dense'`` is the literal ``inv(A + gamma*eye(N))`` of the M-code (cached per ``(N, α, β, γ)``).
         ``'circulant'`` solves the same linear system by FFT; for the constant ``α``, ``β`` of this book
@@ -433,7 +518,8 @@ def snakedeform(x, y, alpha: float, beta: float, gamma: float, kappa: float,
     if solver == "auto":
         solver = "circulant" if N >= CIRCULANT_MIN_N else "dense"
     if solver == "circulant":
-        eigs = _circulant_eigs(N, float(alpha), float(beta), float(gamma))
+        # Review S5: `book_index` is threaded through instead of being dropped (see `snake_first_column`).
+        eigs = _circulant_eigs(N, float(alpha), float(beta), float(gamma), bool(book_index))
     elif solver == "dense":
         inv_ai = _inv_A_gamma(N, float(alpha), float(beta), float(gamma), bool(book_index))
     else:

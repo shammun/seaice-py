@@ -137,9 +137,13 @@ def main(argv: list[str] | None = None) -> int:
     bw_out = im2bw(I, graythresh(I)[0]).copy()
     xx = np.ceil(xs).astype(np.int64)
     yy = np.ceil(ys).astype(np.int64)
-    ok = (xx <= s2) & (yy <= s1) & (xx >= 1) & (yy >= 1)
+    above = (xx <= s2) & (yy <= s1)      # for_test.m:118 -- the only guard the M-code has
+    below = (xx >= 1) & (yy >= 1)        # review S9: MATLAB would index with 0 here and error; we drop and count
+    ok = above & below
     bw_out[yy[ok] - 1, xx[ok] - 1] = False
-    print(f"burnt {int(bw.sum()) - int(bw_out.sum())} pixels into bw ({int(ok.sum())} contour points in range)")
+    print(f"burnt {int(bw.sum()) - int(bw_out.sum())} pixels into bw ({int(ok.sum())} contour points in range; "
+          f"{int((~above).sum())} dropped by the M-code's guard, {int((above & ~below).sum())} by the lower "
+          f"bound MATLAB does not have)")
     written.append(save_image(out / "sec_6_1_2_for_test_c_binary.png", bw))
     written.append(save_image(out / "sec_6_1_2_for_test_d_binary_with_boundary.png", bw_out))
     written.append(save_image(out / "sec_6_2_for_test_e_edge_map.png", f2, autoscale=True))

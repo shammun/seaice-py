@@ -150,6 +150,36 @@ def fetch(url: str, dest: str | Path, timeout: int = 60) -> Path:
     return dest
 
 
+def _fetch_non_blank(url: str, dest: Path, timeout: int = 120) -> Path:
+    """:func:`fetch` plus a *constant-image* check, with one retry.
+
+    The NASA Worldview snapshot endpoint intermittently answers a small **all-black JPEG** instead of the scene
+    (observed once while building the ch06 notebook: a 389-byte blank for the 148x108 request; the immediate
+    retry returned the correct 4178-byte image, and the failure could not be reproduced in eight further tries).
+    A constant image is fatal downstream and fails in a way that does not name its cause: the edge map
+    ``abs(gradient2(I))`` is all zeros, ``GVF.m``'s ``(f - fmin)/(fmax - fmin)`` is ``0/0``, and the whole GVF
+    field comes out NaN.
+
+    A zero-variance image is therefore rejected, the cached file deleted and the download repeated once; if the
+    retry is blank too, a ``RuntimeError`` says so explicitly.  Nothing else about the caching behaviour changes:
+    a non-blank file already on disk is returned without any network access.
+    """
+    for attempt in (1, 2):
+        path = fetch(url, dest, timeout=timeout)
+        img = np.asarray(read_image(path), dtype=np.float64)
+        if img.size and float(img.max()) != float(img.min()):
+            return path
+        dest.unlink(missing_ok=True)  # do not keep a blank image in the cache
+        if attempt == 2:
+            raise RuntimeError(
+                f"The public-domain substitute downloaded from\n  {url}\nis a constant (blank) image on both the "
+                "first attempt and the retry.  The NASA Worldview snapshot service is answering with an empty "
+                "scene; try again in a few minutes, or place your own copy of the image at "
+                f"{dest.as_posix()}."
+            )
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 def load_image(
     chapter: str,
     name: str,
@@ -216,7 +246,7 @@ def load_image(
     for root in data_roots():
         dest = root / "data" / "online" / chapter / entry["filename"]
         try:
-            path = fetch(entry["url"], dest, timeout=120)
+            path = _fetch_non_blank(entry["url"], dest)
             break
         except (OSError, RuntimeError) as exc:  # read-only root, or download failure: try the next root
             last_error = exc
