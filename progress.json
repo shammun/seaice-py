@@ -56,7 +56,7 @@
       "analyze": "pass",
       "port": "pass",
       "verify": "pass",
-      "review": "in_progress",
+      "review": "pass",
       "notebook": "pass",
       "knowledge": "todo",
       "publish": "todo",

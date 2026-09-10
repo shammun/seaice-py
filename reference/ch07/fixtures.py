@@ -88,8 +88,23 @@ def imfill_cases() -> dict[str, np.ndarray]:
         "gray_single": _gray_wells().astype(np.float32),
         "int16_signed": (_gray_wells() * 1000 - 2000).astype(np.int16),
         "inf_plant": _inf_plant(),
+        # --- the ch07-review M1 probe: a `single` surface whose values do NOT round-trip through
+        #     `1 - (1 - x)` in float64.  `imfill.m` complements twice around the reconstruction, and MATLAB
+        #     does both complements in **single**: imcomplement(single(1e-8)) is exactly 1, so that pixel
+        #     fills to 0, and single(0.1) comes back as 0.100000024.  A float64 imcomplement leaves both
+        #     unchanged (2 of 25 elements, max 2.235e-8).
+        "single_eps": _single_eps_probe(),
     }
     return cases
+
+
+def _single_eps_probe() -> np.ndarray:
+    """The reviewer's 5x5 ``single`` image (ch07 review M1): two values that only survive in float64."""
+    g = np.full((5, 5), 2.0, dtype=np.float32)
+    g[0, 0] = np.float32(1e-8)
+    g[0, 2] = np.float32(1.0 + 1e-8)
+    g[4, 4] = np.float32(0.1)
+    return g
 
 
 def _gray_wells() -> np.ndarray:
@@ -107,6 +122,31 @@ def _inf_plant() -> np.ndarray:
     g[2, 2] = np.inf
     g[17, 20] = -np.inf
     return g
+
+
+# ==============================================================================================================
+# imcomplement (ch07 review M1: the class-preserving branches imfill depends on)
+# ==============================================================================================================
+def imcomplement_cases() -> dict[str, np.ndarray]:
+    """``{name: array}`` — one row vector per MATLAB class, run through MATLAB ``imcomplement``.
+
+    ``uint32``/``uint64`` are the classes that fell through to the float branch before ch07 review M1
+    (``imcomplement(uint32([0 1 2]))`` returned ``float64 [1, 0, -1]`` instead of the ``intmax - im`` triple);
+    ``single`` is the class whose ``1 - x`` must stay in single for ``imfill`` to be exact.
+    """
+    return {
+        "logical": np.array([[False, True]]),
+        "uint8": np.array([[0, 1, 127, 128, 254, 255]], np.uint8),
+        "uint16": np.array([[0, 1, 1000, 65534, 65535]], np.uint16),
+        "uint32": np.array([[0, 1, 2, 4294967294, 4294967295]], np.uint32),
+        "uint64": np.array([[0, 1, 2, 18446744073709551614, 18446744073709551615]], np.uint64),
+        "int8": np.array([[-128, -1, 0, 1, 127]], np.int8),
+        "int16": np.array([[-32768, -1, 0, 1, 32767]], np.int16),
+        "int32": np.array([[-2147483648, -1, 0, 1, 2147483647]], np.int32),
+        "int64": np.array([[-9223372036854775808, -1, 0, 1, 9223372036854775807]], np.int64),
+        "single": np.array([[1e-8, 1.0 + 1e-8, 0.1, 0.5, 2.0, -3.0]], np.float32),
+        "double": np.array([[1e-8, 1.0 + 1e-8, 0.1, 0.5, 2.0, -3.0]], np.float64),
+    }
 
 
 # ==============================================================================================================
@@ -133,6 +173,19 @@ def hist_cases() -> dict[str, tuple[np.ndarray, object]]:
         "centres_two": (np.array([0.0, 1, 2, 3]), np.array([1.0, 2.0])),
         "with_nan_inf": (np.array([1.0, 2.0, np.nan, 3.0, np.inf, -np.inf, 4.0]), 4),
         "big_ints": (np.arange(1.0, 101.0), 7),
+        # --- the discriminating case for `edges + eps(edges)` (hist.m l. 145; ch07 review S2) -------------
+        # The internal edge is -2, a negative power of two, where eps(-2) = 2^-51 steps twice as far as
+        # nextafter(-2, +Inf) = 2^-52.  A datum half an eps above -2 therefore falls in the FIRST bin for
+        # MATLAB (z = [1 0 0]) and in the second one for a nextafter port (z = [0 1 0]).
+        "eps_edge_neg_pow2": (np.array([-2.0 + abs(np.spacing(-2.0)) / 2]), np.array([-3.0, -1.0, 1.0])),
+        # --- the all-/mixed-non-finite probes (ch07 review S3): they exercise the `finite.size == 0`
+        #     branch (hist.m l. 91-105 `isempty(yind)` -> miny = maxy = 0) and histc's -Inf / +Inf rules.
+        "nonfinite_all_three": (np.array([np.inf, -np.inf, np.nan]), 4),      # MATLAB z = [1 0 0 1]
+        "nonfinite_nan_only": (np.array([np.nan, np.nan]), 3),                # MATLAB z = [0 0 0]
+        "nonfinite_pinf_only": (np.array([np.inf, np.inf]), 3),               # MATLAB z = [0 0 2]
+        "nonfinite_ninf_only": (np.array([-np.inf, -np.inf]), 3),             # MATLAB z = [2 0 0]
+        "nonfinite_one_and_ninf": (np.array([1.0, -np.inf]), 2),              # MATLAB z = [1 1]
+        "nonfinite_ninf_zero_pinf": (np.array([-np.inf, 0.0, np.inf]), 5),    # MATLAB z = [1 0 1 0 1]
     }
 
 

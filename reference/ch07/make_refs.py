@@ -6,7 +6,7 @@ Runs the ORIGINAL ``.m`` files of ``MATLAB_ROOT/ch7/`` through ``tools.run_matla
 Usage::
 
     .venv/Scripts/python.exe reference/ch07/make_refs.py [name ...]
-    names = clf, fig767, imfill, hist, misc, kmeans, iceenh, demo
+    names = clf, fig767, imfill, imcomp, hist, misc, kmeans, iceenh, demo
 
 Scratch policy (CLAUDE.md rule 8: nothing under ``MATLAB_ROOT`` is touched)
 --------------------------------------------------------------------------
@@ -40,7 +40,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from tools.run_matlab_ref import run_ref  # noqa: E402
-from reference.ch07.fixtures import hist_cases, imfill_cases, seg_fixtures  # noqa: E402
+from reference.ch07.fixtures import (hist_cases, imcomplement_cases, imfill_cases,  # noqa: E402
+                                     seg_fixtures)
 
 MATLAB_ROOT = ROOT / "K30735_Sea Ice Image Processing with MATLAB_matlab codes/matlab"
 CH7 = MATLAB_ROOT / "ch7"
@@ -319,7 +320,36 @@ def ref_hist() -> None:
     # the empty-input branch (an empty array cannot round-trip through savemat reliably)
     code += ["[z_empty, n_empty] = hist([], 5);", "[z_empty_c, n_empty_c] = hist([], [1 2 3]);"]
     save_vars += ["z_empty", "n_empty", "z_empty_c", "n_empty_c"]
+    # `hist.m` line 145 is `edgesc = edges + eps(edges)`; MATLAB's eps(x) is the positive spacing at |x|,
+    # which is NOT nextafter(x, +Inf) for a negative power of two.  Save eps() itself so the port's
+    # `abs(np.spacing(e))` can be compared bit for bit (ch07 review S2).
+    code += ["eps_seven_x = [-1 -2 -0.5 1 2 0 -3];", "eps_seven = eps(eps_seven_x);"]
+    save_vars += ["eps_seven_x", "eps_seven"]
     _run("\n".join(code), save_vars, "hist.mat")
+
+
+def ref_imcomp() -> None:
+    """MATLAB ``imcomplement`` per class (ch07 review M1) + the ``single`` round trip ``imfill`` depends on."""
+    cases = imcomplement_cases()
+    savemat(str(REF / "imcomp_inputs.mat"), {f"in_{k}": v for k, v in cases.items()}, do_compression=False)
+    code = [f"S = load({q(REF / 'imcomp_inputs.mat')});"]
+    save_vars = []
+    for k in cases:
+        # a class MATLAB refuses is evidence too (ch04 rule b): keep its error text instead of failing
+        code += [f"err_{k} = '';",
+                 "try",
+                 f"    out_{k} = imcomplement(S.in_{k});",
+                 f"    cls_{k} = class(out_{k});",
+                 "catch ME",
+                 f"    out_{k} = []; cls_{k} = ''; err_{k} = ME.message;",
+                 "end"]
+        save_vars += [f"out_{k}", f"cls_{k}", f"err_{k}"]
+    # the M1 mechanism itself: the two complements imfill.m wraps around the reconstruction
+    code += ["c1_single = imcomplement(single(1e-8));",
+             "c2_single = imcomplement(imcomplement(single(0.1)));",
+             "c2_double = imcomplement(imcomplement(0.1));"]
+    save_vars += ["c1_single", "c2_single", "c2_double"]
+    _run("\n".join(code), save_vars, "imcomplement.mat")
 
 
 def ref_misc() -> None:
@@ -433,7 +463,8 @@ def _run(code: str, save_vars, out_name: str, timeout: int = 1800) -> None:
     log.write_text(json.dumps(entries, indent=1), encoding="utf-8")
 
 
-TARGETS = {"clf": ref_clf, "fig767": ref_fig767, "imfill": ref_imfill, "hist": ref_hist,
+TARGETS = {"clf": ref_clf, "fig767": ref_fig767, "imfill": ref_imfill, "imcomp": ref_imcomp,
+           "hist": ref_hist,
            "misc": ref_misc, "kmeans": ref_kmeans, "iceenh": ref_iceenh, "demo": ref_demo}
 
 

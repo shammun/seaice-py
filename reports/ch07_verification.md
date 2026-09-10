@@ -1,9 +1,13 @@
 # Chapter 7 verification — Sea Ice Type Identification
 
 Date 2026-09-10 · port commit `541ac23` (`ch07: port — ch07_ice_type.py (1171 l) + 8 scripts, all exit 0, 63 figures`) ·
-verifier artefacts: `tests/test_ch07.py` (243 tests), `reference/ch07/make_refs.py` + `reference/ch07/fixtures.py`
-(9 `(bk, seg)` fixtures, 20 `imfill` cases, 16 `hist` cases → `*_inputs.mat`; 6 `.mat` reference groups + 18 per-fixture
-`iceenh_*.mat`, `refs_log.json`), `reference/ch07/make_python_runs.py` (`sensitivity_ticks.json`; the Algorithm-3 segmentation
+**revised 2026-09-10 at commit `5186e9d`, after the independent review** (`reports/ch07_review.md`): `9927dfa` made
+`core.histogram.hist` count `-Inf` (the original Open item 1) and `5186e9d` made `core.matlab_compat.imcomplement`
+return the **input class** (review M1) — both are re-measured against MATLAB below and both original open items are
+closed ·
+verifier artefacts: `tests/test_ch07.py` (**275 tests**), `reference/ch07/make_refs.py` + `reference/ch07/fixtures.py`
+(9 `(bk, seg)` fixtures, **21** `imfill` cases, **23** `hist` cases, **11** `imcomplement` classes → `*_inputs.mat`;
+7 `.mat` reference groups + 18 per-fixture `iceenh_*.mat`, `refs_log.json`), `reference/ch07/make_python_runs.py` (`sensitivity_ticks.json`; the Algorithm-3 segmentation
 `alg3_python.npz` stays under the git-ignored `outputs/` tree, CLAUDE.md rule 12),
 `reference/ch07/make_compare_figures.py`, `outputs/ch07/verify/` (patched script copies in `scratch/`, MATLAB `imwrite`
 images in `matlab/`, generated MATLAB code in `*_code.m`, `patches.json`, `figure_diffs.json`, `make_refs_demo.log`,
@@ -13,9 +17,14 @@ images in `matlab/`, generated MATLAB code in `*_code.m`, `patches.json`, `figur
 ## Environment
 python 3.11.5, numpy 2.4.6, scipy 1.17.1, scikit-image 0.26.0, opencv 5.0.0, matplotlib 3.11.1 |
 reference engine: **MATLAB 25.1.0.2833191 (R2025a) Prerelease Update 2** via `tools/run_matlab_ref.py`
-(`matlab -batch`, `set(0,'DefaultFigureVisible','off')`, `save(..., '-v7')`). All 7 reference runs report
-`engine: matlab`, `status: ok` (`outputs/ch07/verify/refs_log.json`): `clf` 69 s, `fig767` 52 s, `imfill` 24 s,
+(`matlab -batch`, `set(0,'DefaultFigureVisible','off')`, `save(..., '-v7')`). **Every** reference run reports
+`engine: matlab`, `status: ok` (`outputs/ch07/verify/refs_log.json`) — 8 in the first pass, 11 counting this
+revision's three: `clf` 69 s, `fig767` 52 s, `imfill` 24 s,
 `hist` 24 s, `misc` 26 s, `iceenh` 21 s, **`demo` 2 680.8 s (44.7 min)**, plus a 30 s `kmeans` probe.
+The revision pass re-ran three of them against R2025a (same engine/version, `outputs/ch07/verify/make_refs_s1b.log`):
+`imfill` **39.6 s** (the 21st case, `single_eps`, added), the new `imcomp` → `imcomplement.mat` **16.5 s** (11 classes
+through `imcomplement`, each in a `try/catch` that would have stored MATLAB's refusal — none refused), and `hist`
+**16.9 s** (the seven new cases plus MATLAB's own `eps([-1 -2 -0.5 1 2 0 -3])`).
 Octave is absent (`progress.json → environment.octave = null`); **no fallback was used and none was needed** —
 the Statistics & ML Toolbox (`kmeans`) is licensed and every ch7 toolbox call ran in MATLAB itself.
 
@@ -56,23 +65,33 @@ statements above. Everything they consume — `area_ice`, `n = 6`, `d = fix(...)
 bars; they compute nothing that is not saved.**
 
 ## pytest
-`.venv/Scripts/python.exe -m pytest tests/test_ch07.py -q -p no:cacheprovider` → **`242 passed, 1 xfailed in 59.8 s`**,
-0 failed, 0 warnings (`outputs/ch07/verify/pytest_ch07.txt`). The single `xfail(strict=True)` is a **verifier finding**
-(Open item 1), not a tolerance relaxation.
-Breakdown by evidence level: **29 L1** (synthetic truth), **176 L2** (MATLAB parity: 10 cleaning/labeling/filling,
-5 Figs. 7.6/7.7, 64 `imfill`, 19 `hist`, 66 `ice_shape_enhancement`, 6 end-to-end demo, 4 `sea_ice_test.jpg`,
-2 k-means), **25 L4** (quoted numbers), **13 script runs** (8 default + 5 non-default CLI flag combinations, all exit 0).
+`.venv/Scripts/python.exe -m pytest tests/test_ch07.py -q -p no:cacheprovider` → **`275 passed in 92.3 s`**,
+0 failed, **0 xfailed**, 0 warnings (`outputs/ch07/verify/pytest_ch07.txt`). Nothing in this chapter is xfailed or
+skipped: the strict `xfail` of the first pass (`hist` dropping `-Inf`) became a passing L2 test in `9927dfa`.
+Breakdown by evidence level (re-counted test by test, by whether the body loads a MATLAB reference):
+**35 L1** (synthetic truth), **202 L2** (MATLAB parity: 10 cleaning/labeling/filling, 5 Figs. 7.6/7.7, 67 `imfill`,
+12 `imcomplement`, 32 `hist`, 64 `ice_shape_enhancement`, 6 end-to-end demo, 4 `sea_ice_test.jpg`, 2 k-means),
+**25 L4** (quoted numbers), **13 script runs** (8 default + 5 non-default CLI flag combinations, all exit 0);
+35 + 202 + 25 + 13 = 275.
+The 32 tests added by this revision pass: 3 for the `single_eps` `imfill` case (conn 4, conn 8, class), 1 that
+re-measures review M1 before/after, 13 for `imcomplement` (11 classes + the `uint32`/`uint64` guard + the `single`
+round trip), 7 new `hist` fixtures in the parametrised parity test, 6 that pin the non-finite probes against the
+review's MATLAB table, and 2 for `eps(edges)`.
 
-Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` → **`1816 passed, 2 skipped,
-2 xfailed in 628 s`** (`outputs/ch07/verify/pytest_full.txt`) = the ch02–ch06 baseline (**1574 passed, 2 skipped,
-1 xfailed**) **unchanged** plus the 243 ch07 tests (242 passed + 1 new documented xfail). **No regression.** The 14
+Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` → **`1849 passed, 2 skipped,
+1 xfailed in 1 222.7 s`** (`outputs/ch07/verify/pytest_full.txt`; 1574 + 275 = 1849) = the ch02–ch06 baseline (**1574 passed, 2 skipped,
+1 xfailed** — the surviving xfail is ch03's) **unchanged** plus the 275 ch07 tests. **No regression.** The 14
 warnings are the same pre-existing ch03/ch04 pytest deprecations ch06 reported.
 
-Parity label counts over the **43 rows** below (**27 `.m` files** + 6 new-primitive rows + 8 text-only algorithm
-rows + 2 supporting rows): **exact 21 · near 6 · approx 1 · reimplemented 3 · unverified 3 · deferred 4**
-(+ 2 mixed rows — `snakedeform.m` `exact`/`near` and Algorithm 5 `reimplemented` (book form) / `exact` (script
-form) — 2 display-only rows and 1 evidence-only row, the `binary_fill_holes` comparison).
-Every one of the **27 `.m` files** has a row. The three `unverified` rows all have an Open item.
+Parity label counts over the **44 rows** below (**27 `.m` files** + 7 new-primitive rows + 8 text-only algorithm
+rows + 2 supporting rows): **exact 22 · near 5 · approx 1 · reimplemented 3 · unverified 3 · deferred 4**
+(+ 3 mixed rows — `snakedeform.m` `exact`/`near`, Algorithm 5 `reimplemented` (book form) / `exact` (script form) and
+the Eq. (7.6) colour-bar row `exact` / `near` for its degenerate `d == 0` branch — 2 display-only rows and 1
+evidence-only row, the `binary_fill_holes` comparison).
+Every one of the **27 `.m` files** has a row: 6 ported here, **17** byte-identical duplicates of ch6 files carried
+forward (`ch7/Sea_Ice_Floe_Identification/` holds **23** `.m`, all 23 byte-identical to ch6's — 2 of them are ported
+here and 4 deferred, leaving 17 reuse rows; 6 + 17 + 4 = 27) and 4 deferred to ch08/Appendix B.
+The three `unverified` rows all have an Open item.
 
 ## Parity table
 Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted number. "0 px"/"0.0" = identical arrays.
@@ -84,7 +103,7 @@ Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted numb
 | `cleaning & labeling & filling/filling.m` | `ch07_ice_type.hole_fill_dilation`, `scripts/ch07_filling.py` | L1 L2 L3 L4 | `I = ~I0`, `xx`, `x1…x9`, `I1 = x9 \| I0` all **0 px**; sums 5, 3, 4, 5, 6, 7, 8, 8, 8, 8 and `I1` 32 px; the 8 printed Fig. 7.5(e) blocks **0 px** | exact | |
 | `cleaning & labeling & filling/filling_reconstruct.m` | `ch07_ice_type.border_marker` + `hole_fill_reconstruct` (+ `core.morphology.imfill`), `scripts/ch07_filling_reconstruct.py` | L1 L2 L3 | 3 variants (shipped `I0` × cross, shipped `I0` × `square,3`, the file's **commented alternative** `I0` × cross): `I`, `x0`, `x10 = H`, `I1`, `I2` all **0 px**; the Eq. (7.3) `border_marker(I0)` **equals the script's hand-written `x0`** in all three; sums 39 → 48 → 9 | exact | `H == binary_fill_holes(F)` and `== imfill(F,'holes')` for logical input (L1) |
 | `Sea_Ice_Floe_Identification/ice_shape_enhancement.m` | **`ch07_ice_type.ice_shape_enhancement`**, `scripts/ch07_ice_shape_enhancement.py` | L1 L2 L3 L4 | **The chapter's core port. 9 controlled fixtures × 2 threshold forms × 2 crop modes = 36 runs; every array 0 px**: `out`, `l`, `fill`, `index`, `index_floe`, `index_brash`, `index_slush`, `index_water`, `index_residue`; and `t`, `nn_bw`, `nn_k`, the sorted areas `A`, the **stable** sort index `ind`, `color_floe`, `color_brash`, `floe_area`, `brash_area`, `floe_cen`/`brash_cen` (≤ 1e-12), the `coverage` struct (≤ 1e-12), the `regionprops` `Centroid`/`Perimeter` of every piece (≤ 1e-9), the 50-bin FSD (`z`, `n`, `color`) and both colour-bar blocks (`ysh`/`YT`, `ysh2`/`YT2`). **On the real image** (MATLAB's own `seg`/`bk` from the 44.7-min `demo` run, 1038×394, **1211 pieces = 982 light + 229 dark, 712 labels**): all nine arrays **0 px**, `ind` identical, coverage ≤ 1e-12, FSD and ticks identical, 433 floes / 274 brash | exact | R1's HG1 block is display-only (see Environment); the numbers it colours are saved and verified |
-| `Sea_Ice_Floe_Identification/sea_ice_demo.m` | `scripts/ch07_sea_ice_demo.py` | L2 L3 L4 | the ch7 parameter block asserted value-by-value (`se_th 50`, `min_floe 40`, `min_brash 1` on top of ch06's block). End to end on ch7's own `sea_ice_test.jpg`: Algorithm 3 (`seaice_kmean_gvf`) differs from MATLAB on **0.245 %** of `seg` and **0.125 %** of `bk`; that propagates to **1232 vs 1211 pieces**, **433 / 290 vs 433 / 274** floe/brash, coverage within **0.13 pp** and **identical** Eq. (7.6) colour-bar ticks `[2, 173, 379, 640, 993, 1544, 2870]`. Algorithms 4–5 are exact given the same input (row above) | near | the residual is ch06's, not ch07's — see Deviation 2 |
+| `Sea_Ice_Floe_Identification/sea_ice_demo.m` | `scripts/ch07_sea_ice_demo.py` | L2 L3 L4 | the ch7 parameter block asserted value-by-value (`se_th 50`, `min_floe 40`, `min_brash 1`). The file is **byte-identical to ch6's `sea_ice_demo.m`**, so ch7 adds no parameter — those three literals are in ch6's copy too; ch06 simply never consumed them (review N4). End to end on ch7's own `sea_ice_test.jpg`: Algorithm 3 (`seaice_kmean_gvf`) differs from MATLAB on **0.245 %** of `seg` and **0.125 %** of `bk`; that propagates to **1232 vs 1211 pieces**, **433 / 290 vs 433 / 274** floe/brash, coverage within **0.13 pp** and **identical** Eq. (7.6) colour-bar ticks `[2, 173, 379, 640, 993, 1544, 2870]`. Algorithms 4–5 are exact given the same input (row above) | near | the residual is ch06's, not ch07's — see Deviation 2 |
 | `SIFI/seaice_kmean_GVF_forenhancement.m` | `ch06_gvf_snake.seaice_kmean_gvf` (Algorithm 3) | L2 | **byte-identical to ch6's file** (`cmp -s`, re-verified: 23/23 SAME) — verified in ch06 (`near`, 0.049 % of `out`). **Re-measured here on ch7's own JPEG** (a different encoding, see the `sea_ice_test.jpg` row): `seg` 0.245 %, `bk` 0.125 % | near | ch06 row carried forward **and re-measured**, because ch7 calls it on a different input |
 | `SIFI/GVF_distance.m` | `ch06_gvf_snake.gvf_distance` | — | byte-identical to ch6's file; verified in ch06 (`near`, `bw1` 16 of 31 730 px) | near | inherited |
 | `SIFI/GVF.m` | `core.snake.gvf` | — | byte-identical; ch06 **exact** (44 cases 0.0) | exact | inherited |
@@ -102,15 +121,16 @@ Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted numb
 | `SIFI/minboundrect.m` | `core.polygon.minboundrect` | — | byte-identical; ch06 **exact** (the shipped file needs `convhull(x,y,{'Qt'})` → `convhull(x,y)` to run in R2025a) | exact | inherited; no ch7 caller |
 | `SIFI/polygeom.m` | `core.polygon.polygeom` | — | byte-identical; ch06 `near` (`ang1` ±π) | near | inherited; no ch7 caller |
 | `SIFI/homofil.m` | `core.filters.homomorphic_butterworth` | — | byte-identical; ch06 **exact** (≤ 1.14e-12). Re-checked against the ch07 text: §7.3.1.1 prescribes local sub-image processing, not homomorphic filtering | exact | **still an orphan** — no caller, no book section |
-| `SIFI/sea_ice_model.m` | → `ch08_applications.sea_ice_model` | — | not ported here (book §8.2); ch7 *feeds* it (`ice_floe`, `brash_ice`, `index_floe`) and the struct MATLAB builds is verified field by field — the names are exactly `('Center', 'Area', 'Perimeter', 'PixelsPosition')` and `Center`, `Area`, `Perimeter` and the full `PixelsPosition` matrix are identical for every piece | deferred | Open item 4 |
-| `SIFI/SeaIce_Image_Structure.m` | → ch08 / Appendix B | — | not ported here | deferred | Open item 4 |
-| `SIFI/color_hist.m` | → `scripts/ch08_color_hist.py` | — | not ported here; its input `floe` is `sea_ice_model`'s output. It contains the **same HG1 block** that breaks in R2025a | deferred | Open item 4 |
-| `SIFI/color_hist_comparison.m` | → `scripts/ch08_color_hist_comparison.py` | — | not ported here | deferred | Open item 4 |
+| `SIFI/sea_ice_model.m` | → `ch08_applications.sea_ice_model` | — | not ported here (book §8.2); ch7 *feeds* it (`ice_floe`, `brash_ice`, `index_floe`) and the struct MATLAB builds is verified field by field — the names are exactly `('Center', 'Area', 'Perimeter', 'PixelsPosition')` and `Center`, `Area`, `Perimeter` and the full `PixelsPosition` matrix are identical for every piece | deferred | Open item 3 |
+| `SIFI/SeaIce_Image_Structure.m` | → ch08 / Appendix B | — | not ported here | deferred | Open item 3 |
+| `SIFI/color_hist.m` | → `scripts/ch08_color_hist.py` | — | not ported here; its input `floe` is `sea_ice_model`'s output. It contains the **same HG1 block** that breaks in R2025a | deferred | Open item 3 |
+| `SIFI/color_hist_comparison.m` | → `scripts/ch08_color_hist_comparison.py` | — | not ported here | deferred | Open item 3 |
 | **New core primitives** | | | | | |
-| MATLAB `imfill(I[, conn], 'holes')` — l. 73/93, **Eq. (7.4)** | **`core.morphology.imfill`** | L1 L2 | **20 constructed cases × conn {4, 8} = 40 comparisons, all 0 px**, and the **output class** matches MATLAB on all 20 (`logical→logical`, `double→double`, `uint8→uint8`, `single→single`, `int16→int16`). Cases: square-with-hole in 5 classes, nested holes, a hole open to the border, a diagonal-only hole, an 8-connected ring, all-true, all-false, a single pixel, random binary, a checkerboard, three genuinely **grayscale** surfaces with two basins, a signed `int16` image and an `±Inf` plant. `'hole'`/`'holes'`/`'h'` prefix matching == MATLAB's `validatestring`; the default connectivity == `conndef(2,'minimal')` = 4 | exact | line-by-line port of R2025a `imfill.m` l. 124–145 |
+| MATLAB `imfill(I[, conn], 'holes')` — l. 73/93, **Eq. (7.4)** | **`core.morphology.imfill`** | L1 L2 | **21 constructed cases × conn {4, 8} = 42 comparisons, all 0 px**, and the **output class** matches MATLAB on all 21 (`logical→logical`, `double→double`, `uint8→uint8`, `single→single`, `int16→int16`). Cases: square-with-hole in 5 classes, nested holes, a hole open to the border, a diagonal-only hole, an 8-connected ring, all-true, all-false, a single pixel, random binary, a checkerboard, three genuinely **grayscale** surfaces with two basins, a signed `int16` image, an `±Inf` plant and — added by this revision — `single_eps`, the review's 5×5 `single` probe (`1e-8`, `1+1e-8`, `0.1`, rest `2`) that **only** the class-preserving `imcomplement` gets right. `'hole'`/`'holes'`/`'h'` prefix matching == MATLAB's `validatestring`; the default connectivity == `conndef(2,'minimal')` = 4 | exact | line-by-line port of R2025a `imfill.m` l. 124–145. **Defect found and fixed** (review M1, re-measured here, Deviation 11): before `5186e9d` the `single` branch differed from MATLAB on **2 of 25** elements, max **2.2351742e-08** |
 | — the justification, pinned | vs `scipy.ndimage.binary_fill_holes` | L2 | `binary_fill_holes` equals MATLAB on **every logical conn-4 case** but **differs for conn 8** (3 of 13 logical cases: `ring8`, `random_binary`, `checker`) and **never** reproduces a non-logical input — wrong values for `uint8` 0/255, wrong values *and* wrong class for all five grayscale/`int16`/`±Inf` cases. ch7 calls `imfill(b,'hole')` on a **double**, so the library call would have been wrong here | — | analysis R2 closed with measurements, not assertion |
-| MATLAB `hist(y, n)` / `hist(y, centres)` — l. 212 | `core.histogram.hist` | L1 L2 | **16 of 17 cases 0 px** (counts *and* centres): scalar `n` ∈ {1, 3, 4, 5, 7, 10, 50}, `min == max` (the `±n/2 − 0.5` widening), a single value, negative data, values exactly on the internal edges, explicit uniform and non-uniform **centre** vectors, values far outside the centre range (counted in the unbounded outer bins, not dropped), a 2-centre vector, 403 floe-like areas, and the empty-input branch for both forms. **1 case fails: `-Inf` is dropped** (Open item 1) | near | exact for all finite data — which is all the chapter ever passes; `np.histogram` reproduces neither the centres nor the outer-bin rule |
-| **Eq. (7.6)** colour map + inverse-labelled colour bar, l. 127 / 194–206 / 226–237 | `ch07_ice_type.size_color`, `color_to_area`, `colorbar_area_ticks`, `core.plotting.size_colorbar` | L1 L2 L4 | `ysh`/`YT` (`n = 6`, map) and `ysh2`/`YT2` (`nn = 8`, histogram) **identical to MATLAB on all 9 fixtures and on the real image**. **All 11 printed tick lists** (Figs. 7.13, 7.15, 7.19, 7.20, 7.21, 7.26(a)–(c), 7.28(a)–(c)) are reproduced by the port's arithmetic, and the `(min colour, step)` pair that produces each is **unique** — 5 (or 7) degrees of freedom of agreement per figure | exact | but see Deviation 5: for four of the eleven the tick list **saturates** and constrains nothing |
+| MATLAB `imcomplement(I)` — inside `imfill.m` l. 128/140 (**revised in ch07**, review M1) | `core.matlab_compat.imcomplement` | L1 L2 | **11 classes, all values and all classes identical to MATLAB** (`logical, uint8, uint16, uint32, uint64, int8, int16, int32, int64, single, double`; every call wrapped in a MATLAB `try/catch` — **none** was refused). The two branches ch02 never fixtured are now pinned: `uint32`/`uint64` take `intmax − im` (`imcomplement(uint32([0 1 2]))` = `[4294967295, 4294967294, 4294967293]`, **not** the float64 `[1, 0, −1]` the port returned before `5186e9d`), and the float branch stays in the input class — MATLAB `imcomplement(single(1e-8))` = **exactly 1**, `imcomplement(imcomplement(single(0.1)))` = **0.100000024** ≠ the double `0.09999999999999998`, both reproduced bit for bit | exact | ch02 primitive **re-verified and corrected here**; it decides `imfill`'s `single` branch (row above) |
+| MATLAB `hist(y, n)` / `hist(y, centres)` — l. 212 | `core.histogram.hist` | L1 L2 | **23 of 23 cases 0 px** (counts *and* centres) + both empty-input forms: scalar `n` ∈ {1, 2, 3, 4, 5, 7, 10, 50}, `min == max` (the `±n/2 − 0.5` widening), a single value, negative data, values exactly on the internal edges, explicit uniform and non-uniform **centre** vectors, values far outside the centre range (counted in the unbounded outer bins, not dropped), a 2-centre vector, 403 floe-like areas, the mixed `NaN`/`±Inf` vector (`[2 1 1 2]`, the first pass's Open item 1, **fixed in `9927dfa`**), the **six all-/mixed-non-finite probes** of review S3 — `[Inf −Inf NaN]`→`[1 0 0 1]`, `[NaN NaN]`→`[0 0 0]`, `[Inf Inf]`→`[0 0 2]`, `[−Inf −Inf]`→`[2 0 0]`, `[1 −Inf]`→`[1 1]`, `[−Inf 0 Inf]`→`[1 0 1 0 1]`, which exercise the `finite.size == 0` (`miny = maxy = 0`) branch — and the `edges + eps(edges)` discriminator `y = −2 + eps(−2)/2` with centres `[−3 −1 1]`: MATLAB **`[1 0 0]`**, the port `[1 0 0]`, a `np.nextafter` port `[0 1 0]`. MATLAB's own `eps([−1 −2 −0.5 1 2 0 −3])` equals `abs(np.spacing(·))` bit for bit on all seven | exact | `np.histogram` reproduces neither the centres nor the outer-bin rule. Known unreachable deviation: `n < 1` raises (Deviation 11c) |
+| **Eq. (7.6)** colour map + inverse-labelled colour bar, l. 127 / 194–206 / 226–237 | `ch07_ice_type.size_color`, `color_to_area`, `colorbar_area_ticks`, `core.plotting.size_colorbar` | L1 L2 L4 | `ysh`/`YT` (`n = 6`, map) and `ysh2`/`YT2` (`nn = 8`, histogram) **identical to MATLAB on all 9 fixtures and on the real image**. **All 11 printed tick lists** (Figs. 7.13, 7.15, 7.19, 7.20, 7.21, 7.26(a)–(c), 7.28(a)–(c)) are reproduced by the port's arithmetic, and the `(min colour, step)` pair that produces each is **unique** — 5 (or 7) degrees of freedom of agreement per figure. `colorbar_area_ticks` is `near`, not `exact`, on the degenerate `d == 0` branch (Deviation 11a) | exact / near (`d == 0`) | but see Deviation 5: for four of the eleven the tick list **saturates** and constrains nothing |
 | `label2rgb(index, @jet, [1 1 1])` with `max(index) ≈ 10⁴` (R6) | `core.plotting.label2rgb` | L2 L3 | does not blow up on ~10 000 colour values; background is the white triple; the **arrays** (`index`) are 0 px vs MATLAB, and the two rendered maps are visually identical (`sec_7_2_identification_compare.png`) | — (display) | colour PNGs deliberately **not** compared (CUMULATIVE pitfall 25) |
 | `core.synth.FIG_7_2_*`, `FIG_7_3_*`, `FIG_7_4_STEPS`, `FIG_7_5_*`, `FIG_7_6_*`, `FIG_7_7_STEPS(_BOOK)`, `FIG_7_8_*` | `core.synth` | L2 L3 | every printed matrix and every printed block of Figs. 7.2–7.8 compared against MATLAB running the original `.m` — 4 + 8 + 7 + 8 + 4 + 10 + 7 = **48 blocks, 47 of them 0 px**; the 48th (Fig. 7.7(e) `X8`) differs by exactly **2 px**, the **book typo** of Deviation 1 | exact (printed truths) | `FIG_7_6_IMAGE` is a *derivation* — no shipped `.m` contains it — and is confirmed by running the patched copy |
 | **Text-only algorithms** | | | | | |
@@ -119,8 +139,8 @@ Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted numb
 | **Algorithm 3** (p. 157) | `ch07_ice_type.sea_ice_edge_detection` | L2 | a thin wrapper over `ch06_gvf_snake.seaice_kmean_gvf`; measured on ch7's image above | near | inherits ch06 |
 | **Algorithm 4** (p. 158) | `ch07_ice_type.sea_ice_shape_enhancement` | L2 | an alias of `ice_shape_enhancement` (whose l. 39–61 already build one labelling out of the light **and** dark layers, which is what the algorithm requires) — exact by the `ice_shape_enhancement.m` row | exact | |
 | **Algorithm 5** (p. 160) written out on its own | `ch07_ice_type.ice_types_classification` | L1 | the four layers **tile the image exactly once**; `book_threshold=False` reproduces the M-file's `index_floe`/`index_brash`/`index_slush`/`index_water` **0 px** on 3 fixtures; the `>=` form differs **only** on pieces of exactly `T_floe` (and, with `min_brash = 1`, on 1-pixel pieces the code drops entirely); `PIXEL = IDENTIFICATION ∪ ICE` measurably grows the ice set | reimplemented (book form) + exact (script form) | Deviation 3 |
-| **Algorithm 6** (p. 168) + §7.3.1.1 tiling/stitching | `ch07_ice_type.tile_grid`, `local_segmentation`, `scripts/ch07_local_processing.py` | L1 | **no `.m` exists.** The tiling covers every pixel; the kept (overlap-removed) cores are an exact partition (every pixel claimed once); the script runs end to end | reimplemented | Open item 2 — the book fixes neither the tile size nor the overlap |
-| **§7.3.1.2** orthorectification of a *labelled* image | `ch07_ice_type.resample_categorical` (+ ch10) | L1 | nearest-neighbour resampling provably preserves the label set {0, 0.5, 1}; the camera model (shooting angle 20°, FOV 46°) is **Appendix A / ch10** | unverified (rectifier) | Open item 3 |
+| **Algorithm 6** (p. 168) + §7.3.1.1 tiling/stitching | `ch07_ice_type.tile_grid`, `local_segmentation`, `scripts/ch07_local_processing.py` | L1 | **no `.m` exists.** The tiling covers every pixel; the kept (overlap-removed) cores are an exact partition (every pixel claimed once); the script runs end to end | reimplemented | Open item 1 — the book fixes neither the tile size nor the overlap |
+| **§7.3.1.2** orthorectification of a *labelled* image | `ch07_ice_type.resample_categorical` (+ ch10) | L1 | nearest-neighbour resampling provably preserves the label set {0, 0.5, 1}; the camera model (shooting angle 20°, FOV 46°) is **Appendix A / ch10** | unverified (rectifier) | Open item 2 |
 | **§7.3.2** sensitivity sweeps (Figs. 7.24, 7.27) | `scripts/ch07_sensitivity.py` | L3 | the book prints **no counts**, only axis ranges and curve shapes, so this is `unverified` **by construction**. Measured here: the port's snake = 1 run reproduces Fig. 7.26(a)'s printed ticks at `--downscale` 2 **and** 1 — and so would *any* run whose largest piece is ≥ 8112 px (Deviation 5), so that agreement is **not** recorded as parity | unverified | Open item 5 |
 | Figs. 7.1, 7.9, 7.10–7.21 and every number attached to them | — | — | the source images (155×125, 205×263, and the aerial scene) are **not shipped anywhere in `MATLAB_ROOT`** | unverified | Open item 6 — **154/189, 2511/2624 and the eight coverage percentages cannot be reproduced and were not fabricated** |
 | Statistics TB `kmeans` on **ch7's** JPEG (R9) | `core.clustering.kmeans_lloyd(init='kmeans++', seed=0)` | L2 | sorted centres MATLAB `[77.774, 183.265, 240.027]` vs port `[77.298, 182.223, 239.728]`, **max 1.04 gray levels**; `bk` agrees on **99.875 %** of the 408 972 pixels (510 px differ). ch06 measured **0 px** for this stage — but on **ch6's** copy of the same photograph | approx | never compare labels; Deviation 2 |
@@ -163,7 +183,7 @@ rule 12). Layout: Python row | MATLAB row (the arrays the original `.m` produced
 | image "394 × 1038" | 168 | 394×1038 | `imread` gives 1038×394×3 | `size` = [1038 394 3] | match |
 | snake sweep 1 → 122 with GVF fixed at 500; GVF sweep 1 → 1500 step 20 with snake fixed at 100 | 168–172 | those | `FULL_SWEEP`/`BOOK_PANELS` in `scripts/ch07_sensitivity.py` | — | match (ranges); counts unverified |
 | shooting angle 20°, FOV 46° | 166 | those | not used in ch07 (→ ch10) | — | deferred |
-| `sea_ice_demo.m` ch7 additions `se_th 50`, `min_floe 40`, `min_brash 1` | script | — | asserted value-by-value | identical | match |
+| `sea_ice_demo.m` parameters `se_th 50`, `min_floe 40`, `min_brash 1` | script | — | asserted value-by-value | identical | match — the file is **byte-identical to ch6's**, so these are not ch7 additions; ch06 just did not consume them (review N4) |
 | `ice_shape_enhancement.m` `nbins = 50`, colour bar `n = 6` / `nn = 8`, `k = 255` | script | — | asserted; the 50-bin FSD is 0 px vs MATLAB | identical | match |
 | `bwlabel(bw, 4)` on `sea_ice_test.jpg` after Otsu | analysis pre-check | **215** (ch7) vs 231 (ch6) | **215** (Python, same JPEG decode as MATLAB) | **215** / 231 | **analyst's pre-check confirmed** |
 | Otsu level on both copies | analysis | 162/255 | 0.635294 | 0.635294 on **both** | match |
@@ -242,31 +262,58 @@ rule 12). Layout: Python row | MATLAB row (the arrays the original `.m` produced
     so the variable MATLAB returns is not the pre-sort vector. The port exposes the pre-sort vector as
     `ice_area` and the sorted/permuted forms as `np.sort(ice_area)` / `order`; the comparison in the tests is
     against MATLAB's `A` and `ind`, which are the unambiguous witnesses.
+11. **Three deviations on branches the book's parameters never reach** (added by the review pass, S6 — they were
+    in the code but in neither list). All three are *stated choices*, not unknowns:
+    (a) `ch07_ice_type.colorbar_area_ticks` when `d = fix((max − min)/n)` is **0**: MATLAB's `min : 0 : max` is the
+    **empty** vector, so its `for i = 1:length(ysh)` loop never runs and the colour bar gets no ticks; the port
+    returns the single tick `min` so the axis is still labelled. The function is therefore labelled **`near`**, not
+    `exact` (the parity row above says so, and `tests/test_ch07.py` asserts `vals.size <= 1` for this input).
+    (b) `ice_shape_enhancement(...).fsd` is `None` when `floe_area` is empty, where MATLAB `hist([], 50)`
+    (`hist.m` l. 81–89) returns `zeros(1, 50)` counts at centres `1:50`. This was never *compared* because the
+    reference wrapper `ice_shape_enhancement_ref.m` guards the tail block with `if ~isempty(floe_area)` — an
+    honest gap in the L2 evidence, closed by argument rather than by measurement: `core.histogram.hist` itself
+    **is** compared against MATLAB on both empty-input forms (`z_empty`, `z_empty_c`) and is 0 px, so only the
+    wrapper's `None` differs, and only for an ice-free image.
+    (c) `core.histogram.hist` **raises** for a scalar `n < 1`, where MATLAB takes the `binwidth = Inf` branch
+    (`hist.m` l. 124–125) and returns a degenerate histogram. `nbins` is 50 or 8 everywhere in the book.
+12. **Two defects found by the independent review and fixed under this report; both re-measured here.**
+    (a) **M1 — `imcomplement` promoted `single` to `double`.** `imfill.m` l. 128–140 complements twice around the
+    reconstruction and MATLAB evaluates both complements **in the input class**, so a `single` image round-trips
+    through `1 − (1 − x)` in single. Measured against MATLAB on the review's 5×5 `single` probe (`I(1,1) = 1e-8`,
+    `I(1,3) = 1 + 1e-8`, `I(5,5) = 0.1`, rest `2`), exchanged as a `.mat` so both sides see identical bits:
+    **before `5186e9d`: 2 of 25 elements differ, max 2.2351742e-08** ((1,1) `1e-08` vs MATLAB `0`; (5,5) `0.1` vs
+    MATLAB `0.100000024`); **after: 0 of 25, conn 4 and conn 8, class `single`**. The verifier reproduced the
+    pre-fix behaviour by monkey-patching the old expression back in
+    (`TestL2Imfill::test_single_branch_needs_the_class_preserving_imcomplement`), so the regression is pinned in
+    both directions. The same commit fixed `uint32`/`uint64`, which fell through to the float branch
+    (`imcomplement(uint32([0 1 2]))` returned `float64 [1, 0, −1]`); all 11 MATLAB classes now have a reference.
+    (b) **`hist` dropped `−Inf`** (the first pass's Open item 1, fixed in `9927dfa`): the filter kept `+Inf` but
+    not `−Inf`, so `hist([1 2 NaN 3 Inf −Inf 4], 4)` gave `[1 1 1 2]` against MATLAB's `[2 1 1 2]`. The strict
+    `xfail` that recorded it is now a passing L2 test, and six further all-/mixed-non-finite probes (review S3)
+    plus the `edges + eps(edges)` discriminator (review S2) were added as real fixtures.
 
 ## Open items
-1. **`core.histogram.hist` drops `-Inf`** (verifier finding, `tests/test_ch07.py::TestL2Hist::
-   test_minus_inf_is_counted_in_the_first_bin`, `xfail(strict=True)`). MATLAB's `hist` counts `-Inf` in the **first**
-   bin and `+Inf` in the last: on `y = [1, 2, NaN, 3, Inf, -Inf, 4]` with `n = 4` MATLAB returns `[2, 1, 1, 2]`, the
-   port returns `[1, 1, 1, 2]`. The cause is the filter on line 139 of `seaice/core/histogram.py`,
-   `y[np.isfinite(y) | (y == np.inf)]`, which keeps `+Inf` but discards `-Inf`; `hist.m` line 93 sets the first
-   comparison edge to `-Inf`, so `histc` counts it. **Latent for this chapter** — every value ch7 histograms is a
-   finite pixel area — but the docstring says "Parity: exact (line-by-line port of `hist.m`)", which is not true for
-   this input. Porter action: change the filter to keep `-Inf` (drop only NaN) and re-run
-   `reference/ch07/make_refs.py hist`; then the xfail becomes a pass and the label becomes `exact`.
-2. **Algorithm 6 and §7.3.1.1 have no MATLAB code at all** and the book fixes neither the sub-image size, the
+1. **Algorithm 6 and §7.3.1.1 have no MATLAB code at all** and the book fixes neither the sub-image size, the
    overlap size, nor the stitching rule (p. 163–164 is prose). `tile_grid`/`local_segmentation` are
    `reimplemented` with `tile`, `overlap` and `merge` as parameters; only the structural properties are provable
-   (the tiling covers the image; the overlap-removed cores partition it exactly once). There is nothing to compare
-   against, and no book number for §7.3.1.1 exists.
-3. **§7.3.1.2 orthorectification is deferred to ch10 (Appendix A).** ch07 exposes only the categorical
+   (the tiling covers the image; the overlap-removed cores partition it exactly once — 700 configurations). There
+   is nothing to compare against, and no book number for §7.3.1.1 exists.
+2. **§7.3.1.2 orthorectification is deferred to ch10 (Appendix A).** ch07 exposes only the categorical
    (nearest-neighbour) resampling, which is verified to preserve the label set; the camera model (shooting angle
    20°, FOV 46°) and the rectification itself belong to Appendix A. Nothing in ch07 should implement a second
    rectifier (analysis R14).
-4. **Four `.m` files are deliberately not ported here** — `sea_ice_model.m` (book §8.2), `SeaIce_Image_Structure.m`
+3. **Four `.m` files are deliberately not ported here** — `sea_ice_model.m` (book §8.2), `SeaIce_Image_Structure.m`
    (Appendix B), `color_hist.m` and `color_hist_comparison.m` (§8.3). They consume ch7's outputs; all four field names
    (`Center`, `Area`, `Perimeter`, `PixelsPosition`) are present in `IcePiece` and every one of them was compared
-   element-wise against MATLAB's own struct array in the reference. `color_hist*.m` contain the **same HG1 bar-colouring block** that
-   breaks in R2025a, so ch08 will need the same patch. Resolves when ch08 lands.
+   element-wise against MATLAB's own struct array in the reference. `color_hist*.m` contain the **same HG1 bar-colouring
+   block** that breaks in R2025a, so ch08 will need the same patch. Resolves when ch08 lands.
+4. **Three deliberate deviations on unreachable branches** (Deviation 11), listed here so this section is complete:
+   (a) `colorbar_area_ticks` keeps one tick where MATLAB's `min:0:max` is empty — the function is labelled `near`
+   for that branch; (b) `ice_shape_enhancement(...).fsd` is `None` for an ice-free image where MATLAB
+   `hist([], 50)` returns `zeros(1,50)`/`1:50` — never compared, because the reference wrapper guards the tail
+   with `if ~isempty(floe_area)` (the underlying `core.histogram.hist` **is** compared on both empty forms and is
+   0 px); (c) `core.histogram.hist` raises for `n < 1` where MATLAB takes the `binwidth = Inf` branch. None is
+   reachable from the book's parameters (`nbins` is 50 or 8; the colour spread of any real ice field exceeds `n`).
 5. **§7.3.2 is `unverified` by construction.** The book prints only axis ranges (Fig. 7.24 y 200–1600, x ticks
    1, 6, …, 121; Fig. 7.27 y 200–2000, x ticks 1, 61, …, 1441) and the panel colour-bar ticks, no counts. The port
    reproduces the *procedure* and the qualitative shape; the tick agreement at snake = 1 is a saturation
@@ -278,26 +325,27 @@ rule 12). Layout: Python row | MATLAB row (the arrays the original `.m` produced
    therefore cannot be reproduced, and no substitute image was used to invent them.** Needs the source images from
    the authors; not a port failure. The *mechanism* is demonstrated on ch7's own `sea_ice_test.jpg` and on
    `core.synth` fixtures.
-7. **Two documentation corrections for the porter** (the verifier does not edit `seaice/`):
-   (a) `seaice/core/histogram.py::hist` — the "Parity: exact" claim is wrong for `-Inf` (Open item 1);
-   (b) the port's docstrings and the ch07 commit message quote **1232 pieces** and **433/290 floe/brash** for the
-   real image; those were measured on the **port's own** Algorithm-3 output. On **MATLAB's** segmentation the same
-   code gives **1211 pieces (982 + 229)**, **712 labels** and **433/274**. Both are correct statements about
-   different inputs, but the report-facing number for `ice_shape_enhancement`'s parity must be the MATLAB one.
-   The porter's "84 pieces touching the border" is also input-dependent: on MATLAB's segmentation it is **106**.
-8. **The verification brief asks for "19 REUSE rows"; there are 17.** `ch7/Sea_Ice_Floe_Identification/` holds
-   23 `.m` files: 2 ported here (`ice_shape_enhancement.m`, `sea_ice_demo.m`), 4 deferred to ch08/Appendix B and
-   **17** reused from ch06. With the 4 files of `cleaning & labeling & filling/` that is 6 new + 17 reuse +
-   4 deferred = **27**, the correct total. `analysis/ch07.md` §3's own per-file table is right (its rows 7–23 are
-   exactly those 17); only the brief's summary count is off by two. All 27 files have a row here either way.
 
-## Verdict: PASS
+### Closed since the first pass (kept for the record)
+* ~~`core.histogram.hist` drops `-Inf`~~ — **fixed** in `9927dfa`; the strict `xfail` is now a passing L2 test and
+  six more non-finite probes back it (Deviation 12b). The parity label is now **`exact`**.
+* ~~Two documentation corrections for the porter~~ — **done** in `9927dfa`: the `hist` docstring's parity claim, and
+  the input attribution of the real-image numbers (**1211 pieces = 982 + 229, 712 labels, 433/274, 106 border
+  pieces** on *MATLAB's* segmentation; 1232 and 433/290 are the port's own Algorithm-3 output).
+* ~~"the brief asks for 19 REUSE rows; there are 17"~~ — **corrected** in `progress.json` and `analysis/ch07.md`:
+  `ch7/Sea_Ice_Floe_Identification/` holds **23** `.m`, **23/23 byte-identical** to ch6's, giving 6 ported + **17**
+  reused + 4 deferred = **27**.
+* ~~`imcomplement` promotes `single` to `double` (review M1)~~ — **fixed** in `5186e9d` and re-measured by the
+  verifier: 2/25 elements at max 2.235e-8 before, **0/25** after (Deviation 12a); `uint32`/`uint64` now take
+  `intmax − im` and all 11 MATLAB classes have an L2 reference.
+
+## Verdict: PASS  (revised — the review's findings are closed, the numbers below are the current ones)
 
 All 8 scripts run headless (8 default + 5 non-default CLI combinations, exit 0), **every one of the 27 `.m` files has
-a row** — 6 ported and measured against MATLAB R2025a running the original code, 17 byte-identical duplicates of ch6
-files carried forward (and `seaice_kmean_GVF_forenhancement.m` **re-measured** because ch7 calls it on a different
-JPEG), 4 explicitly deferred to ch08/Appendix B with Open item 4 — and every new `seaice/core` primitive has its own
-row. The chapter's high-risk targets are closed with numbers, not opinion:
+a row** — 6 ported and measured against MATLAB R2025a running the original code, **17** byte-identical duplicates of
+ch6 files carried forward (`ch7/Sea_Ice_Floe_Identification/` holds 23 `.m`, 23/23 byte-identical to ch6's; 6 + 17 + 4
+= 27) with `seaice_kmean_GVF_forenhancement.m` **re-measured** because ch7 calls it on a different JPEG, and 4
+explicitly deferred to ch08/Appendix B with Open item 3 — and every new `seaice/core` primitive has its own row. The chapter's high-risk targets are closed with numbers, not opinion:
 
 * **`ice_shape_enhancement.m`, the chapter's one new algorithm, is exact.** It had to be patched to run at all in
   R2025a (R1 confirmed: the HG1 `get(h,'Children')`/`'Faces'`/`'FaceVertexCData'` block errors), but the patch
@@ -306,10 +354,13 @@ row. The chapter's high-risk targets are closed with numbers, not opinion:
   fed **MATLAB's own** `seg`/`bk`, all nine output arrays, `t`, `nn_bw`, `nn_k`, the sorted areas, the stable sort
   index, both colour vectors, every `regionprops` centroid and perimeter, the `coverage` struct, the 50-bin FSD and
   both colour-bar tick blocks are **0 px / ≤ 1e-12**.
-* **`imfill` is exact in values *and* class** on 20 constructed cases × 2 connectivities including the double,
+* **`imfill` is exact in values *and* class** on **21** constructed cases × 2 connectivities including the double,
   single, `uint8`, `int16`, grayscale and `±Inf` branches, and the reason it had to be re-implemented is pinned:
   `scipy.ndimage.binary_fill_holes` matches MATLAB only on the logical conn-4 branch and never on the double input
-  ch7 actually passes.
+  ch7 actually passes. The `single` branch is exact **since `5186e9d` only**: the review found `imcomplement`
+  promoting `single` to `double`, and the verifier re-measured it against MATLAB on the 5×5 probe — **2 of 25
+  elements, max 2.2351742e-08 before; 0 of 25 after** (Deviation 12a). `imcomplement` now has its own row and an L2
+  reference for all **11** MATLAB classes, including the `uint32`/`uint64` branches that used to return float64.
 * **The 48 printed blocks of Figs. 7.2–7.8 are 47 × 0 px**, and the 48th differs by exactly two pixels that are a
   **book erratum** adjudicated by MATLAB itself (Fig. 7.7(e) `X8`: printed 53, computed 55).
 * **The analyst's pre-checks are confirmed**: 215 vs 231 `bwlabel` components, identical Otsu 162/255, 84.13 % of
@@ -322,7 +373,9 @@ Algorithm 3 running on **ch7's re-encoded JPEG** — k-means sorted centres 1.04
 `seg` 0.245 % of pixels, propagating to 1232 vs 1211 pieces and 290 vs 274 brash pieces with the floe count and the
 colour-bar ticks unchanged. The three `unverified` rows (the unshipped §7.2/§7.3.1 images, the §7.3.2 sweeps, the
 ch10 rectifier) each have an Open item, and **no book number attached to an unshipped image was reproduced from a
-substitute**. One verifier finding is recorded as a strict `xfail` rather than hidden by a loosened tolerance
-(`core.histogram.hist` drops `-Inf`, Open item 1). Test suites pass: `tests/test_ch07.py` **242 passed, 1 xfailed,
-0 warnings**; full suite **1816 passed, 2 skipped, 2 xfailed**, no regression against the ch06 baseline of
-1574 / 2 / 1.
+substitute**. **Nothing in this chapter is xfailed, skipped or tolerance-relaxed:** the two defects the first pass
+and the independent review turned up — `core.histogram.hist` dropping `-Inf` and `imcomplement` promoting `single` to
+`double` — were fixed in `9927dfa` / `5186e9d` and are now pinned by passing L2 tests in **both** directions
+(Deviation 12), and the three remaining deliberate deviations sit on branches the book never reaches and are listed
+as Open item 4. Test suites pass: `tests/test_ch07.py` **275 passed, 0 failed, 0 xfailed, 0 warnings**; full suite
+**1849 passed, 2 skipped, 1 xfailed** (the xfail is ch03's), no regression against the ch06 baseline of 1574 / 2 / 1.

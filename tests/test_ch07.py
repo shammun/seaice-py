@@ -380,6 +380,8 @@ class TestL2Figs76And77:
 IMFILL_CASES = sorted(FX.imfill_cases())
 MATLAB_CLASS = {np.dtype(bool): "logical", np.dtype("uint8"): "uint8", np.dtype("float64"): "double",
                 np.dtype("float32"): "single", np.dtype("int16"): "int16"}
+MATLAB_CLASS_ALL = {**MATLAB_CLASS, **{np.dtype(c): c for c in
+                    ("uint16", "uint32", "uint64", "int8", "int32", "int64")}}
 
 
 class TestL2Imfill:
@@ -444,6 +446,101 @@ class TestL2Imfill:
         got = imfill(b, "hole")
         assert got.dtype == np.float64 and set(np.unique(got)) == {0.0, 1.0}
 
+    def test_single_branch_needs_the_class_preserving_imcomplement(self):
+        """ch07 review **M1**, re-measured by the verifier, not taken on trust.
+
+        ``imfill.m`` l. 128-140 complements twice around the reconstruction and MATLAB evaluates both
+        complements **in the input class**, so a ``single`` image round-trips through ``1 - (1 - x)`` in
+        single: ``single(1e-8)`` fills to ``0`` and ``single(0.1)`` comes back as ``0.100000024``.  With the
+        pre-M1 float64 complement (``1.0 - img.astype(np.float64)``) exactly 2 of the 25 elements of the
+        reviewer's probe differ from MATLAB by up to 2.235e-8; with the fix, 0.
+        """
+        from seaice.core import morphology as _morph
+
+        d = ref("imfill")
+        img = FX.imfill_cases()["single_eps"]
+        assert img.dtype == np.float32
+
+        for conn in (4, 8):                                   # the fix: bit-identical to MATLAB
+            got = _morph.imfill(img, "hole", conn=conn)
+            m = np.asarray(d[f"out_single_eps_{conn}"])
+            assert got.dtype == np.float32 and m.dtype == np.float32
+            assert np.array_equal(np.asarray(got, np.float64), np.asarray(m, np.float64)), \
+                f"single_eps conn{conn}: {npx(got, m)} elements differ"
+
+        def _pre_m1(a):                                       # the defect, reproduced verbatim
+            a = np.asarray(a)
+            if a.dtype == np.bool_ or np.issubdtype(a.dtype, np.integer):
+                return _morph.imcomplement(a)
+            return 1.0 - a.astype(np.float64)
+
+        saved = _morph.imcomplement
+        _morph.imcomplement = _pre_m1
+        try:
+            bad = _morph.imfill(img, "hole", conn=4)
+        finally:
+            _morph.imcomplement = saved
+        m = np.asarray(d["out_single_eps_4"], np.float64)
+        delta = np.abs(np.asarray(bad, np.float64) - m)
+        assert int((delta > 0).sum()) == 2 and delta.size == 25
+        assert abs(delta.max() - 2.2351741790771484e-08) < 1e-15, delta.max()
+
+
+# =====================================================================================================================
+# L2 — core primitive underneath imfill: imcomplement, class by class (ch07 review M1)
+# =====================================================================================================================
+IMCOMP_CASES = sorted(FX.imcomplement_cases())
+
+
+class TestL2Imcomplement:
+    """``imcomplement.m`` l. 39-54 — "IM2 has the same class as IM" — for every MATLAB numeric class.
+
+    ch02 pinned logical/uint8/uint16/int8/double.  ``uint32``/``uint64``/``single`` are the branches ch07
+    review M1 found wrong (they fell through to ``1.0 - img.astype(np.float64)``), and ``single`` is the one
+    ``imfill`` depends on.
+    """
+
+    @pytest.mark.parametrize("name", IMCOMP_CASES)
+    def test_values_and_class(self, name):
+        from seaice.core.matlab_compat import imcomplement as imc
+
+        d = ref("imcomplement")
+        err = "".join(np.ravel(d[f"err_{name}"]).astype(str)).strip()
+        assert err == "", f"MATLAB refused {name}: {err}"     # evidence, not a silent skip
+        a = FX.imcomplement_cases()[name]
+        got = imc(a)
+        m = np.asarray(d[f"out_{name}"])
+        mcls = str(np.ravel(d[f"cls_{name}"])[0]).strip()
+        assert MATLAB_CLASS_ALL[got.dtype] == mcls, f"{name}: python {got.dtype} vs MATLAB {mcls}"
+        # the class is checked against MATLAB's own `class()` string above; `.mat` round-tripping turns a
+        # MATLAB logical into uint8, so the values are compared as integers/floats of full width
+        g, mm = np.ravel(got), np.ravel(m)
+        if np.issubdtype(got.dtype, np.integer) or got.dtype == np.bool_:
+            assert [int(v) for v in g] == [int(v) for v in mm], f"{name}: {g} vs {mm}"   # exact, no float cast
+        else:
+            assert np.array_equal(g, mm.astype(got.dtype)), f"{name}: {g} vs {mm}"
+
+    def test_unsigned_wide_classes_are_not_the_float_branch(self):
+        """L1 guard for the M1 regression: ``uint32``/``uint64`` must take ``intmax - im``."""
+        from seaice.core.matlab_compat import imcomplement as imc
+
+        u32 = imc(np.array([0, 1, 2], np.uint32))
+        u64 = imc(np.array([0, 1, 2], np.uint64))
+        assert u32.dtype == np.uint32 and u32.tolist() == [4294967295, 4294967294, 4294967293]
+        assert u64.dtype == np.uint64 and u64.tolist() == [18446744073709551615, 18446744073709551614,
+                                                           18446744073709551613]
+
+    def test_single_round_trip_matches_matlab(self):
+        """The M1 mechanism itself: ``1 - single(1e-8) == 1`` and ``1 - (1 - single(0.1)) == 0.100000024``."""
+        from seaice.core.matlab_compat import imcomplement as imc
+
+        d = ref("imcomplement")
+        c1 = imc(np.float32(1e-8) * np.ones(1, np.float32))
+        c2 = imc(imc(np.float32(0.1) * np.ones(1, np.float32)))
+        assert c1.dtype == np.float32 and c1[0] == np.ravel(d["c1_single"])[0] == np.float32(1.0)
+        assert c2.dtype == np.float32 and c2[0] == np.ravel(d["c2_single"])[0]
+        assert float(c2[0]) != float(np.ravel(d["c2_double"])[0]), "single and double must NOT agree here"
+
 
 # =====================================================================================================================
 # L2 — new core primitive: hist (MATLAB centre semantics)
@@ -480,6 +577,61 @@ class TestL2Hist:
         """L1: values below/above the centre range are *counted*, not dropped (R7)."""
         z, n = mhist(np.array([-1000.0, 0.0, 5.0, 1e6]), np.array([0.0, 5.0, 10.0]))
         assert int(z.sum()) == 4 and z.tolist() == [2, 1, 1]
+
+    def test_eps_of_the_edges_equals_matlab_eps(self):
+        """``hist.m`` l. 145 is ``edges + eps(edges)``; the port writes ``edges + abs(np.spacing(edges))``.
+
+        MATLAB's ``eps(x)`` is the positive spacing at ``|x|``, so it is **not** ``nextafter(x, +Inf)`` for a
+        negative ``x`` whose magnitude is an exact power of two.  Compared bit for bit against MATLAB's own
+        ``eps([-1 -2 -0.5 1 2 0 -3])`` (ch07 review S2).
+        """
+        d = ref("hist")
+        x = flat(d, "eps_seven_x")
+        e = flat(d, "eps_seven")
+        assert x.tolist() == [-1.0, -2.0, -0.5, 1.0, 2.0, 0.0, -3.0]
+        for xi, ei in zip(x, e):
+            assert abs(np.spacing(xi)) == ei, f"eps({xi}): {abs(np.spacing(xi))!r} vs MATLAB {ei!r}"
+        # ... and for the negative powers of two it is twice the nextafter step
+        assert abs(np.spacing(-2.0)) == 2.0 * (np.nextafter(-2.0, np.inf) - (-2.0))
+
+    def test_eps_edge_at_a_negative_power_of_two_discriminates_nextafter(self):
+        """L2: the case that ``np.nextafter`` gets wrong — MATLAB says ``z = [1 0 0]`` (ch07 review S2)."""
+        d = ref("hist")
+        y, b = FX.hist_cases()["eps_edge_neg_pow2"]
+        z, n = mhist(np.asarray(y, float), b)
+        assert z.tolist() == [1, 0, 0] == flat(d, "z_eps_edge_neg_pow2").astype(int).tolist()
+        assert np.allclose(n, flat(d, "n_eps_edge_neg_pow2"))
+
+        centres = np.asarray(b, float)                       # the same code with nextafter -> [0 1 0]
+        mid = centres[:-1] + np.diff(centres) / 2.0
+        edges = np.concatenate(([-np.inf], mid, [np.inf]))
+        edgesc = np.nextafter(edges, np.inf)
+        edgesc[0], edgesc[-1] = -np.inf, np.inf
+        idx = np.searchsorted(edgesc, np.asarray(y, float), side="right") - 1
+        wrong = np.bincount(np.clip(idx, 0, edgesc.size - 1), minlength=edgesc.size)
+        wrong[-2] += wrong[-1]
+        assert wrong[:-1].tolist() == [0, 1, 0], "the fixture must actually discriminate the two rules"
+
+    @pytest.mark.parametrize("name, expect", [
+        ("nonfinite_all_three", [1, 0, 0, 1]),        # [Inf -Inf NaN], 4 bins
+        ("nonfinite_nan_only", [0, 0, 0]),            # [NaN NaN], 3
+        ("nonfinite_pinf_only", [0, 0, 2]),           # [Inf Inf], 3
+        ("nonfinite_ninf_only", [2, 0, 0]),           # [-Inf -Inf], 3
+        ("nonfinite_one_and_ninf", [1, 1]),           # [1 -Inf], 2
+        ("nonfinite_ninf_zero_pinf", [1, 0, 1, 0, 1]),  # [-Inf 0 Inf], 5
+    ])
+    def test_non_finite_probes(self, name, expect):
+        """L2 + L1: the ``finite.size == 0`` branch (``miny = maxy = 0``) and histc's ±Inf rules.
+
+        The expected counts are MATLAB's, quoted from the ch07 review's adjudication table and re-generated
+        here as real fixtures (review S3, which found them cited in the docstring but absent from the repo).
+        """
+        d = ref("hist")
+        y, b = FX.hist_cases()[name]
+        z, n = mhist(np.asarray(y, float), b)
+        assert flat(d, f"z_{name}").astype(int).tolist() == expect, "the MATLAB reference itself"
+        assert z.tolist() == expect, f"{name}: {z.tolist()} vs MATLAB {expect}"
+        assert np.allclose(n, flat(d, f"n_{name}"), atol=1e-12), f"{name}: centres"
 
     def test_minus_inf_is_counted_in_the_first_bin(self):
         """L2: MATLAB counts -Inf in the first bin and +Inf in the last (was ch07 open item 1)."""
