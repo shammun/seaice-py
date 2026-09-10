@@ -11,7 +11,7 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `uint8(x)` cast (0–255 values) | `core.matlab_compat.to_uint8_saturating(x)` | E | round half-away + saturate; not `astype` (wraps) — verified ch02 |
 | `round(x)` | `core.matlab_compat.matlab_round(x)` | E | half away from zero — verified ch02 |
 | `mat2gray(I)` | `(I-I.min())/(I.max()-I.min())` | E | |
-| `imcomplement(I)` | `core.matlab_compat.imcomplement(I)` | E | 255−I / 1−I / ~BW — verified ch02 |
+| `imcomplement(I)` | `core.matlab_compat.imcomplement(I)` | E | **returns the INPUT class** (`imcomplement.m` l. 4 "IM2 has the same class as IM"): `~BW`; `intmax(class)−I` for **all four** unsigned classes; `bitcmp(I)` = `−1−I` for signed; `1−I` **evaluated in the input float class** (a float64 port promotes `single` — `imcomplement(single(1e-8))` is exactly `1`). Verified ch02, **corrected ch07** (11 classes) |
 | `rgb2gray` | `core.matlab_compat.rgb2gray_matlab` | E | NTSC weights 0.298936/0.587043/0.114021 in double + half-away rounding — verified ch02 (0 px differ) |
 | `rgb2hsv`/`hsv2rgb` | `skimage.color.rgb2hsv/hsv2rgb` | E | |
 | HSI (book Eq. in §2.1) | `core.color.rgb2hsi` | R | verified ch02 vs corrected MATLAB snippet |
@@ -30,6 +30,8 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 ## Histogram / intensity
 | MATLAB | Python | P | Notes |
 |---|---|---|---|
+| `[z, x] = hist(y, n)` / `hist(y, centres)` | `core.histogram.hist(y, bins)` → `(counts, centers)` | E | **centres, not edges** (`np.histogram` is wrong twice over): scalar `n` returns the centres of `n` equal bins over `[min, max]` (widened by `±n/2 − 0.5` when `min == max`); a **vector** *is* the centres and the two outer bins are **unbounded**, so out-of-range values are counted. `−Inf` falls in the first bin, `+Inf` in the last; an all-non-finite input gives `miny = maxy = 0`. Verified ch07 (23 cases) |
+| `hist(...)` bin comparison edges (`hist.m` l. 145 `edges + eps(edges)`) | `edges + abs(np.spacing(edges))` — **not** `np.nextafter(edges, np.inf)` | E | `eps(x)` is the spacing at `\|x\|`: at a negative exact power of two `nextafter` steps half as far and flips a bin. Verified ch07 bit-exact vs MATLAB's `eps` |
 | `imhist(I)` (uint8) | `core.histogram.imhist(I)` | E | logical → 2 bins — verified ch02 |
 | `imhist(I, n)` | `core.histogram.imhist(I, n)` | E | MATLAB bin rule `round(v·(n−1)/top)` reproduced — verified ch02 |
 | `histeq(I)` | `skimage.exposure.equalize_hist` / re-implement 64-bin | A/R | |
@@ -104,8 +106,9 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `K − J` on logical / uint8 (morphological gradients) | `core.morphology.morphological_gradient(I, se, kind)` | E | verified ch04; logical − logical → double, uint8 saturates |
 | `imtophat`/`imbothat` | `white_tophat`/`black_tophat` | E | |
 | `imreconstruct(marker, mask[, conn])` | `core.morphology.imreconstruct(marker, mask, conn)` (skimage `reconstruction`, `marker <= mask` enforced) | E | verified ch04 (7 cases); erosion dual `reconstruct_by_erosion` is R (no builtin) |
-| `imfill(BW, 'holes')` | `scipy.ndimage.binary_fill_holes(BW)` | E | |
-| `imfill(I)` grayscale | `core.morphology.fill_holes_gray` (reconstruction by erosion) | R | |
+| `imfill(I, 'holes')` / `imfill(BW, 'hole')` / `imfill(I, conn, 'holes')` | `core.morphology.imfill(I, 'holes', conn=4)` (port of `imfill.m` l. 124–145; returns the **input class**) | E | verified ch07 (21 cases × conn {4,8}, values **and** class). Default conn = `conndef(2,'minimal')` = **4**; `'hole'`/`'h'` are `validatestring` prefixes |
+| `imfill(BW, 'holes')` via SciPy | `scipy.ndimage.binary_fill_holes(BW)` | E/A | correct **only** for a *logical* image at conn 4; 3 of 13 logical cases differ at conn 8 and it never reproduces a numeric input (wrong values for uint8, wrong values *and class* for grayscale/int16/±Inf) — measured ch07 |
+| `imfill(I)` grayscale | `core.morphology.imfill(I, 'holes')` (same M-code path; the grayscale branch is the default one) | E | verified ch07 on three grayscale surfaces + an `±Inf` plant |
 | `imclearborder` | `skimage.segmentation.clear_border` | E | |
 | `imregionalmax/min(I[, conn])` | `core.morphology.imregionalmax/imregionalmin(I, conn)` (`local_maxima/local_minima(allow_borders=True)` + constant image → all True; NaN raises) | E | verified ch05 (126 cases); bare skimage differs on constant images |
 | `imhmax/imhmin(I, h)` | `h_maxima/h_minima(I, h)` | E | |
