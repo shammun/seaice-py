@@ -70,5 +70,11 @@
     "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
     "out": "polyarea.mat",
     "status": "ok"
+  },
+  "branches": {
+    "engine": "matlab",
+    "version": "25.1.0.2833191 (R2025a) Prerelease Update 2",
+    "out": "branches.mat",
+    "status": "ok"
   }
 }

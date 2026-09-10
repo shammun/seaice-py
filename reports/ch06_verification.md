@@ -1,8 +1,10 @@
 # Chapter 6 verification — GVF Snake-Based Ice Floe Boundary Identification and Ice Image Segmentation
 
-Date 2026-09-10 (re-measured after the coordinator applied open items 2 and 4) · port commit `8ed4828` (`ch06: port — GVF snake toolbox, MATLAB regionprops, polygon geometry;
+Date 2026-09-10 (re-measured after the review fixes of commit `8bea0dd`) · port commit `8bea0dd`
+(`ch06: review fixes — integer-class GVF normalisation, single-precision radii, 6 nits`; the earlier
+verification ran against `8ed4828` + the open-item 2/4 patches) (`ch06: port — GVF snake toolbox, MATLAB regionprops, polygon geometry;
 8 scripts exit 0`) · verifier artefacts: `tests/test_ch06.py` (388 tests), `reference/ch06/make_refs.py` +
-`reference/ch06/fixtures.py` (199 controlled fixtures → `inputs.mat` / `inputs2.mat`, 12 `.mat` references,
+`reference/ch06/fixtures.py` (199 controlled fixtures → `inputs.mat` / `inputs2.mat`, 13 `.mat` references,
 `refs_log.json`), `reference/ch06/make_compare_figures.py`, `outputs/ch06/verify/` (MATLAB `imwrite` images in
 `matlab/`, patched script copies in `scratch/`, generated MATLAB code in `*_code.m`, `image_diffs.json`,
 `make_refs_*.log`, `pytest_ch06.txt`, `pytest_full.txt`, `pytest_scripts/<case>/`), `reports/ch06/figures/`
@@ -31,25 +33,32 @@ non-shadowing name, patched **only** as listed:
 | `snake_matrix_ref.m` (new) | lines 22–38 of `snakedeform.m` **verbatim**, so the local `A`/`invAI` can be compared |
 
 ## pytest
-`.venv/Scripts/python.exe -m pytest tests/test_ch06.py -q -p no:cacheprovider` → **`410 passed in 692 s`**,
+`.venv/Scripts/python.exe -m pytest tests/test_ch06.py -q -p no:cacheprovider` → **`429 passed in 840 s`**,
 0 failed, 0 xfail, **0 warnings** (`outputs/ch06/verify/pytest_ch06.txt`).
 Breakdown by evidence level: **57 L1** (synthetic truth: 10 `del2`, 18 snake/GVF, 6 contour initialisation,
-11 polygon, 6 `regionprops`, 2 criteria, 4 misc), **330 L2** (MATLAB parity: 19 `del2`, 8 `BoundMirror*`,
-9 `gradient2`, 11 `xconv2`/gaussian, 50 snake unit, 44 GVF, 54 `regionprops`, **82 polygon** incl. 22
-`polyarea`, 24 extras, 6 `dist.m`, **9 `for_test.m`**, 8 `GVF_distance`, 5 `seaice_kmean_GVF`, 3 demo stages),
-**7 L4** (quoted numbers), **16 script runs** (8 default + 8 non-default CLI flag combinations, all exit 0).
-The three tests that encoded the old open-ring contract were rewritten against the measured one (identical
-clip point count and closure, identical burnt-pixel set and mask, Hausdorff ≤ 1e-3, `|N_py − N_ml| ≤ 2`), and
-two new tests were added: the `polybool` start-vertex proof and the `polyarea` reference block.
+11 polygon, 6 `regionprops`, 2 criteria, 4 misc), **349 L2** (MATLAB parity: 19 `del2`, 8 `BoundMirror*`,
+9 `gradient2`, 11 `xconv2`/gaussian, 50 snake unit, 44 GVF, 54 `regionprops`, 81 polygon incl. 22 `polyarea`,
+24 extras, **18 option branches**, 7 `dist.m`, 8 `for_test.m`, 8 `GVF_distance`, 5 `seaice_kmean_GVF`,
+3 demo stages), **7 L4** (quoted numbers), **16 script runs** (8 default + 8 non-default CLI flag
+combinations, all exit 0).
+Tests rewritten or added over the two follow-up rounds: the three that encoded the old open-ring contract now
+assert the measured one (identical clip point count and closure, identical burnt-pixel set and mask,
+Hausdorff ≤ 1e-3, `|N_py − N_ml| ≤ 2`); the two Fig. 6.14 radius assertions now compare against
+`single(3/sqrt(2))` because the radius is single precision exactly as MATLAB's is; the `dist.m`, `GVF_distance`
+and demo-stage radius tolerances were tightened from 1e-4/1e-6 to **bit equality** and the circle tolerance to
+1e-12; and four new blocks were added — the `polybool` start-vertex proof, the `polyarea` reference, the
+MATLAB `single / double` rounding rule, and `TestL2Branches` for the three option paths.
 
-Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` → **`1555 passed, 2 skipped,
-1 xfailed in 1176 s`** (`outputs/ch06/verify/pytest_full.txt`) = the ch02–ch05 baseline (1145 passed, 2 skipped,
-1 xfailed) **unchanged** plus the 410 ch06 tests. **No regression.** All 14 remaining warnings are pre-existing
-pytest deprecations in ch03/ch04 (`PytestRemovedIn10Warning`, class-scoped fixture); the numpy `RuntimeWarning`
-of Open item 4 is gone.
+Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` → **`1574 passed, 2 skipped,
+1 xfailed in 573 s`** (`outputs/ch06/verify/pytest_full.txt`) = the ch02–ch05 baseline (1145 passed, 2 skipped,
+1 xfailed) **unchanged** plus the 429 ch06 tests. **No regression**, including `ch05_watershed.component_centroids`
+after review S8 rewired it onto `core.regionprops`. All 14 remaining warnings are pre-existing pytest
+deprecations in ch03/ch04 (`PytestRemovedIn10Warning`, class-scoped fixture); the numpy `RuntimeWarning` of
+Open item 5 is gone.
 
-Parity label counts over the 42 rows below: **exact 20 · near 7 · approx 1 · reimplemented 4 · unverified 0 ·
-deferred 5** (+ 4 mixed rows, e.g. `exact` for the mask and `near` for the point order, and 1 display-only row).
+Parity label counts over the 43 rows below: **exact 21 · near 6 · approx 1 · reimplemented 4 · unverified 0 ·
+deferred 5** (+ 5 mixed rows, e.g. `exact` for the mask and `near` for the point order, and 1 display-only row).
+`for test/dist.m` moved from `near` to `exact` when review S4 made the single-precision radii bit-exact.
 Every one of the **34 `.m` files** (the 9 byte-identical `for test/` duplicates included) has a row.
 
 ## Parity table
@@ -70,13 +79,13 @@ Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted numb
 | `snakeinterp.m` | `core.snake.snakeinterp` | L1 L2 | 18 cases (6 contours × 3 `(dmax, dmin)`): **16 exact 0.0**; the 2 remaining are the header's own admitted removal bug — MATLAB raises `Index exceeds array bounds`, the port raises with a diagnostic. On the real pipelines: all 46 `GVF_distance` seeds and all `dist.m`/`for_test.m` contours reproduce MATLAB's point counts and values | exact | `max_passes` cap is an addition (Deviation 6) |
 | `snakeindex.m` | `core.snake.snakeindex` | L2 | 12 boolean patterns (all-1, all-0, alternating, length 1/2/3, random) **0.0** | exact | |
 | `snakedisp.m` | `core.plotting.snake_plot` | L1 L3 | closes the curve with `[x, x(1)]`; used in every figure | — (display only) | |
-| `GVF_distance.m` (§6.3.3 + §6.4 Algorithm 1) | `ch06_gvf_snake.gvf_distance`, `scripts/ch06_gvf_distance.py` | L2 L3 L4 | on `alg_seg_gray.jpg` with the `sea_ice_demo` parameters: `gray`, `level`, `bw`, `f2`, `u`, `v`, `px`, `py` **0.0**; `label`/`num` (83 components) **0 px**; `a`, `rc`, `l`, `w`, `rl` ≤ 1e-9; the selection `k` (32 components) **identical**; `bw2` **0 px**; `img_Dist` **0.0**; `Dis_img` **0 px** (171 maxima px); `dis` after `imdilate` **0 px**; `label1`/`num1` **0 px / 46 seeds**; centroids ≤ 1e-12, radii ≤ 1e-6 (single-precision, Deviation 2); every seed's `snakeinterp` output **identical in length and value** (46/46); every clip is a **closed ring with MATLAB's exact point count and vertex set (46/46)**; 13 of the 46 final contours have MATLAB's exact point count and all 46 are the same **curve** (Hausdorff ≤ **0.4794 px**); `bw1` differs by **63 of 31 730 ice px (0.199 %)** with the dense solver and **59 px (0.186 %)** with the default one, burnt 1217 / 1221 vs 1220 | near | Deviations 1 + 3; MATLAB 430 s, port 23 s |
-| `seaice_kmean_GVF_forenhancement.m` | `ch06_gvf_snake.seaice_kmean_gvf`, `scripts/ch06_sea_ice_demo.py` | L2 L3 | on `alg_seg_gray.jpg` (MATLAB under `rng(0)`): `bw`, `f2`, `px`, `py` **0.0**; k-means sorted centres `[107.872949, 152.264015, 198.773459]` **equal to double precision**; `bk` **0 px** of 40 602; `n_negative` = **0** on both (Risk R7 latent); `bw0` after `bwareaopen(…, 10, 4)` **0 px**; pass 1 `bw1` 63 px (as above); pass 2 `bw0` 12 px; `out` has exactly the levels {0, 0.5, 1} on both and **0.185 %** of the pixels differ. On the full 1038×394 `sea_ice_test.jpg` the k-means stage is **0 px** (`kmean_stage.mat`) | near | k-means row below; MATLAB 419 s |
+| `GVF_distance.m` (§6.3.3 + §6.4 Algorithm 1) | `ch06_gvf_snake.gvf_distance`, `scripts/ch06_gvf_distance.py` | L2 L3 L4 | on `alg_seg_gray.jpg` with the `sea_ice_demo` parameters: `gray`, `level`, `bw`, `f2`, `u`, `v`, `px`, `py` **0.0**; `label`/`num` (83 components) **0 px**; `a`, `rc`, `l`, `w`, `rl` ≤ 1e-9; the selection `k` (32 components) **identical**; `bw2` **0 px**; `img_Dist` **0.0**; `Dis_img` **0 px** (171 maxima px); `dis` after `imdilate` **0 px**; `label1`/`num1` **0 px / 46 seeds**; centroids ≤ 1e-12, radii ≤ 1e-6 (single-precision, Deviation 2); every seed's `snakeinterp` output **identical in length and value** (46/46); every clip is a **closed ring with MATLAB's exact point count and vertex set (46/46)**; 14 of the 46 final contours have MATLAB's exact point count and all 46 are the same **curve** (Hausdorff ≤ **0.4794 px**); `bw1` differs by **16 of 31 730 ice px (0.050 %)** with the dense solver and **14 px (0.044 %)** with the default one, and the burnt-pixel count is **1220 on both sides** | near | Deviations 1 + 3; MATLAB 430 s, port 23 s |
+| `seaice_kmean_GVF_forenhancement.m` | `ch06_gvf_snake.seaice_kmean_gvf`, `scripts/ch06_sea_ice_demo.py` | L2 L3 | on `alg_seg_gray.jpg` (MATLAB under `rng(0)`): `bw`, `f2`, `px`, `py` **0.0**; k-means sorted centres `[107.872949, 152.264015, 198.773459]` **equal to double precision**; `bk` **0 px** of 40 602; `n_negative` = **0** on both (Risk R7 latent); `bw0` after `bwareaopen(…, 10, 4)` **0 px**; pass 1 `bw1` 16 px (as above); pass 2 `bw0` **4 px**; `out` has exactly the levels {0, 0.5, 1} on both and **0.049 %** of the pixels differ. On the full 1038×394 `sea_ice_test.jpg` the k-means stage is **0 px** (`kmean_stage.mat`) | near | k-means row below; MATLAB 419 s |
 | `sea_ice_demo.m` | `scripts/ch06_sea_ice_demo.py` | L2 L3 | the parameter block is asserted value-by-value (L4 row); every stage on `sea_ice_test.jpg` verified against MATLAB: `I` **0.0**, `level` 0.0, `bw` **0 px**, `f2` **0.0**, `u`/`v`/`px`/`py` **0.0** (GVF 500 iterations, 29 s in MATLAB), `bwlabel(bw,4)` **0 px / 231 components**, criteria arrays ≤ 1e-9, `k` (107 components) identical, `bw2` **0 px**, `img_Dist` **0.0**, `Dis_img` **0 px**, dilated `dis` **0 px**, 598 seeds, centroids ≤ 1e-12, radii ≤ 1e-6, k-means stage **0 px** | near | the `ice_shape_enhancement` / `sea_ice_model` tail is stubbed (Open item 1) |
 | `polygeom.m` | `core.polygon.polygeom` | L1 L2 | 15 polygons (the header's own self-test, a clockwise copy, triangle, square, 10 random convex): `geom = [A, x_cen, y_cen, P]` ≤ **1e-12**, `iner` ≤ 7.3e-12, principal moments `I1`, `I2`, `J` ≤ 1.4e-12. The header's self-test reproduces area 15, centroid (3.415, 6.549), perimeter 16, `Ixx` 659.561, `I1` 11.249, **ang1 = 30°**, ang2 = 120° | near | `ang1`/`ang2` differ from R2025a's `eig` by exactly ±π in 13 of 15 cases (Deviation 5) |
 | `minboundrect.m` | `core.polygon.minboundrect` | L1 L2 | 10 point clouds × 2 metrics: `rectx`/`recty` ≤ **1.8e-15**, `area` and `perimeter` ≤ 1e-12 (incl. the `nedges` = 1 and 2 special cases); the author's 50 000-point unit-square example gives area 1.0000 in MATLAB and 0.9999 in the port | exact | the **shipped file does not run in R2025a** (Deviation 4); MATLAB rejects collinear/duplicate clouds where the port returns a degenerate rectangle |
 | `homofil.m` | `core.filters.homomorphic_butterworth(…, matlab_bug=True)` | L2 | 6 cases (2 images × `(d, n)` ∈ {(10,1), (30,2), (5,4)}) ≤ **1.14e-12**, `uint8` case likewise | exact | the analysis expected `unverified`; MATLAB *can* run the orphan, so it is now measured. No book section, no caller |
-| `for test/dist.m` (§6.3.3) | `scripts/ch06_dist.py` (via `ch06_gvf_snake.initialize_contours`) | L2 L3 | in the script's transposed frame: `bw` **0 px**, `img_Dist` **0.0**, `Dis_img` **0 px**, `dis` **0 px**, `dis1` **0 px**, `[p, q]` (2616 points) identical in MATLAB's column-major `find` order, `label` **0 px**, `num` = **540 seeds**, `CEN1` == `CEN2` and both ≤ 1e-12, `R0` ≤ **4.5e-7**, initial circles ≤ 3.1e-5, `bwlabel(bw,4)` = 231 components; the transpose identity `bw_script == bw_normal.T` holds | near | radii/circles are **single** in MATLAB (Deviation 2); 6 of the 540 seeds take the `r = 2` fallback on both sides |
+| `for test/dist.m` (§6.3.3) | `scripts/ch06_dist.py` (via `ch06_gvf_snake.initialize_contours`) | L2 L3 | in the script's transposed frame: `bw` **0 px**, `img_Dist` **0.0**, `Dis_img` **0 px**, `dis` **0 px**, `dis1` **0 px**, `[p, q]` (2616 points) identical in MATLAB's column-major `find` order, `label` **0 px**, `num` = **540 seeds**, `CEN1` == `CEN2` and both ≤ 1e-12, all 540 radii **bit-exact** (`np.array_equal`), the initial circles ≤ **5.68e-14** with **536 of 540 bit-exact**, `bwlabel(bw,4)` = 231 components; the transpose identity `bw_script == bw_normal.T` holds | exact | single-precision radii reproduced exactly since review S4 (Deviation 2); 6 of the 540 seeds take the `r = 2` fallback on both sides |
 | `for test/for_test.m` (§6.1.2/§6.2) | `scripts/ch06_for_test.py` | L2 L3 | `bw` **0 px**, `f2` **0.0**, `u`, `v`, `px`, `py` **0.0**, the 64×64 `interp2` quiver grid ≤ 1e-12 (`xSpace`/`ySpace` identical, including the authors' swapped roles: `ySpace = 1:148/64:148` indexes a 108-row field, so **1088 of the 4096 samples (26.6 %) are NaN in MATLAB's own `interp2` and in the port, with identical NaN patterns**); the clip is a **closed 127-point ring with MATLAB's vertex set and the zero-length wrap segment at the same cyclic position**, and `snakeinterp` gives **252 points on both sides**; fed MATLAB's own clip the port reproduces **all 10 five-iteration blocks element-wise ≤ 1.1e-7** (N = 257 … 777 identical); from the port's own ring (which is MATLAB's rotated by 30 and reversed) the final contour is 778 points instead of 777, **7.2e-4 px** (Hausdorff) from MATLAB's, and the burnt pixel **set** and mask are **identical (0 px, 91 px burnt on both sides)** | exact (mask) / near (point order) | Deviation 1; `v` is shadowed by the script's own `[v, h] = size(bw)` (Deviation 7) |
 | `for test/{BoundMirrorEnsure, BoundMirrorExpand, BoundMirrorShrink, GVF, gradient2, snakedeform, snakedisp, snakeindex, snakeinterp}.m` (9 files) | same targets | L2 | **byte-identical duplicates** (md5 in `analysis/ch06.md` §0.1) — one port, the rows above apply | exact | re-verified `cmp` before the run |
 | `ice_shape_enhancement.m` | → ch7 `ch07_ice_type.ice_shape_enhancement` | — | **not ported in ch06** (book §7.1 has this exact title; byte-identical in `ch7/`) | deferred | Open item 1 |
@@ -90,6 +99,7 @@ Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted numb
 | — `regionprops` `ConvexImage` / `ConvexHull` | `core.regionprops`, `core.polygon.poly2mask` | L2 | `ConvexImage` **0 px** on 6 shapes; the hull **polygon area** identical ≤ 1e-9 | exact (`ConvexImage`, `ConvexArea`, `Solidity`) / near (`ConvexHull` vertex list) | MATLAB's `convhull` keeps collinear hull points (30 vs 8 vertices on `sh_L`); the port's set is a subset and the polygon is the same |
 | MATLAB `poly2mask` / `roipoly` | `core.polygon.poly2mask`, `roipoly` | L1 L2 | 8 polygons × 2 image sizes + the `regionprops` hull + a square: **0 px** on all 19 masks; `roipoly(I, x, y)` == `poly2mask` | exact | line-by-line port of `eml/poly2mask.m` |
 | `polybool('intersection', rect, poly)` (Mapping TB, compiled GPC) | `core.polygon.clip_polygon_rect` (Sutherland–Hodgman, **closes the ring** since open item 2) | L1 L2 | 7 clip cases (inside, over each corner, over an edge, entirely outside, rect inside the circle): **vertex sets identical**, **point counts identical**, rasterised masks **0 px**; and after `snakeinterp`, as ch6 actually calls it, identical. All 46 per-seed clips of `GVF_distance` and the `for_test.m` clip: same closed ring, same point count. What is **not** reproducible is `polybool`'s vertex *ordering* — it rotates the start vertex and reverses the traversal (measured: the `for_test.m` ring is the port's rotated by 30 and reversed) | reimplemented | Deviation 1 / Open item 2 (resolved with a measured caveat) |
+| `GVF_distance.m` option branches `GradientOn = 0`, `GVFOn = 0`, `sigma != 0` (untested paths 1, 2 and 5 of the review) | `gvf_force_field`, `core.snake.gvf`, `gaussian_blur`, `matlab_compat.saturate_to_class` | L1 L2 | **`GradientOn = 0`** (review M1, a proven defect before commit `8bea0dd`): `GVF.m` normalises the **uint8** image in the integer class, so the edge map collapses to the two values {0, 1} (MATLAB `class((I-fmin)/(fmax-fmin))` = `uint8`, `unique` = {0, 1}); the port now matches **0.0** at ITER 1/5/30/150 and for `px`/`py`, and the end-to-end `bw1` on `test8.jpg` is **0 px**. **`sigma = 2`**: `gaussianBlur` ≤ 2.8e-13 (class double), edge map ≤ 2.3e-13, GVF field ≤ 7.4e-16, end-to-end `bw1` **0 px**. **`GVFOn = 0`**: `f2`, `u`, `v`, `px`, `py` all **0.0**, radii bit-exact, selection `k` identical, end-to-end `bw1` **74 of 11 811 (0.63 %)** — the start-vertex effect of Deviation 1, amplified because the undiffused `gradient2` field is far rougher (rotating the port's own ring moves the result by 56–82 px, bracketing the 74 px gap; reversing it moves nothing). `saturate_to_class` matches MATLAB's saturating/rounding `uint8` +, −, ×, ÷ probes exactly | exact (`GradientOn = 0`, `sigma != 0`) / near (`GVFOn = 0`) | `GradientOn = 0` **and** `GVFOn = 0` together **cannot run in MATLAB** (Deviation 11) |
 | MATLAB `polyarea` | `core.polygon.polyarea` | L1 L2 | **20 polygons × {open, closed} ≤ 1.85e-13**: the `polygeom` self-test quadrilateral, a clockwise copy, triangle, square, a self-intersecting bowtie (**0 on both sides**), 10 random convex polygons, collinear / duplicate / two-point / one-point degenerate inputs, and the `regionprops` convex hull. Repeating the first vertex changes nothing on either side | exact | added after the reviewer found this primitive had no L2 row |
 | Mapping TB `polyxpoly` | `core.polygon.polyxpoly` | L1 L2 | crossing squares: the 2 intersection points and their 0-based segment indices identical; the disjoint case empty on both | reimplemented | |
 | MATLAB `convhull` | `core.polygon.convhull` | L2 | 3 point clouds: same hull **vertex set**, closed | near | start vertex and collinear points differ (see `ConvexHull`) |
@@ -155,15 +165,24 @@ discretisation difference). One pair is not comparable because the Python panel 
    lexicographic extremes: **0 of 46** per-seed clips and none of the 7 fixtures start there). Because
    `inv(A + γI) @ rhs` sums the same numbers in a different order, the port's contour differs from MATLAB's at
    the 1e-16 level per step, which the discontinuous `d > dmax` insertion test amplifies (Deviation 3).
-   Measured consequences after the fix — `for_test.m`: 778 points vs 777, curve 7.2e-4 px, burnt pixel set and
-   mask **identical (0 px)**; `GVF_distance` on `alg_seg_gray.jpg`: 13 of 46 contours with MATLAB's exact point
-   count (2 of 46 before the fix), curves ≤ 0.4794 px, `bw1` **63 px** (dense) / **59 px** (default) of 31 730.
+   Measured consequences after the fix and review S4 — `for_test.m`: 778 points vs 777, curve 7.2e-4 px, burnt
+   pixel set and mask **identical (0 px)**; `GVF_distance` on `alg_seg_gray.jpg`: 14 of 46 contours with
+   MATLAB's exact point count (2 of 46 before the ring fix, 13 after it), curves ≤ 0.4794 px, `bw1` **16 px**
+   (dense) / **14 px** (default) of 31 730 — the single-precision radii of review S4 cut the residual 4×.
+   The sensitivity is measurable directly: on the `GVFOn = 0` branch, rotating the port's own closed ring by
+   k (a pure re-parameterisation of the same curve) moves the burnt mask by **56–82 px**, which brackets the
+   74 px distance to MATLAB; reversing the traversal moves it by **0 px** (the snake matrix is symmetric).
    Realigning the port's ring to MATLAB's start vertex — same ring, bit-identical after the rotation — restores
    777 points and 1.9e-6 px on `for_test.m`, which is the proof that ordering, not geometry, is the residual.
-2. **Single-precision radii.** `bwdist` returns `single`, so MATLAB evaluates `img_Dist(round(cy), round(cx))/sqrt(2)`
-   in single and the initial circle of `dist.m` is a `single` array (the reference is stored as float32); the port
-   divides the value promoted to double. Measured: radii ≤ 4.5e-7, circle coordinates ≤ 3.1e-5. The `r == 0 → 2`
-   fallback fires on the same 6 of 540 seeds. No effect on any decision.
+2. **Single-precision radii — reproduced exactly since review S4.** `bwdist` returns `single`, so the radius
+   `img_Dist(round(cy), round(cx))/sqrt(2)` is single and `dist.m`'s initial circle is a `single` array (the
+   reference is stored as float32). The rule was settled from `dist.m`'s own 540 radii: MATLAB evaluates
+   `single / double` by **promoting to double and rounding to single once** — that reproduces **540 of 540**
+   exactly, while rounding `sqrt(2)` to single first matches only 360 (up to 1.91e-6 off) and pure double
+   arithmetic only 6 (up to 7.67e-7 off). The port now matches all 540 radii bit for bit and 536 of the 540
+   circles; the worst circle difference is **5.68e-14** (it was 1.22e-4). The `r == 0 → 2` fallback stays in
+   double, as MATLAB's literal is, and fires on the same 6 seeds. `GVF_distance.m` line 129 wraps the circle in
+   `double(...)`, `dist.m` does not — both reproduced.
 3. **Long snakes are numerically unstable in their *point count*.** `snakeinterp` inserts where `d > dmax` and on a
    500–2800-point contour hundreds of spacings sit at exactly `dmax`; a **1e-13** perturbation of the starting
    contour already changes the final count (seed 22: 2266 → 2262; seed 1: 533 → 536; MATLAB 2256 / 531). Element-wise
@@ -195,6 +214,13 @@ discretisation difference). One pair is not comparable because the Python panel 
 10. **Unit-normalised GVF force** (`px = u/(mag + 1e-10)`) is the shipped code's convention, not the book's
     Eq. (6.56); the port reproduces the code by default and offers `normalize=False`. Both were run; the
     references use the script form.
+11. **MATLAB cannot run `gradient2` on an integer image.** `gradient2.m` line 47 divides by `d`, a double
+    **matrix**, and MATLAB rejects `uint8 ./ double_matrix`
+    (`Integers can only be combined with integers of the same class, or scalar doubles.`; the edge columns work
+    because their divisor is a scalar). Consequence: the `GradientOn = 0` **and** `GVFOn = 0` combination of
+    `GVF_distance.m` **cannot execute in MATLAB at all** — the end-to-end probe errors — so it has no reference
+    and is L1-only. The port accepts it (documented superset). The `GradientOn = 0` / `GVFOn = 1` path does run,
+    because `GVF.m` calls MATLAB's own `gradient` on the already-double mirrored array.
 
 ## Open items
 1. **The chapter's end-to-end demo cannot be shown** (analysis R6, by design): `sea_ice_demo.m` calls
@@ -220,25 +246,39 @@ discretisation difference). One pair is not comparable because the Python panel 
    costs nothing, and the ±1 point count is the documented instability of Deviation 3, not a defect. Reverting
    would restore an open ring that MATLAB provably does not produce (the `for_test.m` reference records
    `XI0` = 252 points against the open ring's 251, an independent second witness).
-3. **Figs. 6.2, 6.3, 6.5–6.13 and 6.18–6.21 are `unverified` as *figures***: the aerial floe-field and model-basin
+3. **Untested option branches — three of five now closed.** The review's S10 list is answered by
+   `reference/ch06/branches.mat` and `TestL2Branches`: **`GradientOn = 0`** (item 1, a *proven defect* before
+   commit `8bea0dd` — the integer-class normalisation) is now **exact** end to end, **`GVFOn = 0`** (item 2) is
+   exact in every array up to the snake and `near` in the final mask, and **`sigma != 0`** (item 5) is exact end
+   to end at σ = 1, 2 and 4. `GradientOn = 0` **and** `GVFOn = 0` together is unreachable in MATLAB
+   (Deviation 11) and stays L1-only. Still untested against MATLAB, all of them ports of code paths the shipped
+   drivers never take: `timer > 1` (every ch6 driver sets `timer = 1`; the outer re-segmentation loop is ch9's),
+   `normalize=False` (the book's Eq. 6.56 form, which no `.m` file uses), `strict_bwareaopen=True` and the
+   `n_negative > 0` case (measured **0** negative pixels on both book images, so the quirk is latent),
+   `kmeans_impl='sklearn'` and the callable form (only `'lloyd++'` is referenced), `initialize_contours(form='book')`
+   on a real image (verified equal to the script form on Fig. 6.14 and Fig. 6.16 only), and the new guard
+   counters `n_below_range` / `n_above_range` / `skipped` (measured **0 below range** on both book images, so no
+   MATLAB-crash divergence exists to compare against).
+
+4. **Figs. 6.2, 6.3, 6.5–6.13 and 6.18–6.21 are `unverified` as *figures***: the aerial floe-field and model-basin
    images are not shipped with the code and no `.m` file produces them (the analysis' NCC search found no book
    figure for `sea_ice_test.jpg` or `test8.jpg`). The mechanisms are reproduced on synthetic fixtures
    (`scripts/ch06_snake_parameters.py` α/β influence and convergence, `scripts/ch06_ushape.py` the U-shape
    concavity, `scripts/ch06_capture_range.py` the capture range) and every *numeric* claim of §6.5.2 is checked.
    Needs the source images from the user; not a port failure.
-4. **Resolved** — `core.matlab_compat._del2_along_columns` now wraps the difference computation in
+5. **Resolved** — `core.matlab_compat._del2_along_columns` now wraps the difference computation in
    `np.errstate(invalid="ignore")` (coordinator, ch05 `imimposemin` precedent). Values unchanged: the 21
    `del2` parity cases are still **0.0** with identical NaN patterns, and the ch06 suite now runs with **0
    warnings** (it had 1).
-5. **`T_seed` is never given a value in the book** (analysis R12). The only evidence is the code's
+6. **`T_seed` is never given a value in the book** (analysis R12). The only evidence is the code's
    `se = strel('disk', 3)`, whose real neighbourhood is **5×5 / 25 px** (not the 7×7 / 37 px the analysis states —
    see the Numbers table). The port takes `se_radius` as a parameter and defaults to the script's 3.
-6. **`analysis/ch06.md` needs two corrections** (verifier findings, both settled against MATLAB itself):
+7. **`analysis/ch06.md` needs two corrections** (verifier findings, both settled against MATLAB itself):
    (a) §0.5's `MajorAxisLength 10.35814` / `MinorAxisLength 6.76639` are transcription slips — R2025a returns
    `10.358106483626367` / `6.7664075482213342`, which the port reproduces to 1e-12 (the porter's §8 note 4 was
    right); (b) §2.2 stage 15 and §6.4 state `strel('disk', 3)` = "7×7 / 37 px"; MATLAB returns 5×5 / 25 px.
    `homofil.m` can also be moved from "expect `unverified`" to `exact` (it runs in MATLAB, ≤ 1.14e-12).
-7. **Three parity labels in the code docstrings contradict the measurements** (porter action; the verifier
+8. **Three parity labels in the code docstrings contradict the measurements** (porter action; the verifier
    does not edit `seaice/`). `core/filters.py` calls `homomorphic_butterworth` **`unverified`** — it is
    **`exact`** (≤ 1.14e-12 on 6 MATLAB cases; MATLAB *can* run the orphan `homofil.m`).
    `core/regionprops.py` calls `Perimeter` **`near`** "until the verifier compares more shapes" — it is
@@ -264,10 +304,13 @@ three real ch6 masks, in both MATLAB call forms, so the `Rc = 0.9` / `Rl = 2` de
 border/`±Inf`/`ITER = 1` cases the analysis listed as untested; `poly2mask`/`roipoly` are 0 px; `clip_polygon_rect`
 reproduces `polybool`'s vertex set and mask exactly; and the k-means stage matches MATLAB's `rng(0)` run to double
 precision with a 0-pixel mask on both book images. The residual differences are quantified, explained and bounded:
-0.19 % of the ice pixels of the Fig. 6.15 segmentation (63 px of 31 730 with the dense solver, 59 px with the
-default one), traced to `polybool`'s **start-vertex rotation and traversal reversal** — not to the clip's
-geometry, which now matches on 46/46 seeds — amplified by a proven 1e-13-level instability of the snake's point
-count (Deviations 1 and 3), with the curves themselves within 0.4794 px.
-The test suites pass (`tests/test_ch06.py` **410 passed**, 0 failed, 0 xfail, 0 warnings; full suite
-**1555 passed, 2 skipped, 1 xfailed**, no regression against the ch05 baseline). No
-`unverified` row remains: the only unverifiable items are the unshipped §6.5 book images, covered by Open item 3.
+**0.050 %** of the ice pixels of the Fig. 6.15 segmentation (16 px of 31 730 with the dense solver, 14 px with
+the default one, and the same burnt-pixel count 1220 on both sides), traced to `polybool`'s **start-vertex
+rotation** — not to the clip's geometry, which matches on 46/46 seeds, nor to the radii, which are now bit-exact
+— amplified by a proven 1e-13-level instability of the snake's point count (Deviations 1–3), with the curves
+themselves within 0.4794 px.  The three option branches the review found untested are now covered: two of them
+(`GradientOn = 0`, `sigma != 0`) are **0 px** end to end and the third (`GVFOn = 0`) is `near` for the same
+start-vertex reason (Deviation 1), measured directly by re-parameterising the port's own contour.
+The test suites pass (`tests/test_ch06.py` **429 passed**, 0 failed, 0 xfail, 0 warnings; full suite
+**1574 passed, 2 skipped, 1 xfailed**, no regression against the ch05 baseline). No
+`unverified` row remains: the only unverifiable items are the unshipped §6.5 book images, covered by Open item 4.

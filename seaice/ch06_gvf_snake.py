@@ -698,7 +698,7 @@ def seaice_kmean_gvf(I: np.ndarray, *, kms0: int = 3, sigma: float = 0.0, Gradie
     Returns
     -------
     :class:`KmeanGVF`.  Parity: **near** -- k-means cluster centres and the ``bk``/``bw0`` masks match MATLAB
-    exactly (0 px), while the three-level ``out`` differs on **0.185 %** of pixels through the same ``ceil``
+    exactly (0 px), while the three-level ``out`` differs on **0.049 %** of pixels (pass 2: 4 px) through the same ``ceil``
     and single-precision effects as :func:`gvf_distance` (`reports/ch06_verification.md` Deviations 1-3;
     corrected 2026-09-10, review finding S6 and the verifier's stale-number item).
     """

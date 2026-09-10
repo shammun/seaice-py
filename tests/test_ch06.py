@@ -34,7 +34,7 @@ from seaice.core.distance import bwdist  # noqa: E402
 from seaice.core.filters import conv2, homomorphic_butterworth  # noqa: E402
 from seaice.core.interp import interp2  # noqa: E402
 from seaice.core.io import load_image  # noqa: E402
-from seaice.core.matlab_compat import del2, rgb2gray_matlab  # noqa: E402
+from seaice.core.matlab_compat import del2, matlab_round, rgb2gray_matlab, saturate_to_class  # noqa: E402
 from seaice.core.morphology import imregionalmax, regional_maxima_by_reconstruction  # noqa: E402
 from seaice.core.regionprops import region_table, regionprops  # noqa: E402
 from seaice.core.threshold import graythresh, im2bw  # noqa: E402
@@ -298,10 +298,17 @@ class TestL1ContourInit:
         assert set(np.asarray(init.img_dist)[maxima].tolist()) == {3.0}
 
     def test_fig_6_14_radius_is_three_over_sqrt_two(self):
-        """Footnote 4, p. 135: the city-block value at the seed is divided by sqrt(2) -> 3/sqrt(2) = 2.1213."""
+        """Footnote 4, p. 135: the city-block value at the seed is divided by sqrt(2) -> 3/sqrt(2) = 2.1213.
+
+        The radius is **single** precision, exactly as MATLAB's is: ``bwdist`` returns ``single`` and
+        ``single / double`` is evaluated in double and rounded to single once (verified 540/540 on
+        ``reference/ch06/dist_script.mat``, see ``TestL2DistScript::test_matlab_single_division_rule``).  So the
+        value is ``single(3/sqrt(2))``, which sits 9.59e-8 below the double 2.1213203435596424.
+        """
         init = ch6.initialize_contours(synth.FIG_6_14_IMAGE, se_radius=3)
         assert init.num == 1
-        assert abs(float(init.radii[0]) - 3.0 / np.sqrt(2.0)) < 1e-12
+        assert float(init.radii[0]) == float(np.float32(3.0 / np.sqrt(2.0)))
+        assert abs(float(init.radii[0]) - 3.0 / np.sqrt(2.0)) < 1e-7
         assert abs(float(init.radii[0]) - 2.1213) < 1e-4
 
     def test_book_and_script_forms_agree(self):
@@ -1074,6 +1081,164 @@ class TestL2Extras:
 
 
 # =====================================================================================================================
+# L2 — the option branches the review found untested (branches.mat): GradientOn = 0, GVFOn = 0, sigma != 0
+# =====================================================================================================================
+class TestL2Branches:
+    """``GVF_distance.m``'s three option flags.  With ``GradientOn = 0`` the edge map handed to ``GVF.m`` is the
+    **uint8** image, so ``(f - fmin)/(fmax - fmin)`` is evaluated in the integer class and collapses to {0, 1}
+    (review M1 — the port used to normalise in float and produced a completely different field)."""
+
+    @staticmethod
+    def gray():
+        return rgb2gray_matlab(book_image("test8.jpg"))
+
+    def test_gray_matches_the_reference_image(self):
+        d = ref("branches")
+        assert mstr(d["cls_I8"]) == "uint8"
+        assert np.array_equal(self.gray(), np.asarray(d["I8"]))
+
+    def test_integer_class_arithmetic_probes(self):
+        """``saturate_to_class``: MATLAB rounds half away from zero and saturates, it does not wrap or truncate."""
+        d = ref("branches")
+        cases = [(np.array([0, 3, 200, 255.]) - np.array([5, 200, 3, 255.]), "sat_a"),
+                 (np.array([1, 3, 5, 255.]) / np.array([2, 2, 2, 7.]), "sat_b"),
+                 (np.array([250, 250.]) + np.array([10, 3.]), "sat_c"),
+                 (np.array([200.]) * 2, "sat_d")]
+        for exact, key in cases:
+            assert np.array_equal(saturate_to_class(exact, np.uint8),
+                                  np.asarray(d[key]).ravel().astype(np.float64)), key
+
+    def test_gvf_normalisation_is_evaluated_in_uint8(self):
+        """``GVF.m`` lines 21–23 on a uint8 image: the normalised edge map has only the values {0, 1}."""
+        d = ref("branches")
+        assert mstr(d["cls_sub8"]) == mstr(d["cls_nrm8"]) == "uint8"
+        nrm = np.asarray(d["nrm8"])
+        assert set(np.unique(nrm).tolist()) == {0, 1}, "the integer division must collapse the range"
+        g = self.gray().astype(np.float64)
+        fmin, fmax = float(d["fminv8"][0, 0]), float(d["fmaxv8"][0, 0])
+        sub = saturate_to_class(g - fmin, np.uint8)
+        assert np.array_equal(sub, np.asarray(d["sub8"]).astype(np.float64))
+        assert np.array_equal(saturate_to_class(sub / (fmax - fmin), np.uint8), nrm.astype(np.float64))
+
+    @pytest.mark.parametrize("iters", [1, 5, 30, 150])
+    def test_gvf_on_a_uint8_edge_map(self, iters):
+        """``GradientOn = 0`` — the review's proven defect, now exact at every iteration count."""
+        d = ref("branches")
+        u, v = SN.gvf(self.gray(), 0.1, iters)
+        assert maxdiff(u, d[f"u_g0_{iters}"]) == 0.0
+        assert maxdiff(v, d[f"v_g0_{iters}"]) == 0.0
+
+    def test_force_field_with_gradient_off(self):
+        d = ref("branches")
+        _f2, _u, _v, px, py = ch6.gvf_force_field(self.gray(), gradient_on=False, num=150)
+        assert maxdiff(px, d["px_g0"]) == 0.0 and maxdiff(py, d["py_g0"]) == 0.0
+
+    def test_force_field_with_gvf_off(self):
+        """``GVFOn = 0`` — the external field is ``gradient2`` of the edge map, undiffused."""
+        d = ref("branches")
+        f2, u, v, px, py = ch6.gvf_force_field(self.gray(), gvf_on=False, num=150)
+        assert maxdiff(f2, d["f2_grad"]) == 0.0
+        assert maxdiff(u, d["u_v0"]) == 0.0 and maxdiff(v, d["v_v0"]) == 0.0
+        assert maxdiff(px, d["px_v0"]) == 0.0 and maxdiff(py, d["py_v0"]) == 0.0
+
+    @pytest.mark.parametrize("sigma", [1, 2, 4])
+    def test_gaussian_blur_branch(self, sigma):
+        """``sigma != 0`` — ``gaussianBlur`` runs (it never does in the shipped drivers) and returns double."""
+        d = ref("branches")
+        assert mstr(d[f"cls_fb{sigma}"]) == "double"
+        blur = SN.gaussian_blur(self.gray(), sigma)
+        assert maxdiff(blur, d[f"fb{sigma}"]) < 1e-11
+        assert maxdiff(SN.gradient2_magnitude(np.asarray(blur, dtype=np.float64)),
+                       d[f"f2b{sigma}"]) < 1e-11
+
+    def test_force_field_with_sigma_two(self):
+        d = ref("branches")
+        f2, u, v, px, py = ch6.gvf_force_field(self.gray(), sigma=2, num=150)
+        assert maxdiff(f2, d["f2b2"]) < 1e-11
+        assert maxdiff(u, d["u_s2"]) < 1e-12 and maxdiff(v, d["v_s2"]) < 1e-12
+        # px = u/(|v| + 1e-10): the tiny denominator amplifies the blur's round-off
+        assert maxdiff(px, d["px_s2"]) < 1e-9 and maxdiff(py, d["py_s2"]) < 1e-9
+
+    def test_matlab_rejects_gradient2_on_an_integer_image(self):
+        """``gradient2.m`` line 47 divides by a double **matrix**, which MATLAB refuses for integer input.
+
+        Consequence: ``GradientOn = 0`` **and** ``GVFOn = 0`` together cannot run in MATLAB at all, so that
+        combination has no reference and the port (which accepts it) is a documented superset.
+        """
+        d = ref("branches")
+        assert "Integers can only be combined with integers" in mstr(d["g8err"])
+        assert mstr(d["err_b0"]) != ""                     # the end-to-end run fails too
+        gx, gy = SN.gradient2(self.gray())                 # the port does not raise
+        assert gx.shape == self.gray().shape
+
+    @pytest.mark.parametrize("tag,kwargs,expect_px", [
+        ("sig2", dict(sigma=2, GradientOn=True, GVFOn=True), 0),
+        ("g0", dict(sigma=0, GradientOn=False, GVFOn=True), 0),
+        ("v0", dict(sigma=0, GradientOn=True, GVFOn=False), 80),
+    ])
+    def test_end_to_end_branch(self, tag, kwargs, expect_px):
+        """``GVF_distance.m`` end to end on ``test8.jpg`` with the ``for_test.m`` parameters."""
+        d = ref("branches")
+        assert mstr(d[f"err_{tag}"]) == ""
+        r = ch6.gvf_distance(book_image("test8.jpg"), Num=150, mu=0.1, iter=50, alpha=0.05, beta=0.0,
+                             gamma=1.0, kappa=0.5, Dmin=0.0, Dmax=1.0, Ra_min=20, Ra=1000, Rc=0.9, Rl=2,
+                             se_radius=3, timer=1, keep_history=False, solver="dense", **kwargs)
+        p0 = r.passes[0]
+        assert maxdiff(r.px, d[f"px_{tag}"]) < 1e-9 and maxdiff(r.py, d[f"py_{tag}"]) < 1e-9
+        assert int((r.bw != np.asarray(d[f"bw_{tag}"]).astype(bool)).sum()) == 0
+        assert (p0.k + 1).tolist() == np.asarray(d[f"k_{tag}"]).ravel().astype(int).tolist()
+        assert p0.init.num == int(np.asarray(d[f"num1_{tag}"]).ravel()[0])
+        assert np.array_equal(p0.init.radii, np.asarray(d[f"r_{tag}"]).ravel().astype(np.float64))
+        ml = np.asarray(d[f"bw1_{tag}"]).astype(bool)
+        n_diff = int((r.bw1 != ml).sum())
+        assert n_diff <= expect_px, (tag, n_diff, int(ml.sum()))
+
+    def test_gvf_off_residual_is_the_contour_start_vertex(self):
+        """Why ``GVFOn = 0`` differs by 0.63 % where the GVF branches are exact.
+
+        Every input to the snake is bit-identical (field, radii, initial contours), so the only free variable is
+        the contour's start index — which ``polybool`` chooses and the port cannot reproduce.  Rotating the port's
+        own closed ring, i.e. re-parameterising the *same curve*, moves the result by 56–82 px, which brackets the
+        74 px distance to MATLAB.  Reversing the traversal changes nothing (the snake matrix is symmetric).
+        """
+        d = ref("branches")
+        img = book_image("test8.jpg")
+        gray = rgb2gray_matlab(img)
+        ml = np.asarray(d["bw1_v0"]).astype(bool)
+        _f2, _u, _v, px, py = ch6.gvf_force_field(gray, gvf_on=False, num=150)
+        base = ch6.gvf_distance(img, sigma=0, GradientOn=True, GVFOn=False, Num=150, mu=0.1, iter=50,
+                                alpha=0.05, beta=0.0, gamma=1.0, kappa=0.5, Dmin=0.0, Dmax=1.0, Ra_min=20,
+                                Ra=1000, Rc=0.9, Rl=2, se_radius=3, timer=1, keep_history=False,
+                                solver="dense")
+        init = base.passes[0].init
+        s1, s2 = base.bw.shape
+
+        def run(shift):
+            bw1 = base.bw.copy()
+            for n in range(init.num):
+                x, y = init.contours[n]
+                xi, yi = SN.snakeinterp(x, y, 1.0, 0.0)
+                xc, yc = POLY.clip_polygon_rect(xi, yi, (0.0, float(s2)), (0.0, float(s1)))
+                if xc.size < 3:
+                    continue
+                ox, oy = np.roll(xc[:-1], -shift), np.roll(yc[:-1], -shift)
+                xs, ys = np.r_[ox, ox[0]], np.r_[oy, oy[0]]
+                for _ in range(10):
+                    xs, ys = SN.snakedeform(xs, ys, 0.05, 0.0, 1.0, 0.5, px, py, 5, solver="dense")
+                    xs, ys = SN.snakeinterp(xs, ys, 1.0, 0.0)
+                xx = np.ceil(xs).astype(np.int64)
+                yy = np.ceil(ys).astype(np.int64)
+                ok = (xx <= s2) & (yy <= s1) & (xx >= 1) & (yy >= 1)
+                bw1[yy[ok] - 1, xx[ok] - 1] = False
+            return bw1
+
+        b0 = run(0)
+        assert int((b0 != ml).sum()) <= 80
+        moved = [int((run(k) != b0).sum()) for k in (1, 30)]
+        assert min(moved) > 20, moved       # a pure re-parameterisation moves more than the MATLAB gap
+
+
+# =====================================================================================================================
 # L2 — the original scripts
 # =====================================================================================================================
 class TestL2DistScript:
@@ -1112,9 +1277,8 @@ class TestL2DistScript:
         assert int((init.label != np.asarray(d["label"])).sum()) == 0
         assert maxdiff(init.centroids, np.atleast_2d(d["CEN2"])) < 1e-12
         assert maxdiff(np.atleast_2d(d["CEN1"]), np.atleast_2d(d["CEN2"])) == 0.0
-        # DEVIATION `near`: bwdist returns **single**, so MATLAB evaluates `img_Dist(...)/sqrt(2)` in single
-        # precision (the reference array is float32); the port divides the promoted double.  <= 1e-6 absolute.
-        assert maxdiff(init.radii, np.asarray(d["R0"]).ravel()) < 1e-6
+        # Since review S4 the port reproduces MATLAB's single-precision radius **bit for bit** (540/540).
+        assert np.array_equal(init.radii, np.asarray(d["R0"]).ravel().astype(np.float64))
         assert int((init.radii == 2.0).sum()) == int((np.asarray(d["R0"]).ravel() == 2.0).sum())
 
     def test_initial_circles(self):
@@ -1122,10 +1286,43 @@ class TestL2DistScript:
         _, _, _, init = self._pipeline()
         x0 = np.asarray(d["X0"]).ravel()
         assert len(init.contours) == x0.size
-        for k in (0, init.num // 2, init.num - 1):
-            # single-precision r0 (see test_seeds_centroids_and_radii) -> the circle coordinates are float32
-            assert np.asarray(x0[k]).dtype == np.float32          # MATLAB single, cf. the radii
-            assert maxdiff(init.contours[k][0], np.asarray(x0[k]).ravel()) < 1e-4, k
+        n_bit_exact = 0
+        worst = 0.0
+        for k in range(init.num):
+            ml = np.asarray(x0[k]).ravel().astype(np.float64)
+            worst = max(worst, maxdiff(init.contours[k][0], ml))
+            n_bit_exact += int(np.array_equal(init.contours[k][0], ml))
+        # `x = cen(1) + r*cos(t)` stays single in dist.m (no `double(...)` wrapper, unlike GVF_distance.m:129)
+        assert np.asarray(x0[0]).dtype == np.float32
+        assert worst < 1e-12, worst                # measured 5.68e-14 (was 1.22e-4 before review S4)
+        assert n_bit_exact >= init.num - 5, (n_bit_exact, init.num)
+
+    def test_matlab_single_division_rule(self):
+        """``single / double`` in MATLAB: promote to double, round to single **once** (review S4).
+
+        Settled from ``dist.m``'s own 540 radii.  Rounding ``sqrt(2)`` to single *before* dividing matches only
+        360 of them (up to 1.91e-6 off) and pure double arithmetic only 6 (up to 7.67e-7 off).
+        """
+        d = ref("dist_script")
+        R0 = np.asarray(d["R0"]).ravel()
+        img = np.asarray(d["img_Dist"])
+        cen = np.atleast_2d(d["CEN2"])
+        assert img.dtype == np.float32                      # MATLAB bwdist returns single
+        s2 = np.float64(np.sqrt(2.0))
+        once, first, dbl = [], [], []
+        for n in range(cen.shape[0]):
+            cx, cy = cen[n]
+            D = np.float32(img[int(matlab_round(cy)) - 1, int(matlab_round(cx)) - 1])
+            a = np.float32(np.float64(D) / s2)              # promote, round once
+            b = np.float32(D / np.float32(s2))              # round the divisor first
+            c = np.float64(D) / s2                          # pure double
+            once.append(2.0 if a == 0 else float(a))
+            first.append(2.0 if b == 0 else float(b))
+            dbl.append(2.0 if c == 0 else float(c))
+        once, first, dbl = np.array(once), np.array(first), np.array(dbl)
+        assert np.array_equal(once, R0)                     # 540/540
+        assert int((first == R0).sum()) < R0.size           # 360/540
+        assert int((dbl == R0).sum()) < R0.size             # 6/540
 
     def test_transpose_relationship(self):
         """Risk R8: the script's mask is exactly the transpose of the normally-binarised one."""
@@ -1363,7 +1560,8 @@ class TestL2GVFDistance:
         assert int((init.label != np.asarray(d["label1"])).sum()) == 0
         assert init.num == int(np.asarray(d["num1"]).ravel()[0])
         assert maxdiff(init.centroids, np.atleast_2d(d["cen"])) < 1e-12
-        assert maxdiff(init.radii, np.asarray(d["r"]).ravel()) < 1e-6    # single-precision r (see dist.m)
+        # bit-exact since review S4 (MATLAB's single-precision radius reproduced exactly)
+        assert np.array_equal(init.radii, np.asarray(d["r"]).ravel().astype(np.float64))
 
     def test_per_seed_interpolated_contours_are_exact(self):
         """``snakeinterp`` of every initial circle: identical point count and values for all 46 seeds."""
@@ -1373,10 +1571,12 @@ class TestL2GVFDistance:
         yi = np.asarray(d["YI"]).ravel()
         seeds = r.passes[0].seeds
         assert len(seeds) == xi.size
+        worst = 0.0
         for i, s in enumerate(seeds):
             assert s.x_interp.size == np.asarray(xi[i]).ravel().size, i
-            assert maxdiff(s.x_interp, np.asarray(xi[i]).ravel()) < 1e-5, i   # single-precision radius
-            assert maxdiff(s.y_interp, np.asarray(yi[i]).ravel()) < 1e-5, i
+            worst = max(worst, maxdiff(s.x_interp, np.asarray(xi[i]).ravel()),
+                        maxdiff(s.y_interp, np.asarray(yi[i]).ravel()))
+        assert worst < 1e-12, worst        # measured below; was 1e-5 before review S4
 
     def test_per_seed_clip_vertex_sets(self):
         """All 46 clips: same vertex multiset, same point count, both rings closed (open item 2 contract)."""
@@ -1399,8 +1599,8 @@ class TestL2GVFDistance:
             mx_, my_ = mx[:-1], my[:-1]
             order_py = np.lexsort((py_, px_))
             order_ml = np.lexsort((my_, mx_))
-            assert maxdiff(px_[order_py], mx_[order_ml]) < 1e-4, i
-            assert maxdiff(py_[order_py], my_[order_ml]) < 1e-4, i
+            assert maxdiff(px_[order_py], mx_[order_ml]) < 1e-11, i   # tightened after review S4
+            assert maxdiff(py_[order_py], my_[order_ml]) < 1e-11, i
             n += 1
         assert n == 46
 
@@ -1424,20 +1624,21 @@ class TestL2GVFDistance:
             dist = np.hypot(s.x_final[:, None] - a[None, :], s.y_final[:, None] - b[None, :])
             worst = max(worst, max(dist.min(axis=1).max(), dist.min(axis=0).max()))
         assert worst < 1.0, worst          # measured 0.4794 px over the 46 seeds
-        # closing the ring (open item 2) took the exact-point-count agreement from 2/46 to 13/46
-        assert n_same >= 13, n_same
+        # closing the ring (open item 2) took the exact-point-count agreement 2/46 -> 13/46 and the
+        # single-precision radii of review S4 took it to 14/46
+        assert n_same >= 14, n_same
 
     def test_burnt_mask(self):
-        """The segmentation result: at most 0.5 % of the ice pixels differ (measured 61 of 31 730 = 0.19 %)."""
+        """The segmentation result: measured **16 of 31 730 ice px (0.050 %)** after review S4 (was 61/63)."""
         d = ref("gvf_alg")
         r = self.result()
         ml = np.asarray(d["bw1"]).astype(bool)
         n_diff = int((r.bw1 != ml).sum())
         n_ice = int(ml.sum())
-        assert n_diff <= 0.005 * n_ice, (n_diff, n_ice)
+        assert n_diff <= 0.001 * n_ice, (n_diff, n_ice)
         burnt_py = int(r.bw.sum() - r.bw1.sum())
         burnt_ml = int(np.asarray(d["bw"]).astype(bool).sum() - ml.sum())
-        assert abs(burnt_py - burnt_ml) <= 5, (burnt_py, burnt_ml)
+        assert burnt_py == burnt_ml, (burnt_py, burnt_ml)      # 1220 on both sides since review S4
 
     def test_circulant_solver_difference(self):
         """The default fast path vs MATLAB: same order of difference as the dense solver."""
@@ -1445,7 +1646,7 @@ class TestL2GVFDistance:
         r = self.result("circulant")
         ml = np.asarray(d["bw1"]).astype(bool)
         n_diff = int((r.bw1 != ml).sum())
-        assert n_diff <= 0.005 * int(ml.sum()), n_diff
+        assert n_diff <= 0.001 * int(ml.sum()), n_diff        # measured 14 px
 
 
 class TestL2KmeanGVF:
@@ -1468,8 +1669,8 @@ class TestL2KmeanGVF:
         assert maxdiff(r.f2, d["f2"]) == 0.0
         assert maxdiff(r.px, d["px"]) == 0.0 and maxdiff(r.py, d["py"]) == 0.0
         ml = np.asarray(d["bw1"]).astype(bool)
-        # pass 1 is literally GVF_distance: the same 0.19 % snake-discretisation difference (TestL2GVFDistance)
-        assert int((r.pass1.bw1 != ml).sum()) <= 0.005 * int(ml.sum())
+        # pass 1 is literally GVF_distance: the same 0.05 % snake-discretisation difference (TestL2GVFDistance)
+        assert int((r.pass1.bw1 != ml).sum()) <= 0.001 * int(ml.sum())
 
     def test_kmeans_cluster_centres(self):
         """Statistics Toolbox ``kmeans`` is randomly seeded: compare **sorted centres**, never the labels.
@@ -1509,13 +1710,13 @@ class TestL2KmeanGVF:
         assert int((r.bw0 != np.asarray(d["bw0"]).astype(bool)).sum()) == 0
 
     def test_three_level_output(self):
-        """``out = bw1 + 0.5*bw0``: same three levels; 0.18 % of the pixels move with the snake boundaries."""
+        """``out = bw1 + 0.5*bw0``: same three levels; 0.049 % of the pixels move with the snake boundaries."""
         d = ref("kmean_alg")
         r = self.result()
         out_ml = np.asarray(d["out"], dtype=float)
         assert set(np.unique(r.out).tolist()) == set(np.unique(out_ml).tolist()) == {0.0, 0.5, 1.0}
-        assert float(np.mean(np.abs(r.out - out_ml) > 1e-9)) <= 0.005
-        assert int((r.pass2.bw1 != np.asarray(d["bw0_final"]).astype(bool)).sum()) <= 50
+        assert float(np.mean(np.abs(r.out - out_ml) > 1e-9)) <= 0.001
+        assert int((r.pass2.bw1 != np.asarray(d["bw0_final"]).astype(bool)).sum()) <= 10   # measured 4
 
 
 class TestL2KmeanStage:
@@ -1568,7 +1769,8 @@ class TestL2KmeanStage:
         assert int((init.dis_dilated != np.asarray(d["dis"]).astype(float)).sum()) == 0
         assert init.num == int(np.asarray(d["num1"]).ravel()[0])
         assert maxdiff(init.centroids, np.atleast_2d(d["cenA"])) < 1e-12
-        assert maxdiff(init.radii, np.asarray(d["rA"]).ravel()) < 1e-6   # single-precision r (see dist.m)
+        # bit-exact since review S4
+        assert np.array_equal(init.radii, np.asarray(d["rA"]).ravel().astype(np.float64))
 
     def test_kmeans_stage_on_the_demo_image(self):
         d = ref("kmean_stage")
@@ -1645,7 +1847,8 @@ class TestL4BookNumbers:
         init = ch6.initialize_contours(synth.FIG_6_14_IMAGE, se_radius=3)
         maxima = init.minima_map & synth.FIG_6_14_IMAGE
         assert int(maxima.sum()) == 3 and int(label_components(maxima, 8).max()) == 1
-        assert init.num == 1 and abs(init.radii[0] - 3 / np.sqrt(2)) < 1e-12
+        # single precision like MATLAB's (see TestL1ContourInit::test_fig_6_14_radius_is_three_over_sqrt_two)
+        assert init.num == 1 and float(init.radii[0]) == float(np.float32(3 / np.sqrt(2)))
 
     def test_criterion_three_uses_the_ellipse_not_minboundrect(self):
         """ch9 p. 205 criterion 3 is the min-area **rectangle** ratio; the shipped code uses the ellipse axes."""

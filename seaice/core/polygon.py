@@ -103,11 +103,12 @@ def clip_polygon_rect(x, y, x_range: tuple[float, float], y_range: tuple[float, 
     # is never removed, `IDX = (d < dmin)` being false for it), so it is carried into `snakedeform`; the MATLAB
     # reference records `XI0` at 252 points against an open ring's 251.  Closing it here is therefore the correct
     # contract, and what it bought is *structural*, not a lower pixel count: contours matching MATLAB's exact
-    # point count went from **2 of 46 to 13 of 46**, and all **46/46** clipped polygons are now closed at
-    # MATLAB's exact count.  The pixel counts did not move (`GVF_distance.m`'s `bw1`: 61 -> 63 differing pixels
-    # of 31 730, 59 of them unchanged).  The residual 0.19 % is `polybool`'s **start-vertex rotation**, which the
-    # verifier proved is not reproducible: 0 of 46 clips follow max-y, min-y, max-x, min-x or lexicographic
-    # order.  A rotated start vertex shifts `snakeindex`'s insertion parity by one, the +-1 instability
+    # point count went from **2 of 46 to 14 of 46** (16/46 with the circulant solver), and all **46/46** clipped
+    # polygons are now closed at MATLAB's exact count.  Closing the ring did **not** move the pixel counts on its
+    # own (`GVF_distance.m`'s `bw1` went 61 -> 63 of 31 730); the drop to **16 px (0.050 %)** dense / 14 px
+    # default came from reproducing MATLAB's *single-precision* radii and circles (review S4), not from here.
+    # The residual is `polybool`'s **start-vertex rotation**, which the verifier proved is not reproducible:
+    # 0 of 46 clips follow max-y, min-y, max-x, min-x or lexicographic order.  A rotated start vertex shifts `snakeindex`'s insertion parity by one, the +-1 instability
     # quantified in `reports/ch06_verification.md` Deviation 3.
     if poly[0] != poly[-1]:
         poly = poly + [poly[0]]

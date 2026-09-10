@@ -779,6 +779,109 @@ def ref_polyarea():
     return run_ref(code, v, REF / "polyarea.mat", workdir=SCRATCH, timeout=900)
 
 
+# ------------------------------------------------------------------------------------------------------------
+# Group 13: the option branches the review found untested -- GradientOn = 0, GVFOn = 0, sigma != 0
+# ------------------------------------------------------------------------------------------------------------
+def ref_branches():
+    """``GVF.m`` is handed a **uint8** image when ``GradientOn = 0``, so its normalisation happens in the integer
+    class (saturating subtraction, rounding division).  These references pin that, the ``GVFOn = 0`` external
+    field, one end-to-end ``sigma = 2`` run of ``GVF_distance.m``, and MATLAB's *refusal* to run ``gradient2``
+    on an integer image at all (which makes ``GradientOn = 0`` + ``GVFOn = 0`` unreachable in MATLAB)."""
+    lines = []
+    v: list[str] = []
+
+    def add(code: str, *names: str) -> None:
+        lines.append(code)
+        v.extend(names)
+
+    add("I8 = rgb2gray(imread('test8.jpg')); cls_I8 = class(I8);", "I8", "cls_I8")
+    # --- the integer-class normalisation inside GVF.m lines 21-23 -------------------------------------
+    add("fmin8 = min(I8(:)); fmax8 = max(I8(:)); nrm8 = (I8 - fmin8) / (fmax8 - fmin8);"
+        " cls_nrm8 = class(nrm8); fminv8 = double(fmin8); fmaxv8 = double(fmax8);",
+        "nrm8", "cls_nrm8", "fminv8", "fmaxv8")
+    add("sub8 = I8 - fmin8; cls_sub8 = class(sub8);", "sub8", "cls_sub8")
+    # a saturating / rounding probe on constructed uint8 values
+    add("sat_a = uint8([0 3 200 255]) - uint8([5 200 3 255]); sat_b = uint8([1 3 5 255]) ./ uint8([2 2 2 7]);"
+        " sat_c = uint8([250 250]) + uint8([10 3]); sat_d = uint8(200) * 2;",
+        "sat_a", "sat_b", "sat_c", "sat_d")
+    # --- MATLAB REFUSES gradient2 on an integer image (the 'middle' divisor is a double matrix) --------
+    add("try, [gx8, gy8] = gradient2(I8); g8err = ''; catch e, gx8 = []; gy8 = []; g8err = e.message; end",
+        "gx8", "gy8", "g8err")
+    add("[gxd, gyd] = gradient2(double(I8));", "gxd", "gyd")
+    # --- GVF with GradientOn = 0: f2 = f = the uint8 image (this DOES run: GVF's own gradient is double) --
+    for it in (1, 5, 30, 150):
+        add(f"[u_g0_{it}, v_g0_{it}] = GVF(I8, 0.1, {it});", f"u_g0_{it}", f"v_g0_{it}")
+    add("mag_g0 = sqrt(u_g0_150.*u_g0_150 + v_g0_150.*v_g0_150);"
+        " px_g0 = u_g0_150 ./ (mag_g0 + 1e-10); py_g0 = v_g0_150 ./ (mag_g0 + 1e-10);", "px_g0", "py_g0")
+    # --- GVFOn = 0: the external field is gradient2 of the (double) edge map --------------------------
+    add("f2_grad = abs(gradient2(double(I8))); [u_v0, v_v0] = gradient2(f2_grad);"
+        " mag_v0 = sqrt(u_v0.*u_v0 + v_v0.*v_v0); px_v0 = u_v0 ./ (mag_v0 + 1e-10);"
+        " py_v0 = v_v0 ./ (mag_v0 + 1e-10);", "f2_grad", "u_v0", "v_v0", "px_v0", "py_v0")
+    # --- sigma ~= 0: gaussianBlur then the edge map ---------------------------------------------------
+    for sg in (1, 2, 4):
+        add(f"fb{sg} = gaussianBlur(I8, {sg}); f2b{sg} = abs(gradient2(double(fb{sg})));"
+            f" cls_fb{sg} = class(fb{sg});", f"fb{sg}", f"f2b{sg}", f"cls_fb{sg}")
+    add("[u_s2, v_s2] = GVF(f2b2, 0.1, 150); mag_s2 = sqrt(u_s2.*u_s2 + v_s2.*v_s2);"
+        " px_s2 = u_s2 ./ (mag_s2 + 1e-10); py_s2 = v_s2 ./ (mag_s2 + 1e-10);",
+        "u_s2", "v_s2", "px_s2", "py_s2")
+    # --- end-to-end GVF_distance runs on test8.jpg (for_test.m parameters) ----------------------------
+    add("se_b = strel('disk', 3);")
+    runs = {"sig2": "2, 1, 1, 150", "g0": "0, 0, 1, 150", "v0": "0, 1, 0, 150", "b0": "0, 0, 0, 150"}
+    for tag, opts in runs.items():
+        add(f"try, [bw1_{tag}, REC_{tag}] = gvf_distance_ref(imread('test8.jpg'), {opts}, 0.1, 50, 0.05, 0,"
+            f" 1, 0.5, 0, 1, 20, 1000, 0.9, 2, se_b, 1); err_{tag} = '';"
+            f" bw_{tag} = REC_{tag}.bw; f2_{tag} = REC_{tag}.f2; px_{tag} = REC_{tag}.px;"
+            f" py_{tag} = REC_{tag}.py; k_{tag} = REC_{tag}.k; num1_{tag} = REC_{tag}.num1;"
+            f" cen_{tag} = REC_{tag}.cen; r_{tag} = REC_{tag}.r; XF_{tag} = REC_{tag}.XF;"
+            f" YF_{tag} = REC_{tag}.YF;"
+            f" catch e, err_{tag} = e.message; bw1_{tag} = []; bw_{tag} = []; f2_{tag} = []; px_{tag} = [];"
+            f" py_{tag} = []; k_{tag} = []; num1_{tag} = 0; cen_{tag} = []; r_{tag} = []; XF_{tag} = {{}};"
+            f" YF_{tag} = {{}}; end",
+            f"err_{tag}", f"bw1_{tag}", f"bw_{tag}", f"f2_{tag}", f"px_{tag}", f"py_{tag}", f"k_{tag}",
+            f"num1_{tag}", f"cen_{tag}", f"r_{tag}", f"XF_{tag}", f"YF_{tag}")
+    code = "\n".join(lines) + "\n"
+    (VERIFY / "branches_code.m").write_text(code, encoding="utf-8")
+    return run_ref(code, v, REF / "branches.mat", workdir=SCRATCH, timeout=3600)
+
+
+# ------------------------------------------------------------------------------------------------------------
+# Group 11: strel -- the T_seed / merging structuring elements (analysis Sec. 2.2 claims 7x7/37 px for disk 3)
+# ------------------------------------------------------------------------------------------------------------
+def ref_strel():
+    code = ("se3 = getnhood(strel('disk',3)); se5 = getnhood(strel('disk',5));"
+            " n3 = nnz(se3); n5 = nnz(se5); s3 = size(se3); s5 = size(se5);")
+    return run_ref(code, ["se3", "se5", "n3", "n5", "s3", "s5"], REF / "strel.mat", workdir=SCRATCH)
+
+
+# ------------------------------------------------------------------------------------------------------------
+# Group 12: polyarea -- MATLAB's own shoelace area (core.polygon.polyarea had no L2 reference; reviewer finding)
+# ------------------------------------------------------------------------------------------------------------
+def ref_polyarea():
+    lines = [f"load({q(REF / 'inputs.mat')});"]
+    v: list[str] = []
+
+    def add(code: str, *names: str) -> None:
+        lines.append(code)
+        v.extend(names)
+
+    names = (["pg_test", "pg_cw", "pg_tri", "pg_sq", "pg_bow"]
+             + [f"pg_rand{k}" for k in range(10)]
+             + ["pc_collinear", "pc_dup", "pc_two", "pm_int", "pm_half"])
+    for nm in names:
+        add(f"pa_{nm} = polyarea({nm}_x, {nm}_y);", f"pa_{nm}")
+        # closed ring (first vertex repeated): MATLAB's shoelace is unaffected by the zero-length segment
+        add(f"pac_{nm} = polyarea([{nm}_x {nm}_x(1)], [{nm}_y {nm}_y(1)]);", f"pac_{nm}")
+    # the convex hull of the regionprops probe, and a single point / two points (degenerate)
+    add("pa_hull = polyarea(ch_probe_x, ch_probe_y);", "pa_hull")
+    add("pa_one = polyarea([3], [4]);", "pa_one")
+    lines.insert(1, "sp__ = regionprops(logical(sh_probe), 'ConvexHull'); h__ = sp__(1).ConvexHull;"
+                    " ch_probe_x = h__(:,1); ch_probe_y = h__(:,2);")
+    v.extend(["ch_probe_x", "ch_probe_y"])
+    code = "\n".join(lines) + "\n"
+    (VERIFY / "polyarea_code.m").write_text(code, encoding="utf-8")
+    return run_ref(code, v, REF / "polyarea.mat", workdir=SCRATCH, timeout=900)
+
+
 ALL = {
     "unit": ref_unit,
     "gvf": ref_gvf,
@@ -792,6 +895,7 @@ ALL = {
     "extra": ref_extra,
     "strel": ref_strel,
     "polyarea": ref_polyarea,
+    "branches": ref_branches,
 }
 
 
