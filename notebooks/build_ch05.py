@@ -906,17 +906,23 @@ script image (labels, ridges, minima, imposed maps, per-line merging records) is
 synthetic image and on a 552×574 real crop; `core.watershed.watershed` is exact on 74 constructed plateau / tie /
 corridor / random cases with label values included and its flooding order is pinned by 31 order-sensitive fixtures;
 `imregionalmin/max` exact on 126 cases, `imimposemin` bit-identical on 88 (single included). `approx`:
-`watershed_skimage` (comparison only). `reimplemented`: Eq. 5.2 `regional_minima_by_reconstruction` (fails only on an
-all-`+Inf` image, strict xfail), `impose_minima_book`, `watershed_immersion`. `unverified`: Figs. 5.7, 5.11, 5.18–5.20
-and Table 5.1 (images not shipped). 394 chapter tests pass (+ 1 documented xfail); full suite 1140 passed.
+`watershed_skimage` (comparison only). `reimplemented`: Eq. 5.2 `regional_minima_by_reconstruction` (constant and
+all-`±Inf` images special-cased like `imregionalmin`), `impose_minima_book`, `watershed_immersion`. `unverified`:
+Figs. 5.7, 5.11, 5.18–5.20 and Table 5.1 (images not shipped). 399 chapter tests pass (no xfail); full suite 1145
+passed (2 skipped, 1 xfailed — all from earlier chapters). Review: 1 must-fix + 9 should-fix + 2 verifier items applied.
 
 **Feeds forward (`seaice/` functions the later chapters import):**
 
 | Needed by | Primitive |
 |---|---|
-| Ch6 (GVF snake) | the separated floe masks (`neighboring_region_merging(...).seg`, `marker_watershed(...).seg_ao`) and `core.chaincode.boundaries` of each floe as the automatic contour initialisation; `label_components` per floe; `imdilate` of contour masks |
-| Ch7 (ice types, shape enhancement) | `core.watershed.watershed`, `imregionalmax` of distance maps for floe centres, `imimposemin`, `neighboring_region_merging` as the floe-separation step before classification; `label2rgb` for label displays |
-| Ch8–Ch9 (applications, model ice) | separated floe masks → floe size distributions and ice concentration per floe; `watershed` + `bwdist` on the rectangular model-ice floes; `component_centroids` |
+| Ch6 (GVF snake, §6.3 automatic contour initialisation) | the ch5 segmentation seeds the snake: separated floe masks (`neighboring_region_merging(...).seg`, `marker_watershed(...).seg_ao`, `distance_watershed(...).seg_ao`) and/or the distance-transform minima (`imregionalmin(inverse_distance(bw))`, dilated with `strel('disk', r)` as in Fig. 5.12(b)); `core.chaincode.boundaries` of each `label_components` floe as the initial contour; `component_centroids` for seed points; `imdilate` of contour masks. Keep distance maps float32 |
+| Ch7 (ice types, shape enhancement) | `core.watershed.watershed`, `imregionalmax` of distance maps for floe centres, `imimposemin`, `neighboring_region_merging` as the floe-separation step before classification (convex floes, brash removed first); `label2rgb` for label displays; hole filling (`imfill`) still to be built on `imreconstruct` |
+| Ch8–Ch9 (applications, model ice) | separated floe masks → floe size distributions and ice concentration per floe; `watershed` + `bwdist` on the rectangular model-ice floes; `component_centroids` (other `regionprops` properties still to be ported with MATLAB's algorithms) |
+
+**Open thread — speed.** `core.watershed.watershed` is a pure-Python heap flood (≈ 3 s per Mpx): instant on this
+chapter's 96×81 image and the 552×574 crop, but a 12-Mpx frame of Chapters 7–9 would take ~40 s per call. Later
+chapters will either add a faster engine that reproduces the same 74 reference cases (label values included) or use
+`watershed_skimage` for large images, explicitly labelled `approx`, keeping the exact engine for parity tests.
 
 **Pitfalls to carry forward.** `graythresh` on an RGB image histograms all three planes (its level differs from the
 gray image's); `bwdist` is *single* and the flooding priorities depend on it — keep float32; MATLAB's `watershed`

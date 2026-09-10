@@ -21,7 +21,7 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `ind2rgb(idx, cmap)` | `core.color.indexed_to_rgb(idx, cmap, one_based)` | E | integer idx 0-based, double 1-based, clipped — verified ch02 |
 | `imshow(I)`, `imshow(I,[])` | `plt.imshow(I, cmap='gray', vmin=0, vmax=255)` / auto | — | |
 | `subplot`, `figure`, `title` | matplotlib | — | |
-| `label2rgb(L)` | `skimage.color.label2rgb(L, bg_label=0)` | A | colours differ |
+| `label2rgb(L)`, `label2rgb(L, 'jet', 'k', 'shuffle')` | `core.plotting.label2rgb(L, cmap, background, shuffle, seed)` (or `skimage.color.label2rgb(L, bg_label=0)`) | — (display) | colours differ; MATLAB's `'shuffle'` uses a private fixed-seed stream — never compare (ch05) |
 | `montage` | grid with matplotlib | — | |
 | `imcrop(I, rect)` | slicing (`rect` = [x y w h], 1-based) | E | |
 | `padarray(A, [p q], 'replicate'/'symmetric'/0)` | `np.pad(A, ((p,p),(q,q)), mode='edge'/'symmetric'/'constant')` | E | |
@@ -67,6 +67,7 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | DIPUM `fchcode(b, conn, dir)` / `bound2im` | `core.chaincode.fchcode` / `bound2im` | E | `minmag` tie-break where MATLAB errors — verified ch02 |
 | `bwtraceboundary(BW, P, dir)` | `core.chaincode.trace_boundary` | R | |
 | `regionprops(L, props)` | `skimage.measure.regionprops(L)` | N | see property renames in SKILL.md |
+| `regionprops(L, 'Centroid')`, `cat(1, s.Centroid)` | `ch05_watershed.component_centroids(mask)` (1-based `(x, y)` means per `bwlabel` component) | E | verified ch05 |
 
 ## Filtering, gradients (Ch2 §2.5, Ch4 §4.1, Ch6)
 | MATLAB | Python | P | Notes |
@@ -104,12 +105,12 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `imfill(BW, 'holes')` | `scipy.ndimage.binary_fill_holes(BW)` | E | |
 | `imfill(I)` grayscale | `core.morphology.fill_holes_gray` (reconstruction by erosion) | R | |
 | `imclearborder` | `skimage.segmentation.clear_border` | E | |
-| `imregionalmax/min` | `local_maxima/local_minima` (connectivity=2) | E | |
+| `imregionalmax/min(I[, conn])` | `core.morphology.imregionalmax/imregionalmin(I, conn)` (`local_maxima/local_minima(allow_borders=True)` + constant image → all True; NaN raises) | E | verified ch05 (126 cases); bare skimage differs on constant images |
 | `imhmax/imhmin(I, h)` | `h_maxima/h_minima(I, h)` | E | |
 | `imextendedmax/min` | `local_maxima(h_maxima(...))` | E | |
-| `imimposemin(I, markers)` | `core.morphology.impose_minima` | R | |
-| `watershed(I)` | `skimage.segmentation.watershed(I, connectivity=2, watershed_line=True)` | N/A | |
-| `watershed(I, conn)` | `connectivity=1` for 4 | N | |
+| `imimposemin(I, markers[, conn])` | `core.morphology.imimposemin(I, BW, conn)` (M-code port: `∓Inf` markers, `h` rule, arithmetic in the input class) | E | verified ch05 (88 cases bit-identical incl. single) |
+| `watershed(I)`, `watershed(I, conn)` | `core.watershed.watershed(I, conn=8)` (line-by-line port of `eml/watershed.m`; int32 labels, 0 = line) | E (label values) | verified ch05 (74 fixture cases + script images); MATLAB rejects int16/int32 input |
+| `watershed` via skimage | `core.watershed.watershed_skimage(I, conn)` = `skimage.segmentation.watershed(I, connectivity=2\|1, watershed_line=True)` | A | different queue rules → ridges and partitions differ; cross-check only (ch05) |
 | `bwmorph(BW, 'thin', Inf)` | `skimage.morphology.thin(BW)` | N | |
 | `bwmorph(BW, 'skel', Inf)` | `skeletonize(BW)` | A | different algorithm |
 | `bwmorph(BW, 'spur'/'clean'/'bridge'/'remove'/'majority'/'fill')` | `core.morphology.bwmorph` (3×3 LUT) | R | |
