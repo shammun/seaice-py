@@ -46,7 +46,7 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `imbinarize(I,'adaptive','Sensitivity',s)` | `skimage.filters.threshold_local` | A | different local statistic; consider re-implementing MATLAB's (local mean × (1−s) style) |
 | `adaptthresh` | same as above | A | |
 | authors' `kmeans.m` (histogram k-means, shadows the toolbox) | `core.clustering.kmeans_gray(gray, k, shift_bug=True)` | E | deterministic equal-division init; `shift_bug=True` = script's units bug — verified ch03 |
-| Statistics Toolbox `kmeans(X,k)` | `sklearn.cluster.KMeans(k, n_init=10, random_state=0)` or `core.clustering.kmeans_lloyd(init='kmeans++')` | A | random init; compare centres (mapping to be decided in ch06) |
+| Statistics Toolbox `kmeans(X,k)` | `core.clustering.kmeans_lloyd(X, k, init='kmeans++', seed=0)` | A | R2025a defaults `sqeuclidean`/`Start 'plus'`/1 replicate/100 iterations = the same algorithm, different RNG. Verified ch06: sorted centres equal to double precision and the mask 0 px vs MATLAB under `rng(0)` on two images — **but 20 restarts show the optimum is not unique**, so compare sorted centres + pixel agreement, never labels |
 | `pdist2(a, b, metric)` / distance formulas | `core.clustering.pairwise_distance(X, Y, metric)` | E | closed forms; L1 only — ch03 |
 
 ## Neighbourhoods, connectivity, distance (Ch2 §2.3–2.4, Ch5)
@@ -66,8 +66,9 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `bwboundaries(BW)` / DIPUM `boundaries(BW, conn, dir)` | `core.chaincode.boundaries(BW, conn, direction)` (Moore, exterior only, closed, `bwlabel` order) | R (E vs DIPUM `boundaries.m`) | verified ch02; `bwboundaries` itself (holes, `'noholes'`) not yet compared |
 | DIPUM `fchcode(b, conn, dir)` / `bound2im` | `core.chaincode.fchcode` / `bound2im` | E | `minmag` tie-break where MATLAB errors — verified ch02 |
 | `bwtraceboundary(BW, P, dir)` | `core.chaincode.trace_boundary` | R | |
-| `regionprops(L, props)` | `skimage.measure.regionprops(L)` | N | see property renames in SKILL.md |
-| `regionprops(L, 'Centroid')`, `cat(1, s.Centroid)` | `ch05_watershed.component_centroids(mask)` (1-based `(x, y)` means per `bwlabel` component) | E | verified ch05 |
+| `regionprops(L, props)` | **`core.regionprops.regionprops(L, props, conn=8)`** (MATLAB algorithms) | E | verified ch06 (≤ 1.07e-14, 40 shapes × 10 props + 344 real components, both call forms). `skimage.measure.regionprops` is `A`: different axis lengths, perimeter (+5.5 %) and orientation (+90°) — never for parity |
+| `regionprops(L, 'Centroid')`, `cat(1, s.Centroid)` | `core.regionprops.regionprops(L, 'Centroid')` (1-based `(x, y)`); `ch05_watershed.component_centroids` is a thin wrapper | E | verified ch05/ch06 |
+| `bwperim(BW)`, `bwmorph(BW, 'perim8')` | `core.connectivity.bwperim(bw, conn)` | E | verified ch06 (9 shapes × conn {4, 8} 0 px); image-border pixels are perimeter pixels |
 
 ## Filtering, gradients (Ch2 §2.5, Ch4 §4.1, Ch6)
 | MATLAB | Python | P | Notes |
@@ -88,7 +89,8 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `[BW, t, gv, gh] = edge(I, 'sobel'/'prewitt'/'roberts', T, dir, 'thinning')` | `core.edges.edge(I, method, thresh, direction, thinning) -> EdgeResult` | E | verified ch04 (252 maps 0 px vs R2025a): `/8` (`/6`) kernels, replicate padding, `b > T²` or `4·mean(b)`, zero-padded thinning rule (see SKILL.md); float input only |
 | `edge(I, 'log', t, sigma)`, `edge(I, 'zerocross', t, H)` | `core.edges.edge(I, 'log', t, sigma=)` / `'zerocross'` (→ `log_zero_crossings`) | E (N on flat synthetic patches) | verified ch04; threshold is on the jump across the crossing |
 | `edge(I, 'canny')` | `skimage.feature.canny(I, sigma=sqrt(2))` | A | |
-| `del2(F)` | `core.filters.del2` | R | |
+| `del2(F)`, `del2(F, h)`, `del2(F, hx, hy)` | `core.matlab_compat.del2(f, hx=1.0, hy=None)` | E | verified ch06 (21 cases 0.0) — `∇²/(2·ndims)` with **linearly extrapolated borders**, `n == 3` copy, `n ≤ 2` → 0; `4·del2` is the 5-point Laplacian |
+| `[u, v] = GVF(f, mu, ITER)`, `snakedeform`, `snakeinterp`, `snakeindex`, `BoundMirror*`, `gradient2`, `xconv2`, `gaussianMask/Blur` (Xu & Prince) | `core.snake.*` | E | verified ch06 on 200+ MATLAB cases; `gvf` normalises `f` **in the input's class**; `snakedeform(solver='circulant')` = the same system by FFT (306 s → 2.1 s) |
 | `hough`, `houghpeaks`, `houghlines` | `skimage.transform.hough_line(_peaks)`, `probabilistic_hough_line` | A | |
 
 ## Morphology (Ch4 §4.2, Ch5, Ch7)
@@ -126,8 +128,11 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `polyfit`/`polyval` | `np.polyfit`/`np.polyval` | E | |
 | `fminsearch` | `scipy.optimize.minimize(method='Nelder-Mead')` | N | |
 | `lsqnonlin`/`lsqcurvefit` | `scipy.optimize.least_squares` | N | |
-| `poly2mask(x, y, m, n)` | `skimage.draw.polygon2mask((m,n), np.c_[y,x])` | N | |
-| `roipoly` | interactive → replace with stored polygon coords | — | |
-| `regionprops(... 'Orientation','MajorAxisLength',...)` | see above | N | |
+| `poly2mask(x, y, m, n)` | `core.polygon.poly2mask(x, y, M, N)` (port of `eml/poly2mask.m`) | E | verified ch06 (0 px on 19 masks); `skimage.draw.polygon2mask` is `N` |
+| `roipoly(I, xi, yi)` / `roipoly(m, n, xi, yi)` (non-interactive forms) | `core.polygon.roipoly(m, n=None, xi=None, yi=None)` | E | verified ch06 (== `poly2mask`); only the 1-argument call is interactive |
+| `polybool('intersection', ...)` (Mapping TB, compiled GPC) | `core.polygon.clip_polygon_rect(x, y, x_range, y_range)` (Sutherland–Hodgman, closed ring) | R | verified ch06: vertex **sets**/masks identical, **ordering not reproducible** (start vertex rotated, traversal reversed) |
+| `polyxpoly(x1,y1,x2,y2)`, `polyarea(x,y)`, `convhull(x,y)` | `core.polygon.polyxpoly` / `polyarea` / `convhull` | R / E / N | verified ch06; `convhull` keeps collinear hull points and rejects the old `{'Qt'}` option list |
+| `polygeom(x,y)` (Sommer, FEX), `minboundrect(x,y)` (D'Errico, FEX) | `core.polygon.polygeom`, `core.polygon.minboundrect` | N / E | verified ch06; `polygeom`'s principal angle differs by ±π (eigenvector sign); `minboundrect` = the minimum-area bounding rectangle used for length-to-width criteria |
+| `regionprops(... 'Orientation','MajorAxisLength',...)` | `core.regionprops` (see above) | E | verified ch06 |
 | `graycomatrix(I, 'Offset', [0 1], 'NumLevels', 8)` | `graycomatrix(I_quantised, [1], [0], levels=8, symmetric=False)` | E | quantise the same way |
 | `graycoprops` | `skimage.feature.graycoprops` | E | |
