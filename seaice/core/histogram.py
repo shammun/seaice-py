@@ -106,7 +106,13 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
     so a value that sits exactly on an edge falls in the **lower** bin; ``histc``'s overflow bin is then folded
     into the last real bin (lines 98–101).  ``np.histogram`` does neither and uses edges rather than centres —
     getting this wrong shifts every FSD bar by half a bin (analysis/ch07.md risk R7).
-    Parity: exact (line-by-line port of ``hist.m``).
+
+    Non-finite values follow ``histc``'s rules and are *not* dropped: ``NaN`` is counted in no bin, ``-Inf``
+    is counted in the **first** bin (``edgesc(1) = -Inf``) and ``+Inf`` in the **last** (``edgesc(end) = Inf``
+    feeds histc's overflow bin, which lines 151-153 fold back).  ``min``/``max`` still ignore all of them
+    (lines 107-115).  ``hist([1, 2, NaN, 3, Inf, -Inf, 4], 4)`` is therefore ``[2, 1, 1, 2]``, not ``[1, 1, 1, 2]``.
+    Parity: exact (line-by-line port of ``hist.m``), including ``NaN`` and ``+/-Inf`` — counts and centres are
+    identical to R2025a on the 16 ``reference/ch07/hist.mat`` cases plus six all-/mixed-non-finite probes.
     """
     y = np.asarray(y, dtype=np.float64).ravel()
     scalar_bins = np.isscalar(bins) or (np.ndim(bins) == 0)
@@ -134,9 +140,16 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
         mid = centers[:-1] + np.diff(centers) / 2.0
         edges = np.concatenate(([-np.inf], mid, [np.inf]))
 
-    edgesc = np.nextafter(edges, np.inf)  # = edges + eps(edges) (hist.m line 93)
+    # ``edges + eps(edges)`` (hist.m line 93).  MATLAB's ``eps(x)`` is the positive spacing at ``|x|``,
+    # so it is NOT ``np.nextafter(edges, inf)``: for a negative edge whose magnitude is an exact power of
+    # two, ``eps(-1)`` steps 2**-52 while ``nextafter`` steps only 2**-53.  ``np.spacing`` is signed, hence
+    # the ``abs``.  Verified bit-exact against MATLAB R2025a on [-1, -2, -0.5, 1, 2, 0, -3].
+    edgesc = edges + np.abs(np.spacing(edges))
     edgesc[0], edgesc[-1] = -np.inf, np.inf
-    idx = np.searchsorted(edgesc, y[np.isfinite(y) | (y == np.inf)], side="right") - 1
+    # ``histc(y, edgesc)`` (hist.m line 148) is given the *whole* vector: NaN falls in no bin, ``-Inf``
+    # lands in bin 1 because ``edgesc(1) = -Inf`` (line 146) and ``+Inf`` lands in histc's overflow bin
+    # because ``edgesc(end) = Inf`` (line 147), which lines 151-153 fold into the last real bin.
+    idx = np.searchsorted(edgesc, y[~np.isnan(y)], side="right") - 1
     counts = np.bincount(np.clip(idx, 0, edgesc.size - 1), minlength=edgesc.size).astype(np.int64)
     if counts.size > 1:  # histc's overflow bin folded into the last real bin (hist.m lines 98-101)
         counts[-2] += counts[-1]

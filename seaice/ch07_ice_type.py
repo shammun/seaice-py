@@ -581,8 +581,12 @@ def _piece_morphology(shape: tuple[int, int], rows: np.ndarray, cols: np.ndarray
     only legitimate because (a) the crop window is clipped to the image, so a piece touching the image border
     keeps the real border (``imerode`` pads with 1 *there* in both cases and ``imclose`` pre-pads with 0 in both
     cases), and (b) everywhere else the margin is wider than the operators' reach, so the crop's own boundary
-    cannot reach the piece.  ``crop=False`` reproduces the M-file literally and was used to prove the
-    equivalence (0 px on every piece of ``sea_ice_test.jpg`` and on the border fixtures).
+    cannot reach the piece.  ``crop=False`` reproduces the M-file literally.  The equivalence is measured
+    **against MATLAB's own** ``out``/``fill`` on the real 1038x394 ``sea_ice_test.jpg`` run — **1211 pieces, of
+    which 106 touch an image border** (that run is fed MATLAB's own ``seg``/``bk``) — where both modes are 0 px
+    (1.6 s vs 243.7 s), and on the ``border_notch`` fixtures.  Fed instead the *port's own* Algorithm-3 output the
+    same image yields 1232 pieces, 84 of them touching a border, and the two modes agree there as well; the piece
+    counts differ because the **input** segmentation does (ch6's ``near`` label), not because of the crop.
 
     Returns ``(row_offset, col_offset, filled, cleaned)`` — the two results as arrays covering the window
     ``[row_offset:, col_offset:]``, so the caller never allocates a full-image scratch array per piece.
@@ -653,6 +657,10 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
         ``True`` = the **book**'s Algorithm 5 wording "sizes equal to or larger than ``T_floe``" (``>=``).
         The two differ for pieces of exactly ``min_floe`` or ``min_brash`` pixels — with ``min_brash = 1`` the
         script's form **drops every 1-pixel piece** from all three ice layers (it still counts as slush).
+        Measured on ``sea_ice_test.jpg`` **fed the port's own Algorithm-3 output**: 433 floes / 290 brash with the
+        code's ``>`` against 436 / 289 with the book's ``>=`` (3 pieces of exactly 40 px move up, 2 pieces of
+        exactly 1 px reappear).  Those two counts are input-dependent — on **MATLAB's** segmentation of the same
+        image the code's form gives 433 / 274 — but the *difference* between the two forms is the point.
         See ``analysis/ch07.md`` risk R3.
 
     Returns
@@ -671,8 +679,14 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
     * ``regionprops(out == i, …)`` is evaluated with :mod:`seaice.core.regionprops` (MATLAB's own algorithms,
       exact to 1.07e-14) rather than ``skimage.measure.regionprops`` (a different perimeter and axis definition).
 
-    Parity: **exact vs the M-file** for the arrays it computes (the only inexactness the chapter carries comes
-    from its inputs — ``seg``/``bk`` inherit ch6's ``near``/``approx`` labels).
+    Parity: **exact vs the M-file** for the arrays it computes.  Fed **MATLAB's own** ``seg``/``bk`` for the
+    1038x394 ``sea_ice_test.jpg`` — **1211 pieces (982 light + 229 dark), 712 labels, 433 floes / 274 brash** —
+    all nine output arrays are 0 px and ``t``/``nn_bw``/``nn_k``, the sorted areas and stable sort index, both
+    colour vectors, every centroid/perimeter, the ``coverage`` struct, the 50-bin FSD and both colour-bar tick
+    blocks agree to <= 1e-12 (36 controlled-fixture runs likewise 0 px).  The only inexactness the chapter carries
+    comes from its **inputs**: run on the port's own Algorithm-3 output the very same code reports 1232 pieces and
+    433 / 290 floe/brash instead, because ``seg``/``bk`` inherit ch6's ``near``/``approx`` labels (0.245 % / 0.125 %
+    of pixels).  Those are port-input numbers, not parity numbers.
     """
     seg = np.asarray(seg, dtype=np.float64)
     bk = np.asarray(bk, dtype=np.float64)
@@ -855,8 +869,10 @@ def sea_ice_edge_detection(I: np.ndarray, **params):
     Returns the :class:`seaice.ch06_gvf_snake.KmeanGVF` record; ``.out`` is ``SEGMENTATION_seaice``, ``.bk`` is
     ``ICE``, ``.bw`` is ``LIGHT``, ``.bw0`` is ``DARK``, ``.pass1.bw1`` is ``SEG_L`` and ``.pass2.bw1`` ``SEG_D``.
 
-    Parity: **near** — inherited from :func:`seaice.ch06_gvf_snake.seaice_kmean_gvf` (0.049 % of pixels vs
-    MATLAB; the k-means *labels* are ``approx`` by construction).
+    Parity: **near** — inherited from :func:`seaice.ch06_gvf_snake.seaice_kmean_gvf` (the k-means *labels* are
+    ``approx`` by construction).  The residual depends on the input: 0.049 % of ``out`` on ch6's
+    ``alg_seg_gray.jpg`` (ch06's measurement), and **0.245 % of ``seg`` / 0.125 % of ``bk``** when it is called,
+    as ch7 calls it, on ch7's own re-encoded ``sea_ice_test.jpg`` (re-measured against MATLAB here).
     """
     from .ch06_gvf_snake import seaice_kmean_gvf
 

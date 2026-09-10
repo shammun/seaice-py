@@ -481,12 +481,8 @@ class TestL2Hist:
         z, n = mhist(np.array([-1000.0, 0.0, 5.0, 1e6]), np.array([0.0, 5.0, 10.0]))
         assert int(z.sum()) == 4 and z.tolist() == [2, 1, 1]
 
-    @pytest.mark.xfail(strict=True, reason="VERIFIER FINDING (ch07 open item 1): core.histogram.hist drops "
-                                           "-Inf. MATLAB's hist counts -Inf in the first bin and +Inf in the "
-                                           "last; the port's line 139 filter `np.isfinite(y) | (y == np.inf)` "
-                                           "keeps +Inf but discards -Inf. Latent for the chapter (floe areas "
-                                           "are finite) but the docstring claims 'exact'.")
     def test_minus_inf_is_counted_in_the_first_bin(self):
+        """L2: MATLAB counts -Inf in the first bin and +Inf in the last (was ch07 open item 1)."""
         d = ref("hist")
         y, b = FX.hist_cases()["with_nan_inf"]
         z, _ = mhist(np.asarray(y, float), b)
