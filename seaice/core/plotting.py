@@ -111,6 +111,13 @@ def label2rgb(L: np.ndarray, cmap: str = "jet", background: str | tuple = "k", s
     results.  MATLAB samples the colormap at ``max(L)`` levels and, with ``'shuffle'``, permutes the colours with a
     private fixed-seed stream; here the permutation comes from ``numpy.random.default_rng(seed)`` - the assignment
     of colours to labels is therefore *not* MATLAB's (display only).
+
+    ch7 also calls it as ``label2rgb(index, @jet, [1, 1, 1])`` (``ice_shape_enhancement.m`` line 183), where
+    ``index`` is **not** a ``1..N`` label matrix but the Eq. (7.6) size-coded colour values
+    ``fix((1 - exp(-area/1000)) * 10000)``, so ``max(L)`` is of order 10^4 and MATLAB builds a 10 000-entry
+    ``jet`` LUT.  That is exactly what happens here (one LUT row per integer value, background where ``L == 0``,
+    ``shuffle=False``); the ``background=(1, 1, 1)`` RGB-triple form is the ``[1 1 1]`` argument.  It is still a
+    **display-only** routine - compare the ``index`` array, never the colour PNG.
     """
     import matplotlib.colors as mcolors
 
@@ -214,3 +221,33 @@ def quiver_field(ax: plt.Axes, u: np.ndarray, v: np.ndarray, step: int = 1, scal
     ax.set_ylim(M - 0.5, -0.5)  # axis('ij')
     ax.set_aspect("equal")
     ax.axis("off")
+
+
+def size_colorbar(fig, mappable, colors, n: int = 6, *, C1: float = 10000.0, C2: float = 1000.0,
+                  ax=None, label: str | None = None):
+    """The Eq. (7.6) size-coded colour bar of Figs. 7.13/7.19/7.20/7.26/7.28 (and the FSD bars of Fig. 7.15/7.21).
+
+    MATLAB source: ``ice_shape_enhancement.m`` lines 195-206 (``n = 6``, on the map) and 226-237 (``nn = 8``, on
+    the histogram)::
+
+        d   = fix((max(area_ice) - min(area_ice))/n);
+        ysh = min(area_ice) : d : max(area_ice);
+        set(colorbar, 'YTick', linspace(min(ytic), max(ytic), length(ysh)));
+        YT{1,i} = -round(1000 * log(1 - ysh(i)/10000));      % Eq. (7.6) inverted
+        set(colorbar, 'YTickLabel', YT)
+
+    The tick **positions** are ``length(ysh)`` equally spaced points across the colour axis and the tick
+    **labels** are the areas that produced those colour values, i.e. Eq. (7.6) solved for ``area``.  The label
+    integers are book truths (Fig. 7.13: 3, 131, 277, 448, 656, 917, 1273), so the arithmetic lives in the pure
+    :func:`seaice.ch07_ice_type.colorbar_area_ticks`; this function only draws it.  Display only.
+    """
+    from seaice.ch07_ice_type import colorbar_area_ticks
+
+    values, labels = colorbar_area_ticks(colors, n, C1=C1, C2=C2)
+    cb = fig.colorbar(mappable, ax=ax)
+    lo, hi = cb.mappable.get_clim()
+    cb.set_ticks(np.linspace(lo, hi, len(values)))
+    cb.set_ticklabels([str(v) for v in labels])
+    if label:
+        cb.set_label(label)
+    return cb

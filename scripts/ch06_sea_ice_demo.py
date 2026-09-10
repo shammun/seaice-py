@@ -11,8 +11,12 @@ The MATLAB script is a parameter block followed by three calls::
 Only the **first** call belongs to chapter 6.  ``ice_shape_enhancement.m`` implements book **§7.1 "Ice shape
 enhancement"** (the file is byte-identical in ``ch7/Sea_Ice_Floe_Identification/`` and produces §7.2's four
 layers plus the coverage percentages quoted in §8.3), and ``sea_ice_model.m`` implements **§8.2 / Appendix B**
-(``.Polygon``, ``.Circle``, ``.Intersect``).  They are ported in ch07 and ch08; ``--full`` asks for them here and
-raises ``NotImplementedError`` with that message rather than pretending.
+(``.Polygon``, ``.Circle``, ``.Intersect``).
+
+``--full`` now also runs the second call through :func:`seaice.ch07_ice_type.ice_shape_enhancement` (ported in
+ch07) and reports its layers; the third call is still ch08's and is reported as deferred.  Note that this script
+runs on **ch6's** ``sea_ice_test.jpg``; ch7 ships a *different JPEG encoding* of the same photograph, so the
+piece counts differ from ``scripts/ch07_sea_ice_demo.py``'s — use that script for the chapter-7 numbers.
 
 Output of the ch6 part: ``seg`` (= ``out`` of the M-file) has **three levels** — 1 = bright ice (Otsu pass),
 0.5 = dark/slush ice (k-means residual pass), 0 = water — and ``bk`` is the k-means ice mask.
@@ -59,7 +63,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="keep only the +1 pixels of bw_kmeans - bw (the script keeps the -1 pixels too)")
     p.add_argument("--solver", default="auto", choices=["auto", "dense", "circulant"])
     p.add_argument("--full", action="store_true",
-                   help="also run ice_shape_enhancement + sea_ice_model (ported in ch07/ch08 -> raises)")
+                   help="also run ice_shape_enhancement (ch07); sea_ice_model stays deferred to ch08")
     args = p.parse_args(argv)
     data, out = resolve_dirs(args)
     try:
@@ -130,11 +134,24 @@ def main(argv: list[str] | None = None) -> int:
         print("  ", w)
 
     if args.full:
-        raise NotImplementedError(
-            "ported in ch07/ch08: ice_shape_enhancement.m implements book section 7.1 (ice shape enhancement) "
-            "and sea_ice_model.m implements section 8.2 / Appendix B; sea_ice_demo.m's tail therefore lands in "
-            "seaice/ch07_ice_type.py and seaice/ch08_applications.py, not here (analysis/ch06.md section 2.4 "
-            "and risk R6)")
+        # sea_ice_demo.m line 53 — ported in ch07 (book section 7.1.4 / 7.2.3 / 7.2.4, Algorithms 2/4/5).
+        from seaice.ch07_ice_type import ice_shape_enhancement
+
+        t0 = time.time()
+        e = ice_shape_enhancement(bk, seg, min_floe=P["min_floe"], min_brash=P["min_brash"], se_th=P["se_th"])
+        cov = e.coverage.as_percent()
+        print(f"\nice_shape_enhancement.m (ch07, {time.time() - t0:.1f} s): "
+              f"{e.nn_bw} light + {e.nn_k} dark pieces -> {e.t} identified; "
+              f"{len(e.ice_floe)} ice floes, {len(e.brash_ice)} brash pieces")
+        print(f"  coverage: {cov['IceFloe']:.2f} % floe, {cov['BrashIce']:.2f} % brash, "
+              f"{cov['Slush']:.2f} % slush, {cov['Water']:.2f} % water")
+        print("  NOTE: this is ch6's copy of sea_ice_test.jpg; scripts/ch07_sea_ice_demo.py runs ch7's copy, "
+              "which is a different JPEG encoding of the same photograph and gives different counts.")
+        written.append(save_image(out / "sec_6_4_demo_i_identification.png",
+                                  label2rgb(e.out, cmap="jet", background=(1, 1, 1), shuffle=True)))
+        print("  wrote", written[-1])
+        print("sea_ice_demo.m line 57 `sea_ice_model` implements book section 8.2 / Appendix B and is ported "
+              "in ch08 — not run here.")
     return 0
 
 

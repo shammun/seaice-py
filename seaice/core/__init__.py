@@ -54,6 +54,15 @@ Chapter 6 primitives:
   ``homomorphic_butterworth`` (``homofil.m``, an orphan utility); :mod:`~seaice.core.plotting` —
   ``snake_plot``, ``quiver_field``; :mod:`~seaice.core.synth` — ``u_shape``, ``fig_6_16_circles``,
   ``FIG_6_14_IMAGE/_DISTANCE``, ``synthetic_floe_field``
+
+Chapter 7 primitives:
+
+* :mod:`~seaice.core.morphology` — ``imfill`` (MATLAB's binary **and** grayscale hole filling, Eqs. 7.3/7.4)
+* :mod:`~seaice.core.histogram` — ``hist`` (MATLAB's bin-**centre** histogram, used by the §7.2.4 FSD and ch8)
+* :mod:`~seaice.core.plotting` — ``size_colorbar`` (the Eq. 7.6 colour bar); ``label2rgb`` extended to the
+  ``label2rgb(index, @jet, [1 1 1])`` form of ``ice_shape_enhancement.m``
+* :mod:`~seaice.core.synth` — ``FIG_7_2_*``, ``FIG_7_3_*``, ``FIG_7_4_STEPS``, ``FIG_7_5_*``, ``FIG_7_6_*``,
+  ``FIG_7_7_STEPS``/``_BOOK``/``FIG_7_7_X8_TYPO``, ``FIG_7_8_*`` (the printed matrices of §7.1)
 """
 from __future__ import annotations
 
@@ -69,9 +78,9 @@ from .connectivity import bwareaopen, bwperim, count_components, find_paths, is_
 from .distance import bwdist, center_distance_map, distance_transform, pixel_distance, quasi_euclidean_dt
 from .edges import EdgeResult, edge, gradient_roberts, gradient_sobel_prewitt, log_zero_crossings, thin_gradient
 from .filters import conv2, conv_at, fspecial, homomorphic_butterworth, imfilter
-from .histogram import imhist, normalized_histogram
+from .histogram import hist, imhist, normalized_histogram
 from .morphology import disk_decomposition, geodesic_dilation, geodesic_erosion, imclose, imdilate, imerode, \
-    imimposemin, imopen, imreconstruct, imregionalmax, imregionalmin, intline, line_strel, minkowski_sum, \
+    imfill, imimposemin, imopen, imreconstruct, imregionalmax, imregionalmin, intline, line_strel, minkowski_sum, \
     morphological_gradient, periodic_line, reconstruct_by_erosion, reconstruct_iterative, \
     regional_maxima_by_reconstruction, se_origin, strel
 from .polygon import clip_polygon_rect, convhull, minboundrect, poly2mask, polyarea, polygeom, polyxpoly, roipoly
@@ -83,7 +92,8 @@ from .watershed import watershed as watershed_transform, watershed_skimage
 from .interp import interp2, interp_bicubic, interp_bilinear, interp_nearest, keys_kernel, resize, warp_image
 from .io import REPO_ROOT, data_roots, load_image, output_dir, read_image, repo_root
 from .matlab_compat import del2, im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
-from .plotting import finish_figure, imshow_matlab, imshow_scale, quiver_field, save_image, show_matrix, snake_plot, to_display_uint8
+from .plotting import finish_figure, imshow_matlab, imshow_scale, label2rgb, quiver_field, save_image, \
+    show_matrix, size_colorbar, snake_plot, to_display_uint8
 from .threshold import BlockOtsu, OtsuCurves, block_otsu, class_coverage, class_mean_intensity, graythresh, \
     ice_concentration, im2bw, imquantize, multithresh, otsu_criterion, otsuthresh, separability
 from .setops import complement, difference, gray_complement, gray_intersection, gray_union, intersection, reflect, \
@@ -114,7 +124,8 @@ __all__ = [
     "nd", "region_boundary_mask",
     "bwdist", "center_distance_map", "distance_transform", "pixel_distance", "quasi_euclidean_dt",
     "conv2", "conv_at", "imfilter",
-    "imhist", "normalized_histogram",
+    "hist", "imhist", "normalized_histogram",
+    "imfill", "label2rgb", "size_colorbar",
     "interp2", "interp_bicubic", "interp_bilinear", "interp_nearest", "keys_kernel", "resize", "warp_image",
     "REPO_ROOT", "data_roots", "load_image", "output_dir", "read_image", "repo_root",
     "im2double", "im2uint8", "imcomplement", "matlab_round", "rgb2gray_matlab",

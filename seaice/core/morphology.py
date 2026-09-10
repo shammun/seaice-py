@@ -30,7 +30,7 @@ from collections.abc import Sequence
 import cv2
 import numpy as np
 
-from .matlab_compat import matlab_round
+from .matlab_compat import imcomplement, matlab_round
 
 # ---------------------------------------------------------------------------------------------------------------
 # Structuring elements (§4.2 intro, Fig. 4.7; MATLAB strel)
@@ -763,3 +763,77 @@ def regional_maxima_by_reconstruction(I: np.ndarray, conn: int = 8, form: str = 
             rec = imreconstruct(I, I + 1.0, conn)           # R^D_{I+1}(I)
             M = (I + 1.0) > rec                             # M_max = I + 1 - rec > 0
     return M | (I == np.inf)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Hole filling — MATLAB imfill (Book §7.1.3.2, Eqs. (7.3)-(7.4))
+# ---------------------------------------------------------------------------------------------------------------
+
+def _pad_minus_inf_value(dtype: np.dtype) -> float:
+    """The value MATLAB's ``padarray(A, 1, -Inf)`` actually writes into an array of class ``dtype``.
+
+    ``padarray`` casts the pad value to the array's class, so ``-Inf`` saturates to ``0`` for unsigned integers
+    and to ``intmin`` for signed ones; only single/double keep a true ``-Inf``.  ``imfill.m`` converts a logical
+    input to ``uint8`` first (line 127), so the logical branch pads with ``0``.
+    """
+    if np.issubdtype(dtype, np.floating):
+        return -np.inf
+    return float(np.iinfo(dtype).min)
+
+
+def imfill(I: np.ndarray, mode: str = "holes", *, conn: int | np.ndarray = 4) -> np.ndarray:
+    """MATLAB ``imfill(I, 'holes')`` / ``imfill(BW, 'hole')`` — fill the holes of a binary **or grayscale** image.
+
+    Book: §7.1.3.2, **Eq. (7.3)** (the border marker ``F_m``) and **Eq. (7.4)**
+    ``H = [R^D_{F^c}(F_m)]^c`` — the reconstruction form of hole filling, Fig. 7.8.
+    MATLAB source: ``ice_shape_enhancement.m`` lines 73 and 93 (``b = imfill(b, 'hole')`` on a **double** ``b``);
+    the algorithm is a line-by-line port of R2025a ``toolbox/images/images/imfill.m`` lines 124–145::
+
+        if islogical(I), mask = uint8(I); else mask = I; end
+        mask   = padarray(mask, ones(1, ndims(mask)), -Inf, 'both');
+        mask   = imcomplement(mask);
+        marker = mask;  marker(2:end-1, 2:end-1) = -Inf;
+        I2 = imcomplement(imreconstruct(marker, mask, conn));
+        I2 = I2(2:end-1, 2:end-1);
+        if islogical(I), I2 = logical(I2); end
+
+    Parameters
+    ----------
+    I : ndarray
+        Binary (``bool``) **or** numeric image.  ch7 passes a ``double`` 0/1 array, which takes MATLAB's
+        *grayscale* branch and therefore comes back as a ``double`` — the class matters, because ``bwlabel``,
+        ``imclose`` and the ``out(pp) = t`` assignment downstream all see it.
+    mode : str
+        ``'holes'``; MATLAB's ``validatestring`` accepts any unambiguous prefix, so ``'hole'`` (what the book's
+        code writes) and ``'h'`` are the same option.  The interactive / ``locations`` forms are not ported.
+    conn : int or ndarray
+        Connectivity of the **background** flood, default ``conndef(2, 'minimal')`` = 4 (MATLAB's default).
+
+    Returns
+    -------
+    ndarray of the **same dtype as** ``I``.
+
+    Notes
+    -----
+    The ``-Inf`` pad is written *after* the class cast, so it is ``0`` for a uint8 (or logical→uint8) image and a
+    true ``-Inf`` only for single/double — this port reproduces that with :func:`_pad_minus_inf_value`.
+    Parity: **exact** (line-by-line port).  ``scipy.ndimage.binary_fill_holes`` agrees on the logical branch only
+    and would silently return ``bool`` for a double input.
+    """
+    I = np.asarray(I)
+    if not str(mode) or not "holes".startswith(str(mode).lower()):
+        raise ValueError(f"imfill: unknown option {mode!r} (only the 'holes' form is ported)")
+    if I.ndim != 2:
+        raise NotImplementedError("imfill: only 2-D images are ported")
+    was_logical = I.dtype == np.bool_
+    mask = I.astype(np.uint8) if was_logical else I
+    pad_value = _pad_minus_inf_value(mask.dtype)
+    mask = np.pad(mask, 1, mode="constant", constant_values=mask.dtype.type(pad_value))
+    mask = imcomplement(mask)
+    marker = mask.copy()
+    marker[1:-1, 1:-1] = np.asarray(_pad_minus_inf_value(marker.dtype)).astype(marker.dtype)
+    I2 = imcomplement(imreconstruct(marker, mask, conn))
+    I2 = I2[1:-1, 1:-1]
+    if was_logical:
+        return I2 != 0
+    return I2.astype(I.dtype, copy=False)
