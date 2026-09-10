@@ -409,7 +409,11 @@ def two_touching_floes(shape: tuple[int, int] = (96, 81), seed: int = 0, noise: 
 def plateau_fixtures() -> dict[str, np.ndarray]:
     """Small constructed images whose watershed depends on the flooding *order* (plateaus, ties, corridors) — the
     kind of case where MATLAB's Meyer flooding and other implementations disagree.  Used to pin
-    :func:`seaice.core.watershed.watershed` against MATLAB references.  All values are small integers.
+    :func:`seaice.core.watershed.watershed` against MATLAB references.  All values are small integers stored as
+    **int16**.  MATLAB's ``watershed`` rejects int16/int32 input (R2025a ``watershed.m`` accepts only
+    uint8/uint16/single/double/logical), so the MATLAB references for these fixtures are computed on
+    ``double(X)``; the Python port is fed the int16 arrays directly — the flooding only depends on the value
+    order, so the two agree.
     """
     fx: dict[str, np.ndarray] = {}
     # even-width plateau (value 2) between two minima (value 1) — the dam position depends on the FIFO order

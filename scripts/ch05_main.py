@@ -18,7 +18,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
 
 from seaice.ch05_watershed import BOOK_PARAMS, neighboring_region_merging, otsu_mask  # noqa: E402
 from seaice.core.cli import chapter_argparser, resolve_dirs  # noqa: E402
@@ -60,9 +59,9 @@ def main(argv: list[str] | None = None) -> int:
     for ln in res.lines:
         ep = "; ".join(f"({r + 1}, {c + 1})" for r, c in ln.endpoints.tolist())
         cep = "; ".join(f"({r + 1}, {c + 1})" for r, c in ln.concave_endpoints.tolist()) or "none"
-        n_reg = int(np.unique(ln.region[ln.region > 0]).size)
-        print(f"line {ln.label}: {ln.n_pixels} px; ending points {ep}; merged region label {int(ln.region.max())} "
-              f"({int((ln.region > 0).sum())} px, {n_reg} label value) with {ln.concave.shape[0]} concave boundary points; "
+        # im = imreconstruct(g, connect) with marker g in {0,1} is {0,1}-valued: report its size, not a label
+        print(f"line {ln.label}: {ln.n_pixels} px; ending points {ep}; reconstructed neighbouring region "
+              f"{int((ln.region > 0).sum())} px with {ln.concave.shape[0]} concave boundary points; "
               f"concave ending points: {cep} -> {'REMOVED (regions merged)' if ln.removed else 'kept'}")
     print(f"result: {res.n_removed} of {res.num} lines removed; floes {res.n_floes_before} -> {res.n_floes_after}  "
           f"(book Fig. 5.14: 3 lines, 2 removed, 4 -> 2)")

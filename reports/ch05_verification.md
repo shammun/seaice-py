@@ -1,7 +1,7 @@
 # Chapter 5 verification — Watershed-Based Ice Floe Segmentation
 
 Date 2026-09-09 · port commit `bd6d3a7` (`ch05: port — core.watershed (eml/watershed.m twin), imregionalmin/max,
-imimposemin, ch05_watershed module, 9 scripts`) · verifier artefacts: `tests/test_ch05.py` (395 tests),
+imimposemin, ch05_watershed module, 9 scripts`) · **review follow-up 2026-09-09** (`reports/ch05_review.md`: M1, S1–S9, V1–V2 — all findings applied; verifier items M1/S3/S4/S6/S7/S8/S9/V1 in this report and `tests/test_ch05.py`, the rest by the porter) · verifier artefacts: `tests/test_ch05.py` (399 tests),
 `reference/ch05/make_refs.py` (+ 16 `.mat` incl. `compat.mat` with 557 variables, `inputs.mat` with 82 fixtures,
 `refs_log.json`), `reference/ch05/make_compare_figures.py`, `outputs/ch05/verify/` (MATLAB `imwrite`/`print` images
 in `matlab/` (158 files), patched script copies in `scratch/`, `compat_code.m`, `image_diffs.json`, `make_refs_log.txt`,
@@ -37,19 +37,25 @@ two touching discs and `regionprops`/`bitand`/`intersect` probes; every call is 
 recorded when it rejects an input.
 
 ## pytest
-`.venv/Scripts/python.exe -m pytest tests/test_ch05.py -q -p no:cacheprovider` → **`394 passed, 1 xfailed in 210 s`**
-(`outputs/ch05/verify/pytest_ch05.txt`, clean re-run; a first run had one failing CLI case caused by a test bug — a `:` in
-the output folder name, illegal on Windows — fixed before the re-run). Breakdown: 61 L1 (synthetic truth), 316 L2 (MATLAB
-parity: 74 `watershed` fixture cases + 74 `imregionalmin` on the same fixtures + 26 min/max + 13 Eq. 5.2 identities +
-88 `imimposemin` + 11 `h`-rule + misc + 9 script-level classes with 15 tests), 4 L4, 9 script runs + 8 non-default CLI
-flag combinations. The xfail is strict-documented: `TestL2RegionalExtrema::test_eq_5_2_identity_vs_matlab[rm_all_inf]`
-(Open item 1).
+`.venv/Scripts/python.exe -m pytest tests/test_ch05.py -q -p no:cacheprovider` (after the review fixes) →
+**`399 passed in 106 s`**, 0 xfail, 0 warnings (`outputs/ch05/verify/pytest_ch05.txt`). Breakdown: 63 L1 (synthetic
+truth: 12 `watershed` incl. the default-connectivity pin of review S3, 18 regional extrema, 7 `imimposemin`, 18 chain
+code, 5 merging incl. the peanut fixture of review M1 and the per-line S4 assertions, 3 pipelines/display), 313 L2
+(MATLAB parity: 151 `watershed` — 74 fixture cases + 74 `imregionalmin` on the same fixtures + matrix-conn forms,
+rejections, order analysis; 40 extrema; 101 `imimposemin`; 3 misc; 15 script-level), 6 L4 (book numbers incl. the
+ridge-thickness counts of review S7 and the `'ge3'` rule on `q.jpg`), 9 script runs + 8 non-default CLI flag combinations.
 
-Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` → **`1140 passed, 2 skipped, 2 xfailed in 639 s`**
-(`outputs/ch05/verify/pytest_full.txt`; ch02 + ch03 + ch04 unchanged: 746 passed, 2 skipped, 1 xfailed).
+Before the review (verify commit `6ac4cd5`): `394 passed, 1 xfailed in 210 s` with 8 `RuntimeWarning`s (the xfail and
+the warnings are the resolved Open items 1 and 5).
 
-Parity label counts (29 rows below): **exact 23 · near 0 · approx 1 · reimplemented 3 · unverified 1** (+ 1 display-only
-row, unlabelled). Every one of the 15 `.m` files (3 byte-identical duplicates included) has a row.
+Full suite `.venv/Scripts/python.exe -m pytest tests/ -q -p no:cacheprovider` (after the porter's core changes:
+strict 3×3 `conn` validation in `core.morphology`, matrix `conn` in `core.watershed`) → **`1145 passed, 2 skipped,
+1 xfailed in 527 s`** (`outputs/ch05/verify/pytest_full.txt`; ch02 + ch03 + ch04 unchanged: 746 passed, 2 skipped,
+1 xfailed; ch05 399).
+
+Parity label counts (31 rows below, recounted after review S9): **exact 24 · near 0 · approx 1 · reimplemented 3 ·
+unverified 1** (+ 1 mixed row `exact (printed truths) / reimplemented (fixtures)` for the synthetic fixtures and 1
+display-only row, unlabelled). Every one of the 15 `.m` files (3 byte-identical duplicates included) has a row.
 
 ## Parity table
 Levels: L1 synthetic truth · L2 MATLAB reference · L3 figure · L4 quoted number. "0 px" = identical arrays; label images
@@ -74,7 +80,7 @@ are compared **with their label values** (MATLAB uint8/uint16 cast to int32), no
 | `topological_surface.m` (§5.1 **Fig. 5.1(b)(c)**, **Fig. 5.5(b)**, **Fig. 5.8(c)**) | `topographic_surfaces`, `plotting.surface_plot`, `scripts/ch05_topological_surface.py` | L2 L3 | `I` 0 px, `x = imcomplement(I)` 0 px (uint8), `g` ≤ 1e-12, `img` (gray Otsu 128/255) 0 px, `d = -bwdist(~img, 'chessboard')` 0.0 (single); `topo_gray`/`topo_complement`/`topo_bw` images identical; the three `surf` renderings compared visually (figure table) | exact | surface rendering is display-only (matplotlib vs MATLAB `texturemap`) |
 | `watershed_based/main.m` (§5.2 Steps 1–5, **Fig. 5.14(b)–(i)**, Fig. 5.15(b) kernel) | `neighboring_region_merging`, `junction_endpoints`, `ENDPOINT_KERNEL`, `scripts/ch05_main.py` | L2 L3 L4 | `q.jpg`: `bw` 0 px, `D` 0.0, `L` 0 px with labels (4 basins, uint8), `w` 0 px (210), `f = bitand(bw, w)` 0 px (63 px, class logical), `seg0` 0 px, `[label, num] = bwlabel(f, 4)` 0 px / **3**, `wr` identical; per line: `ep` identical (`(64,11),(64,32)` / `(70,12),(70,33)` / `(48,29),(62,33)`, 1-based, `find` order), `T = 3` each, `g2 >= T` masks identical, `neighbor` → `connect = bwlabel` identical, `im = imreconstruct(g, connect)` identical, `concave` identical, `c = intersect` identical (∅, ∅, 2 points), `REMOVED = [1 1 0]`, `seg` after each iteration and final `seg` 0 px, floes **4 → 2**; **synthetic substitute** (`two_touching_floes`): 1 line (31 px), 2 basins, kept, 2 floes — all arrays identical; **Fig. 4.3(a) crop of ch04 `test.jpg`** (552×574): 11 basins, 7 lines (958 px), `T = [3 3 3 3 3 4 4]`, `REMOVED = [0 1 1 1 1 0 0]`, 11 → 7 floes — all arrays and all per-line records identical; 6 raw images identical (1-level display rounding on `-D`) | exact | sequential in-loop update of `seg` reproduced (`SEGB{i}`) |
 | `nrm_junction_ending.fig` (authors' Fig. 5.14(f)) | `main` result `f` + per-line endpoints | L2 L3 | `openfig` → image `CData` (96×81 **logical**) = `f` **0 px**; 3 line series with end points `(x, y)` = `(29,48)-(33,62)`, `(12,70)-(33,70)`, `(11,64)-(32,64)` = exactly the port's 6 endpoints (set equality); no text objects re-created by R2025a from the old `hgS_070000` file (`nt = 0`) | exact | the authors' own saved figure confirms the junction lines and ending points |
-| MATLAB `watershed(A[, conn])` (compiled `watershed_meyer`; all 6 watershed scripts, `main.m`) | **`core.watershed.watershed`** (line-by-line port of the codegen twin `eml/watershed.m`) | L1 L2 | **74 fixture cases** (37 fixtures × {8, 4}) **0 px with label values** — plateaus, diagonal/anti-diagonal corners, 5-minima plateau, 2-px corridors (equal/unequal, two of different length), asymmetric column-vs-row adjacency and its transpose, equal-priority plateaus of odd and even width, random uint8 30×40 with ties (90 / 196 basins), random uint8 200×300 (**6772 / 12 036 basins, MATLAB class uint16**) and its ternary version (2309 / 7768 basins, uint16), random double 50×60 (338 / 639, uint16), random single, 900-minima grid (uint16), int16 with negatives, int32, uint16, double with `−Inf` minima and a `+Inf` wall, border/corner minima, ramp (1 basin), 1×1, 2×2, constant, logical, all-zero, checkerboard (1 / 50 basins), 1×9 and 9×1 profiles; default conn, `[0 1 0;1 1 1;0 1 0]` (= 4) and `ones(3)` (= 8) matrix forms 0 px; **every script image** (`q.jpg` gray 160 basins, Sobel `g` 350, `g2` 12, city/chess/euc/quasi inverse distance maps, imposed maps ×2, `−D` on the synthetic image and on the 552×574 crop with 11 basins) 0 px; two touching discs (city-block and Euclidean single-precision maps) 0 px. Output class rule confirmed (uint8 ≤ 255 basins, uint16 above); NaN rejected by both (`'Expected input number 1, I, to be non-NaN.'`). **Analysis risk 1 resolved**: (a) the neighbour-scan order of the flooding loop is *provably irrelevant* — a pixel's label depends only on the *set* of labels around it, and the neighbours pushed by one pop are consecutive same-label FIFO entries that no foreign-label pop can interleave at equal priority; measured: 12 random permutations of the offsets × 80 cases (all fixtures + 4 `q.jpg` maps, both connectivities) → 0 differences; (b) the *initial* column-major seed scan **does** matter: the same algorithm on the transposed image (= a row-major scan) changes ridges/partition in **31 of 80 cases** (e.g. `ws_asym_adjacency` 18 ridge px / 56 % partition agreement, `ws_rand_u8_200x300_ties` 3021 ridge px, `q.jpg` gray 92 px, Sobel 55 px), and MATLAB matches the column-major port on every one of them (label values included) — the order is pinned | exact | MATLAB rejects int16/int32 (Deviation 1: references for those 15 fixtures were generated on `double(X)`, identical values); MATLAB is N-D (Deviation 2); port returns int32 |
+| MATLAB `watershed(A[, conn])` (compiled `watershed_meyer`; all 6 watershed scripts, `main.m`) | **`core.watershed.watershed`** (line-by-line port of the codegen twin `eml/watershed.m`) | L1 L2 | **74 fixture cases** (37 fixtures × {8, 4}) **0 px with label values** — plateaus, diagonal/anti-diagonal corners, 5-minima plateau, 2-px corridors (equal/unequal, two of different length), asymmetric column-vs-row adjacency and its transpose, equal-priority plateaus of odd and even width, random uint8 30×40 with ties (90 / 196 basins), random uint8 200×300 (**6772 / 12 036 basins, MATLAB class uint16**) and its ternary version (2309 / 7768 basins, uint16), random double 50×60 (338 / 639, uint16), random single, 900-minima grid (uint16), int16 with negatives, int32, uint16, double with `−Inf` minima and a `+Inf` wall, border/corner minima, ramp (1 basin), 1×1, 2×2, constant, logical, all-zero, checkerboard (1 / 50 basins), 1×9 and 9×1 profiles; default conn 0 px; the 3×3 **matrix forms** `[0 1 0;1 1 1;0 1 0]` and `ones(3)` — called as matrices in MATLAB and, after review S6, passed as matrices to the port too — 0 px and equal to the scalar 4 / 8 calls (a matrix that is neither the cross nor all-ones raises); **every script image** (`q.jpg` gray 160 basins, Sobel `g` 350, `g2` 12, city/chess/euc/quasi inverse distance maps, imposed maps ×2, `−D` on the synthetic image and on the 552×574 crop with 11 basins) 0 px; two touching discs (city-block and Euclidean single-precision maps) 0 px. Output class rule confirmed (uint8 ≤ 255 basins, uint16 above); NaN rejected by both (`'Expected input number 1, I, to be non-NaN.'`). **Analysis risk 1 resolved**: (a) the neighbour-scan order of the flooding loop is *provably irrelevant* — a pixel's label depends only on the *set* of labels around it, and the neighbours pushed by one pop are consecutive same-label FIFO entries that no foreign-label pop can interleave at equal priority; measured: 12 random permutations of the offsets × 80 cases (all fixtures + 4 `q.jpg` maps, both connectivities) → 0 differences; (b) the *initial* column-major seed scan **does** matter: the same algorithm on the transposed image (= a row-major scan) changes ridges/partition in **31 of 80 cases** (e.g. `ws_asym_adjacency` 18 ridge px / 56 % partition agreement, `ws_rand_u8_200x300_ties` 3021 ridge px, `q.jpg` gray 92 px, Sobel 55 px), and MATLAB matches the column-major port on every one of them (label values included) — the order is pinned | exact | MATLAB rejects int16/int32 (Deviation 1: references for those 15 fixtures were generated on `double(X)`, identical values); MATLAB is N-D (Deviation 2); port returns int32 |
 | `watershed_skimage` (cross-check helper) | `skimage.segmentation.watershed(connectivity, watershed_line=True)` | L1 | same basin count and > 90 % partition agreement on the two-disc fixture; on `q.jpg` the analysis measured 46–122 differing ridge px and inconsistent partitions | approx | never used by the ports; the notebook's "why not the library" cell |
 | MATLAB `imregionalmin` / `imregionalmax` (Fig. 5.8(d), 5.12(a); inside `watershed`) | `core.morphology.imregionalmin`, `imregionalmax` (`skimage.local_minima/maxima(allow_borders=True)` + constant-image rule) | L1 L2 | **74 + 52 cases 0 px**: `imregionalmin` on all 37 watershed fixtures × {8, 4} and min + max on the 13 extrema fixtures × {8, 4} (border-touching plateaus, constant uint8/double → all true, ±Inf pixels, all-`+Inf` and all-`−Inf` images → all true, int16, single, uint8 ties, logical, 1×N / N×1 / 1×1); cross `[0 1 0;1 1 1;0 1 0]` = 4, `ones(3)` = 8, default = 8, class logical; script probes: `Dis_img` for 4 metrics, `rm_imp` of the imposed maps 0 px; NaN rejected by both | exact | |
 | MATLAB `imimposemin(I, BW[, conn])` (§5.1.3 Steps 1–2, Fig. 5.12(c)) | `core.morphology.imimposemin` (M-code port on `imreconstruct`, arithmetic in the input class) | L1 L2 | **88 cases bit-identical** (`np.equal`, `±Inf` included, dtype preserved): uint8, uint8 saturating at 255, int16, int16 at `intmax`, single, negative single (inverse-distance-like), double, constant single (`h = 0.1`), constant uint8, double with `+Inf` values, double with `−Inf` values × markers {two blobs + a border pixel, all true, all false, adjacent/diagonal markers} × conn {8, 4}; `h` rule (`0.001·range`, `0.1` constant, `1` integer) equal to MATLAB's for all 11 images; two markers inside a level-0 plateau stay two minima (MATLAB `bwlabel` 2 = port), watershed of that map 0 px; double- and uint8-valued marker arrays accepted like MATLAB; `imregionalmin(imposed) == BW` for uint8/single/double as in MATLAB; the script's single `Dimp` (`marker_watershed.m`) bit-identical; logical `I` rejected by both | exact | MATLAB silently accepts NaN, the port raises (Deviation 3) |
@@ -129,7 +135,7 @@ artefact (Deviation 4), the underlying arrays being identical at L2.
 | Fig. 5.16 tracing `b0 (2,3) → b1 (2,4) → b2 (3,5)` | 102 | sequence | contiguous sub-sequence of the DIPUM trace (start `(3,2)`) | identical trace | match (start pixel convention differs, documented) |
 | 3×3 Sobel gradient watershed (Fig. 5.5) / 7×7 close-opening (Fig. 5.6) | 89–91 | "far too many" / "fewer" lines | 350 → 12 basins | 350 / 12 | match |
 | chessboard: "lowest probability of over-segmentation … tends to cause under-segmentation" | 93 | qualitative | chess 2 / city 4 / euc 6 / quasi 6 basins | identical | match |
-| watershed lines are "1-pixel-thick", "4-connected" | 89, 99 | qualitative | `bwlabel(f, 4)` = 3 lines; ridges 2 px wide along diagonals of the Euclidean map (analysis risk 9) | identical | match with the analysis caveat |
+| watershed lines are "1-pixel-thick", 4-connected paths | 89, 99 | qualitative | on the four inverse distance maps of `q.jpg` the ridges are 4-connected staircases with **0** 2×2 all-ridge blocks (`bwlabel(f, 4)` = 3 lines) — a diagonal staircase *is* what p. 99 predicts (review S7 corrects analysis risk 9); the real departure is on plateau-rich segmentation functions, where Meyer's flooding leaves thick ridges: **10** 2×2 all-ridge blocks in `watershed(gray)` (`direct_watershed.m`), 23 on the Sobel map, 1 on the close-opened map, **5** on `random_u8_20x25` (`test_p99_ridge_thickness_on_plateaus`) | identical (same arrays) | match on the distance maps; caveat only for plateau functions |
 | Table 5.1 (manual 5/12/20/38 floes …) | 107 | table | not reproducible (images unshipped) | — | Open item 2 |
 
 ## Deviations & justifications
@@ -139,7 +145,10 @@ artefact (Deviation 4), the underlying arrays being identical at L2.
    `double(X)` (identical values → identical flooding) and the port, run on the raw int16/int32 array, is 0 px from it.
    The porter's `plateau_fixtures` are int16 — a MATLAB user would have to cast them. Superset, not a defect.
 2. **N-D**: MATLAB's `watershed` accepts `conn = 6/18/26` and 3-D arrays (`ws_c6_ok = ws_3d_ok = 1`); the port is 2-D
-   only and raises `ValueError` for `conn = 6` and for 3-D input. The book never uses 3-D.
+   only and raises `ValueError` for `conn = 6` and for 3-D input. The 2-D 3×3 connectivity *matrices* (cross = 4,
+   all-ones = 8) are accepted since review S6 and verified against MATLAB's matrix-form calls (`wsc_pf_even_plateau`,
+   `wsc8_ws_rand_u8_30x40_ties`, 0 px); any other 3×3 pattern raises (MATLAB likewise requires a valid connectivity).
+   The book never uses 3-D.
 3. **`imimposemin` with NaN**: MATLAB has no `'nonnan'` check and returns a result for a NaN image (`ii_nan_ok = 1`);
    the port raises like `imregionalmin`/`watershed` do. Stricter, documented.
 4. **Display rounding**: `imshow(I, [])` images written by MATLAB (`mat2gray` computes `x·δ − lo·δ`) and by the port
@@ -159,26 +168,39 @@ artefact (Deviation 4), the underlying arrays being identical at L2.
     `watershed` row); the *initial* scan order is the order-sensitive part and is pinned by 31 sensitive fixture cases.
 
 ## Open items
-1. **`regional_minima_by_reconstruction` on an all-`+Inf` image** (teaching form of Eq. 5.2, `seaice/ch05_watershed.py`):
-   `R^E_I(I + 1) − I` is `Inf − Inf` there; the function returns all-False while MATLAB `imregionalmin` (and
-   `core.morphology.imregionalmin`) return all-True. Recorded as a strict `xfail`
-   (`TestL2RegionalExtrema::test_eq_5_2_identity_vs_matlab[rm_all_inf]`). One-line fix for the porter: return all-True
-   when `I` is constant (as `imregionalmin` does). No script or book figure is affected; the production primitive
-   `imregionalmin` is exact on the same fixture.
+1. **Resolved (review V1)** — `regional_minima_by_reconstruction` on an all-`+Inf` (constant) image: the teaching form
+   of Eq. 5.2 is `Inf − Inf` there and returned all-False where MATLAB `imregionalmin` returns all-True. The porter now
+   returns all-True for a constant image (as `imregionalmin` does); the former strict `xfail`
+   `TestL2RegionalExtrema::test_eq_5_2_identity_vs_matlab[rm_all_inf]` is a normal pass (13 of 13 extrema fixtures).
 2. **Figs. 5.7, 5.11, 5.18–5.20 and Table 5.1 `unverified`**: the Ny-Ålesund May 2011 images (brash removed manually)
    are not shipped. The §5.3 procedure is reproduced on the Fig. 4.3(a) crop of ch04's `test.jpg` and on the synthetic
    substitute, both **exact vs MATLAB** (`main_crop.mat`, `main_synth.mat`); the book's counts cannot be checked. Needs the
    source images from the user; not a port failure.
-3. **Note for the porter (docstrings, no code change needed)**: `core.watershed.watershed` and `synth.plateau_fixtures`
-   should mention that MATLAB rejects int16/int32 input (Deviation 1) so a MATLAB cross-check of the int16 fixtures is
-   done on `double(X)`; `imimposemin` may note that MATLAB does not reject NaN (Deviation 3).
+3. **Resolved (review V2, porter)** — docstrings of `core.watershed.watershed` / `synth.plateau_fixtures` /
+   `imimposemin` now state that MATLAB rejects int16/int32 `watershed` input (MATLAB cross-check of the int16 fixtures
+   on `double(X)`, Deviation 1) and that MATLAB's `imimposemin` accepts NaN while the port raises (Deviation 3).
+4. **Resolved (review M1) — former L1 coverage gap**: `test_convex_blob_spurious_lines_are_removed` was vacuous (a
+   convex blob's distance transform has a single minimum → 0 junction lines → `all([])`), so the "line removed" branch
+   of `neighboring_region_merging` had no synthetic-truth coverage (only the L2 `q.jpg`/crop references exercised it).
+   Replaced by `test_peanut_spurious_line_is_removed[euclidean|cityblock]`: two r = 20 discs centred (35, 42)/(35, 48) on
+   70×90 → 2 basins, 1 junction line with ending points (16, 45)/(54, 45), 0 concave ending points, line removed,
+   floes 2 → 1, `seg == bw`. `test_non_sequential_and_rules` now also asserts the per-line `removed`/`endpoints`/`pixels`
+   and the final `seg` of the non-sequential and `'ge3'` runs against the default run on the synthetic image and the
+   peanut (review S4); `'ge3'` is now the text's signed `>= 3` rule without `abs` (porter, S2) and still removes lines
+   1–2 of `q.jpg` (`test_p99_ge3_rule_on_q_image`).
+5. **Resolved (review S8) — `imimposemin` `RuntimeWarning: invalid value encountered in add`** on images holding
+   `±Inf` (`im_double_pinf`, `im_double_ninf`): `h = 0.001·(max − min) = Inf`, so `I + h` produces `Inf − Inf = NaN` at
+   the `−Inf` pixels before `min(I + h, fm)` — MATLAB computes exactly the same values (the 16 `±Inf` cases are
+   bit-identical) and the port now runs that addition under `np.errstate(invalid='ignore')`. The 8 warnings that
+   appeared in the first pytest log are gone.
 
 ## Verdict: PASS
 All 9 scripts run headless (default flags and 8 non-default combinations, exit 0), every one of the 15 `.m` files has a
 row and is `exact` against MATLAB R2025a running the original code (`q.jpg`, the synthetic substitute and a 552×574
 real-image crop for `main.m`), the new primitives are `exact` on 74 `watershed` / 126 regional-extrema / 88
-`imimposemin` constructed cases with label values included, the flooding order is pinned (31 order-sensitive cases
-matched), every quoted number of the text is reproduced, 49 of 55 raw figure images are identical and the other 6 differ
-by one display gray level, and the test suites pass (`tests/test_ch05.py` 394 passed + 1 documented xfail; full suite
-1140 passed, 2 skipped, 2 xfailed). The single `unverified` row (unshipped §5.3 images) and the one xfail are covered by Open items
-1–2 and are not port failures.
+`imimposemin` constructed cases with label values included (plus the 3×3 matrix-connectivity forms against MATLAB's
+matrix calls), the flooding order is pinned (31 order-sensitive cases matched), every quoted number of the text is
+reproduced, 49 of 55 raw figure images are identical and the other 6 differ by one display gray level, all review
+findings (`reports/ch05_review.md` M1, S1–S9, V1–V2) are applied and evidenced, and the test suites pass
+(`tests/test_ch05.py` 399 passed, no xfail, no warnings; full suite 1145 passed, 2 skipped, 1 xfailed). The single
+`unverified` row (unshipped §5.3 images) is covered by Open item 2 and is not a port failure.

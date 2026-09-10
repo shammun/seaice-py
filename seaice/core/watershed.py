@@ -40,7 +40,7 @@ import heapq
 import numpy as np
 
 from .connectivity import label_components
-from .morphology import imregionalmin
+from .morphology import conn_to_scalar, imregionalmin
 
 __all__ = ["watershed", "watershed_skimage", "neighbour_offsets"]
 
@@ -61,7 +61,7 @@ def neighbour_offsets(conn: int, n_rows_padded: int) -> list[int]:
     raise ValueError("watershed: conn must be 4 or 8 (MATLAB images:watershed:limitedConn)")
 
 
-def watershed(A: np.ndarray, conn: int = 8) -> np.ndarray:
+def watershed(A: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
     """MATLAB ``L = watershed(A[, conn])`` — Meyer flooding from the regional minima; ``0`` on the watershed lines.
 
     Book: §5.1 (pp. 84–89; the immersion formulation Eqs. 5.1–5.8 is the teaching form,
@@ -76,8 +76,15 @@ def watershed(A: np.ndarray, conn: int = 8) -> np.ndarray:
     A : ndarray (M, N)
         Any real numeric or bool image (``±Inf`` allowed, NaN rejected like MATLAB's ``imregionalmin``).  The
         values are used as flooding priorities in double precision (``FifoPriorityQueue.push`` casts to double).
-    conn : {8, 4}
+        Note that MATLAB's ``watershed`` itself **rejects int16/int32 input** (R2025a ``watershed.m`` line 155:
+        ``validateattributes(A, {'uint8','uint16','single','double','logical'}, ...)``); the port accepts every
+        real numeric width, and the MATLAB cross-check of the int16 :func:`seaice.core.synth.plateau_fixtures`
+        is done on ``double(X)``, which floods identically because only the value order matters.
+    conn : {8, 4} or 3×3 array
         8 (MATLAB default): 8-connected basins, 4-connected lines; 4: 4-connected basins, 8-connected lines.
+        The matrix forms ``ones(3)`` (= 8) and the cross ``[0 1 0; 1 1 1; 0 1 0]`` (= 4) are accepted like
+        MATLAB; any other matrix raises ``ValueError`` (MATLAB ``images:watershed:limitedConn``), see
+        :func:`seaice.core.morphology.conn_to_scalar`.
 
     Returns
     -------
@@ -91,6 +98,8 @@ def watershed(A: np.ndarray, conn: int = 8) -> np.ndarray:
     A = np.asarray(A)
     if A.ndim != 2:
         raise ValueError("watershed: 2-D images only (images:validate:twoDimensionalImageSupport)")
+    # 4 / 8 / cross(3) / ones(3) → scalar; anything else raises (images:watershed:limitedConn)
+    conn = conn_to_scalar(conn)
     if A.dtype == np.bool_:
         A = A.astype(np.uint8)  # imregionalmin strips the logical flag (+I)
     if np.issubdtype(A.dtype, np.floating) and np.isnan(A).any():
@@ -171,5 +180,5 @@ def watershed_skimage(A: np.ndarray, conn: int = 8) -> np.ndarray:
         A = A.astype(np.uint8)
     # PARITY: approx — skimage's flooding seeds with the minima pixels, re-pushes pixels, propagates from line
     # pixels and scans neighbours in a different order; 46–122 ridge pixels differ from MATLAB on q.jpg.
-    connectivity = 2 if conn == 8 else 1
+    connectivity = 2 if conn_to_scalar(conn) == 8 else 1
     return _sk_watershed(A.astype(np.float64), connectivity=connectivity, watershed_line=True).astype(np.int32)

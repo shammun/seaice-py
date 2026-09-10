@@ -532,9 +532,11 @@ def freeman_concave(I: np.ndarray, object: str = "first", lo: int | None = None,
     ----------
     I : ndarray
         What the scripts pass: the RGB ``q.jpg`` (``chaincode_corner.m``; ``graythresh`` histograms all planes,
-        ``im2bw`` converts to gray) or the **double** label-valued region ``im = imreconstruct(g, connect)`` of
-        ``main.m`` (values ``{0, k}`` → ``im2uint8`` saturates to ``{0, 255}`` → the mask is ``I > 0``).  A bool
-        mask is promoted to double so that this path applies.
+        ``im2bw`` converts to gray) or the **double** ``{0, 1}``-valued region ``im = imreconstruct(g, connect)``
+        of ``main.m`` (the marker ``g`` is ``{0, 1}`` and reconstruction by dilation never exceeds the marker's
+        maximum, so ``im`` is 1 on the reconstructed component regardless of its ``bwlabel`` number ``k``;
+        ``im2uint8`` maps ``{0, 1}`` to ``{0, 255}`` → the mask is ``I > 0``).  A bool mask is promoted to double
+        so that this path applies.
     object : {'first', 'longest'}
         ``'first'`` = the script (``b{1}``); ``'longest'`` uses the ``[max_d, k]`` the script computes and ignores.
     lo, hi : int, optional
@@ -574,23 +576,29 @@ def freeman_concave(I: np.ndarray, object: str = "first", lo: int | None = None,
 def junction_endpoints(mask: np.ndarray, rule: str = "max") -> np.ndarray:
     """Ending points of a 4-connected, 1-px-thick junction line — §5.2 Step 4 (p. 99), Fig. 5.15.
 
-    ``g2 = abs(imfilter(double(g), wr))`` with the kernel :data:`ENDPOINT_KERNEL` (zero-padded correlation, as
-    ``main.m`` lines 33–37), then
+    ``g1 = imfilter(double(g), wr)`` with the kernel :data:`ENDPOINT_KERNEL` ``[0 -1 0; -1 4 -1; 0 -1 0]``
+    (zero-padded correlation, as ``main.m`` lines 33–37): a line pixel responds ``4 − (# line 4-neighbours)``, a
+    background pixel ``−(# line 4-neighbours)``.  Then
 
-    * ``rule='max'`` (the script): ``g2 >= max(g2(:))`` — on a proper line the maximum is 3 (the 12 patterns of
-      Fig. 5.15(a)); on a closed loop it is 2 and every pixel qualifies; an isolated pixel gives 4;
-    * ``rule='ge3'`` (the text, p. 101): ``g2 >= 3``.
+    * ``rule='max'`` (the script, literal): ``g2 = abs(g1); g2 >= max(g2(:))`` — on a proper line the maximum is 3
+      (the 12 patterns of Fig. 5.15(a)); on a closed loop it is 2 and every pixel qualifies; an isolated pixel
+      gives 4;
+    * ``rule='ge3'`` (the text, p. 101, literal): ``g1 >= 3`` on the **signed** response — exactly the ending
+      points (one line 4-neighbour) plus isolated pixels (4).
 
-    ``abs`` also admits *background* pixels with ≥ 3 line 4-neighbours (response −3) — kept literal.
-    Returns 0-based ``(row, col)`` pairs in ``find`` (column-major) order, shape ``(n, 2)``.  Parity: exact.
+    The two rules differ in two ways: ``'max'`` is relative (a loop's 2-response pixels qualify, a proper line's
+    do not), and its ``abs`` also admits *background* pixels with ≥ 3 line 4-neighbours (response −3), which the
+    signed ``'ge3'`` test never does.  Returns 0-based ``(row, col)`` pairs in ``find`` (column-major) order,
+    shape ``(n, 2)``.  Parity: exact (``'max'`` vs ``main.m``); ``'ge3'`` is the text's rule, not the script's.
     """
     g = (np.asarray(mask) != 0).astype(np.float64)
-    g2 = np.abs(imfilter(g, ENDPOINT_KERNEL))
+    g1 = imfilter(g, ENDPOINT_KERNEL)
     if rule == "max":
+        g2 = np.abs(g1)
         T = g2.max()
         hit = g2 >= T
     elif rule == "ge3":
-        hit = g2 >= 3
+        hit = g1 >= 3
     else:
         raise ValueError("rule must be 'max' or 'ge3'")
     return _find_rows_cols(hit)
@@ -603,7 +611,7 @@ class JunctionLine:
     label: int
     pixels: np.ndarray  # (n, 2) 0-based (row, col) in find order (p = find(label == i))
     endpoints: np.ndarray  # ep = [x, y] (0-based)
-    region: np.ndarray  # im = imreconstruct(g, connect): the merged neighbouring region (label-valued double)
+    region: np.ndarray  # im = imreconstruct(g, connect): the line ∪ its neighbouring regions, {0, 1}-valued double
     concave: np.ndarray  # concave points of that region (0-based)
     concave_endpoints: np.ndarray  # c = intersect(ep, concave, 'rows') (sorted rows, 0-based)
     removed: bool  # numel(c) == 0 → seg(p) = 1
@@ -655,7 +663,9 @@ def neighboring_region_merging(bw: np.ndarray, metric: str = "cityblock", endpoi
     ``f = bitand(bw, w)`` and the over-segmented ``seg = bw & ~w``; ``[label, num] = bwlabel(f, 4)``; **Step 4**
     per line ``i`` (in ``bwlabel`` order): ``p = find(label == i); g(p) = 1``, ending points
     :func:`junction_endpoints`; **Step 5** ``neighbor = seg; neighbor(p) = 1; connect = bwlabel(neighbor); im =
-    imreconstruct(g, connect)`` (the union of the line and its two neighbouring regions, label-valued double);
+    imreconstruct(g, connect)`` — the union of the line and its neighbouring regions as a ``{0, 1}``-valued double
+    (the marker ``g`` is ``{0, 1}``, so the reconstruction is 1 on the whole ``bwlabel`` component that contains
+    the line and 0 elsewhere; the component's label number ``k`` never appears in ``im``);
     ``concave = freeman_concave(im); c = intersect(ep, concave, 'rows'); if numel(c) == 0, seg(p) = 1`` — the line
     is deleted (regions merged) when **neither** ending point is concave.
 
@@ -713,15 +723,22 @@ def regional_minima_by_reconstruction(I: np.ndarray, conn: int = 8) -> np.ndarra
     """Regional minima by grayscale reconstruction **by erosion** — Book Eq. (5.2) ``M = R^E_I(I + 1) − I``
     (§5.1 p. 86; Eqs. 4.35–4.38 for ``R^E``): ``M`` is nonzero exactly on the regional minima.
 
-    Returns the bool mask ``M > 0``; must equal :func:`seaice.core.morphology.imregionalmin` (asserted in the tests).
-    Parity: reimplemented (no MATLAB call; identity checked against ``imregionalmin``).
+    Returns the bool mask ``M > 0``; must equal :func:`seaice.core.morphology.imregionalmin` (asserted in the tests),
+    including the degenerate cases: a constant image (also all ``+Inf`` / all ``-Inf``) is one regional minimum
+    (all-True, like MATLAB ``imregionalmin``), ``-Inf`` pixels are always minima, ``+Inf`` pixels next to finite
+    ones never.  Parity: reimplemented (no MATLAB call; identity checked against ``imregionalmin``).
     """
     I = np.asarray(I, dtype=np.float64)
     if np.isnan(I).any():
         raise ValueError("NaN values are not allowed")
+    if I.size and np.all(I == I.flat[0]):
+        # A constant image (finite, all +Inf or all -Inf) is a single plateau with no external boundary, hence one
+        # regional minimum: MATLAB imregionalmin returns all-true.  Eq. 5.2 with finite values already gives this
+        # (rec = I + 1 > I); with +Inf everywhere `Inf + 1 > Inf` is false, so the plateau case is made explicit.
+        return np.ones(I.shape, dtype=bool)
     rec = reconstruct_by_erosion(I + 1.0, I, conn)  # R^E_I(I + 1)
     # M = rec - I > 0  ⇔  rec > I for finite values; a -Inf pixel (where the difference is NaN) is always a
-    # regional minimum (nothing is lower), a +Inf pixel never is unless the whole image is +Inf (rec > I false).
+    # regional minimum (nothing is lower), a +Inf pixel next to anything finite never is (rec > I false).
     with np.errstate(invalid="ignore"):
         M = rec > I
     return M | (I == -np.inf)

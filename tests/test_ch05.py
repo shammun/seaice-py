@@ -151,6 +151,11 @@ class TestL1Watershed:
         assert L.max() == 2
         assert np.all(seg[:, :15][two[:, :15]]) and np.all(seg[:, 45:][two[:, 45:]])
 
+    def test_default_connectivity_is_8(self):
+        A = np.array([[1, 5, 5], [5, 1, 5], [5, 5, 5]])  # two 1s touching diagonally: one 8-connected minimum
+        assert watershed(A).max() == 1 and np.array_equal(watershed(A), watershed(A, 8))
+        assert watershed(A, 4).max() == 2
+
     def test_constant_image_is_one_basin(self):
         assert np.array_equal(watershed(np.full((4, 6), 7, dtype=np.uint8)), np.ones((4, 6), dtype=np.int32))
 
@@ -413,18 +418,36 @@ class TestL1Merging:
         assert res.f.sum() == sum(ln.n_pixels for ln in res.lines)
         assert np.array_equal(res.seg0 | res.f, res.bw)
 
-    def test_convex_blob_spurious_lines_are_removed(self):
+    @staticmethod
+    def peanut() -> np.ndarray:
+        """Two r = 20 discs centred (35, 42) / (35, 48) on 70x90: near-circular, one shallow waist whose two ending
+        points are NOT concave (review M1) -> the single junction line must be removed and the floes merged."""
         rr, cc = np.mgrid[0:70, 0:90]
-        ell = ((rr - 35) / 30.0) ** 2 + ((cc - 45) / 40.0) ** 2 <= 1.0
-        res = ch5.neighboring_region_merging(ell, "euclidean")
-        assert res.n_floes_after == 1
+        return ((rr - 35) ** 2 + (cc - 42) ** 2 <= 400) | ((rr - 35) ** 2 + (cc - 48) ** 2 <= 400)
+
+    @pytest.mark.parametrize("metric", ["euclidean", "cityblock"])
+    def test_peanut_spurious_line_is_removed(self, metric):
+        pea = self.peanut()
+        res = ch5.neighboring_region_merging(pea, metric)
+        assert res.L.max() == 2 and res.num >= 1
+        assert res.n_floes_before == 2 and res.n_floes_after == 1
         assert all(ln.removed for ln in res.lines)
+        assert res.lines[0].endpoints.tolist() == [[16, 45], [54, 45]]
+        assert all(ln.concave_endpoints.shape[0] == 0 for ln in res.lines)
+        assert np.array_equal(res.seg, res.bw)  # the merged result is the input mask again
 
     def test_non_sequential_and_rules(self):
-        bw = ch5.otsu_mask(synth.two_touching_floes())
-        a = ch5.neighboring_region_merging(bw, sequential=False)
-        b = ch5.neighboring_region_merging(bw, endpoint_rule="ge3")
-        assert a.n_floes_after == b.n_floes_after == 2
+        for bw, n_after in ((ch5.otsu_mask(synth.two_touching_floes()), 2), (self.peanut(), 1)):
+            base = ch5.neighboring_region_merging(bw)
+            a = ch5.neighboring_region_merging(bw, sequential=False)
+            b = ch5.neighboring_region_merging(bw, endpoint_rule="ge3")
+            assert base.n_floes_after == a.n_floes_after == b.n_floes_after == n_after
+            assert base.num == a.num == b.num >= 1
+            for alt in (a, b):  # per-line records equal the default run (review S4)
+                assert [ln.removed for ln in alt.lines] == [ln.removed for ln in base.lines]
+                for x, y in zip(alt.lines, base.lines):
+                    assert np.array_equal(x.endpoints, y.endpoints) and np.array_equal(x.pixels, y.pixels)
+                assert np.array_equal(alt.seg, base.seg)
         with pytest.raises(ValueError):
             ch5.junction_endpoints(bw, "x")
 
@@ -516,9 +539,16 @@ class TestL2Watershed:
 
     def test_default_and_matrix_connectivity(self):
         d, ins = ref("compat"), inputs()
+        cross3 = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]])
+        ones3 = np.ones((3, 3), dtype=int)
         same_labels(watershed(ins["pf_even_plateau"]), d["wsd_pf_even_plateau"], "default conn")
-        same_labels(watershed(ins["pf_even_plateau"], 4), d["wsc_pf_even_plateau"], "cross conn matrix = 4")
-        same_labels(watershed(ins["ws_rand_u8_30x40_ties"], 8), d["wsc8_ws_rand_u8_30x40_ties"], "ones(3) = 8")
+        # MATLAB was called with the 3x3 matrices; the port accepts them too (review S6) and equals the scalar forms
+        same_labels(watershed(ins["pf_even_plateau"], cross3), d["wsc_pf_even_plateau"], "watershed(A, cross3) vs MATLAB")
+        same_labels(watershed(ins["ws_rand_u8_30x40_ties"], ones3), d["wsc8_ws_rand_u8_30x40_ties"], "watershed(A, ones3) vs MATLAB")
+        assert np.array_equal(watershed(ins["pf_even_plateau"], cross3), watershed(ins["pf_even_plateau"], 4))
+        assert np.array_equal(watershed(ins["ws_rand_u8_30x40_ties"], ones3), watershed(ins["ws_rand_u8_30x40_ties"], 8))
+        with pytest.raises(ValueError):
+            watershed(ins["pf_even_plateau"], np.array([[1, 1, 0], [1, 1, 0], [0, 0, 0]]))  # neither cross nor ones
 
     def test_matlab_rejections_match(self):
         d = ref("compat")
@@ -583,10 +613,7 @@ class TestL2RegionalExtrema:
     def test_eq_5_2_identity_vs_matlab(self, name):
         d, ins = ref("compat"), inputs()
         X = ins[name].astype(bool) if name == "rm_logical" else ins[name]
-        if name == "rm_all_inf":
-            # Open item: the teaching form M = R^E_I(I + 1) - I is undefined on an all-+Inf image (Inf - Inf); the
-            # port returns all-False where MATLAB's imregionalmin (and core.imregionalmin) return all-True.
-            pytest.xfail("regional_minima_by_reconstruction(all +Inf) returns all-False; MATLAB imregionalmin all-True")
+        # rm_all_inf: the teaching form is Inf - Inf there; the port returns all-True for a constant image (review V1)
         assert_parity(ch5.regional_minima_by_reconstruction(X, 8), d[f"rmn8_{name}"], "binary", name=name)
 
     def test_connectivity_forms_and_nan(self):
@@ -992,6 +1019,25 @@ class TestL4BookNumbers:
         pts = r.points_matlab.tolist()
         assert len(pts) == 9
         assert sorted(pts) == sorted([[48, 27], [49, 28], [48, 29], [47, 30], [62, 35], [62, 34], [62, 33], [63, 32], [64, 32]])
+
+    def test_p99_ridge_thickness_on_plateaus(self):
+        """p. 89/99: lines are '1-pixel-thick' 4-connected paths.  True on the distance maps (0 2x2 all-ridge blocks);
+        on plateau-rich segmentation functions Meyer's flooding leaves thick ridges (review S7)."""
+
+        def blocks(L):
+            r = L == 0
+            return int((r[:-1, :-1] & r[1:, :-1] & r[:-1, 1:] & r[1:, 1:]).sum())
+
+        rgb = q_image()
+        bw = ch5.otsu_mask(rgb)
+        assert [blocks(watershed(ch5.inverse_distance(bw, m))) for m in METRICS] == [0, 0, 0, 0]
+        assert blocks(watershed(ch5.direct_watershed(rgb).gray)) == 10
+        assert blocks(watershed(synth.plateau_fixtures()["random_u8_20x25"])) == 5
+
+    def test_p99_ge3_rule_on_q_image(self):
+        r = ch5.neighboring_region_merging(ch5.otsu_mask(q_image()), endpoint_rule="ge3")
+        assert [ln.removed for ln in r.lines] == [True, True, False]
+        assert [ln.endpoints.tolist() for ln in r.lines] == [[[63, 10], [63, 31]], [[69, 11], [69, 32]], [[47, 28], [61, 32]]]
 
     def test_fig_5_6_7x7_and_fig_5_5_counts(self):
         g = ch5.gradient_watershed(q_image(), smooth=7)

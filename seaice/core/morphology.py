@@ -417,6 +417,32 @@ def imclose(I: np.ndarray, se) -> np.ndarray:
 # ---------------------------------------------------------------------------------------------------------------
 
 
+_CONN4_CROSS = np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=bool)
+
+
+def conn_to_scalar(conn) -> int:
+    """Normalise a MATLAB ``conn`` argument to the scalar ``4`` or ``8``.
+
+    Accepts the scalars ``4``/``8`` and exactly the two 3×3 matrices MATLAB's ``conndef(2, 'minimal'/'maximal')``
+    produce: the cross ``[0 1 0; 1 1 1; 0 1 0]`` (→ 4) and ``ones(3)`` (→ 8).  Any other matrix (a partial
+    neighbourhood, a wrong size, an off-centre pattern) raises ``ValueError`` — the callers (``imregionalmin``,
+    ``watershed``) only implement the two standard 2-D connectivities, so guessing from "has a corner" would
+    silently run the wrong neighbourhood.
+    """
+    if isinstance(conn, np.ndarray) or isinstance(conn, (list, tuple)):
+        fp = np.asarray(conn) != 0
+        if fp.shape != (3, 3):
+            raise ValueError("conn must be 4, 8, the 3×3 cross [0 1 0; 1 1 1; 0 1 0] or ones(3)")
+        if fp.all():
+            return 8
+        if np.array_equal(fp, _CONN4_CROSS):
+            return 4
+        raise ValueError("conn matrix must be the 3×3 cross [0 1 0; 1 1 1; 0 1 0] (4) or ones(3) (8)")
+    if conn in (4, 8):
+        return int(conn)
+    raise ValueError("conn must be 4 or 8")
+
+
 def _conn_footprint(conn) -> np.ndarray:
     if isinstance(conn, np.ndarray):
         return conn != 0
@@ -606,17 +632,8 @@ def _regional_extrema(I: np.ndarray, conn, kind: str) -> np.ndarray:
         I = I.astype(np.uint8)  # imregionalmin.m: imcomplement(+I) strips the logical flag
     if np.issubdtype(I.dtype, np.floating) and np.isnan(I).any():
         raise ValueError("imregionalmin/max: NaN values are not allowed (validateattributes 'nonnan')")
-    if isinstance(conn, np.ndarray):
-        fp = conn != 0
-        if fp.shape != (3, 3):
-            raise ValueError("conn must be 4, 8 or a 3×3 neighbourhood")
-        connectivity = 2 if fp[0, 0] or fp[0, 2] or fp[2, 0] or fp[2, 2] else 1
-    elif conn == 8:
-        connectivity = 2
-    elif conn == 4:
-        connectivity = 1
-    else:
-        raise ValueError("conn must be 4 or 8")
+    # Only the two standard 2-D connectivities: 4 / cross(3) → 1, 8 / ones(3) → 2; other matrices raise.
+    connectivity = 2 if conn_to_scalar(conn) == 8 else 1
     if I.size and np.all(I == I.flat[0]):
         # A constant image is one plateau without an external boundary: MATLAB returns all-true
         # (imregionalmin(ones(3)) == true(3)); skimage's local_minima returns all-false there.
@@ -638,7 +655,8 @@ def imregionalmin(I: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
     ``marker_watershed.m`` line ``Dis_img = imregionalmin(imgDist)``; R2025a ``imregionalmin.m`` =
     ``imregionalmax(imcomplement(+I), conn)`` (default 8-connectivity, NaN rejected, ±Inf allowed, logical ignored).
 
-    Returns a bool image.  ``conn`` may be 4, 8 or a 3×3 neighbourhood.  Parity: exact.
+    Returns a bool image.  ``conn`` may be 4, 8, the 3×3 cross ``[0 1 0; 1 1 1; 0 1 0]`` (= 4) or ``ones(3)``
+    (= 8); any other matrix raises (:func:`conn_to_scalar`).  Parity: exact.
     """
     return _regional_extrema(I, conn, "min")
 
@@ -677,8 +695,15 @@ def imimposemin(I: np.ndarray, BW: np.ndarray, conn: int | np.ndarray = 8) -> np
     Returns an array of the input class whose marker pixels are exactly ``-Inf`` (``intmin``); ``imregionalmin(J)``
     equals ``BW`` up to the connectivity.  Bool ``I`` is rejected (MATLAB's ``validateattributes(I, {'numeric'})``).
 
+    Edge cases: an image containing ``±Inf`` has ``h = 0.001 * (Inf) = Inf`` in MATLAB as well, so ``I + h`` is
+    ``Inf`` (finite and ``+Inf`` pixels) or ``NaN`` (``-Inf`` pixels; ``min(NaN, fm)`` picks ``fm``) — numpy's
+    ``RuntimeWarning: invalid value encountered in add`` for that ``-Inf + Inf`` is suppressed with
+    ``np.errstate(invalid='ignore')`` (the outputs are bit-identical to MATLAB).  MATLAB silently accepts ``NaN``
+    pixels in ``I`` (they propagate into ``J``); the port **raises** ``ValueError`` instead, because
+    :func:`imregionalmin` / ``watershed`` reject NaN downstream and a NaN-carrying ``J`` would only fail later.
+
     Parity: exact (single-precision ``Dimp`` of ``marker_watershed.m`` reproduced to 0.0 once the arithmetic is done
-    in the input class; uint8 fixtures identical).
+    in the input class; uint8 and ``±Inf`` fixtures identical).
     """
     I = np.asarray(I)
     BW = np.asarray(BW)
@@ -697,8 +722,9 @@ def imimposemin(I: np.ndarray, BW: np.ndarray, conn: int | np.ndarray = 8) -> np
         inf = I.dtype.type(np.inf)
         fm = np.where(bw, -inf, inf).astype(I.dtype)
         rng = float(I.max()) - float(I.min())  # double(max(I(:))) - double(min(I(:)))
-        h = 0.1 if rng == 0 else rng * 0.001
-        fpOne = (I + I.dtype.type(h)).astype(I.dtype, copy=False)  # single + double → single in MATLAB
+        h = 0.1 if rng == 0 else rng * 0.001  # Inf when the image holds ±Inf (MATLAB likewise)
+        with np.errstate(invalid="ignore"):  # -Inf + Inf → NaN is MATLAB's value too; min(NaN, fm) picks fm
+            fpOne = (I + I.dtype.type(h)).astype(I.dtype, copy=False)  # single + double → single in MATLAB
     else:
         info = np.iinfo(I.dtype)
         fm = np.where(bw, info.min, info.max).astype(I.dtype)
