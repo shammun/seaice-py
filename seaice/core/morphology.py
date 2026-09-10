@@ -733,3 +733,33 @@ def imimposemin(I: np.ndarray, BW: np.ndarray, conn: int | np.ndarray = 8) -> np
     g = np.minimum(fpOne, fm)
     imrec_out = imreconstruct(_complement_like(fm), _complement_like(g), conn)
     return _complement_like(np.asarray(imrec_out, dtype=I.dtype))
+
+
+def regional_maxima_by_reconstruction(I: np.ndarray, conn: int = 8, form: str = "6.57") -> np.ndarray:
+    """Regional maxima by grayscale **reconstruction by dilation** — Book Eqs. (6.57) and (6.58).
+
+    Book: §6.3.3 p. 133.  Eq. (6.57) ``M_max = I − R^D_I(I − 1)`` marks every regional maximum; Eq. (6.58)
+    ``M_max = I + 1 − R^D_{I+1}(I)`` is the equivalent form that avoids negative intermediate values (needed
+    for unsigned integer classes).  ``form='6.57'`` (default) or ``'6.58'`` selects which one is evaluated.
+
+    Returns the bool mask ``M_max > 0``; it must equal :func:`imregionalmax` (asserted in the tests), including
+    the degenerate cases handled there (a constant image is one regional maximum, ``+Inf`` pixels are maxima).
+    This is the dual of ch05's :func:`seaice.ch05_watershed.regional_minima_by_reconstruction` (Eq. 5.2).
+    Parity: reimplemented (book equations; identity checked against ``imregionalmax``).
+    """
+    I = np.asarray(I, dtype=np.float64)
+    if np.isnan(I).any():
+        raise ValueError("NaN values are not allowed")
+    if I.size and np.all(I == I.flat[0]):
+        # A constant image (finite, all +Inf or all -Inf) is a single plateau: MATLAB imregionalmax -> all true.
+        return np.ones(I.shape, dtype=bool)
+    if form not in ("6.57", "6.58"):
+        raise ValueError("form must be '6.57' or '6.58'")
+    with np.errstate(invalid="ignore"):
+        if form == "6.57":
+            rec = imreconstruct(I - 1.0, I, conn)          # R^D_I(I - 1)
+            M = I > rec                                     # M_max = I - rec > 0
+        else:
+            rec = imreconstruct(I, I + 1.0, conn)           # R^D_{I+1}(I)
+            M = (I + 1.0) > rec                             # M_max = I + 1 - rec > 0
+    return M | (I == np.inf)

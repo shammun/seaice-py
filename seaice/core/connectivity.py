@@ -215,3 +215,19 @@ def region_boundary_mask(bw: np.ndarray, conn: int = 8) -> np.ndarray:
         nb = padded[1 + dr:1 + dr + M, 1 + dc:1 + dc + N]
         has_bg_neighbour |= ~nb
     return bw & has_bg_neighbour
+
+
+def bwperim(bw: np.ndarray, conn: int = 4) -> np.ndarray:
+    """MATLAB ``bwperim(BW, conn)``: object pixels having at least one ``conn``-neighbour equal to zero.
+
+    Book: §2.3.5 (the boundary of a region).  MATLAB source: R2025a ``toolbox/images/images/bwperim.m`` — pad
+    with 0, ``imerode`` with the connectivity neighbourhood, ``p = b & ~b_eroded``, crop.  ``conn = 8`` is
+    MATLAB's undocumented ``bwmorph(BW, 'perim8')``, which ``regionprops`` uses to build ``ConvexHull``
+    (:mod:`seaice.core.regionprops`); ``conn = 4`` (``'perim4'``) is ``bwperim``'s own default.
+
+    Pixels on the image border are perimeter pixels because MATLAB pads with 0.  Parity target: exact.
+    """
+    bw = np.asarray(bw) != 0
+    if conn not in (4, 8):
+        raise ValueError("conn must be 4 or 8")
+    return region_boundary_mask(bw, conn)

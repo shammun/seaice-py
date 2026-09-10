@@ -38,29 +38,52 @@ Chapter 5 primitives:
   ``watershed_skimage`` (cross-check only)
 * :mod:`~seaice.core.morphology` — ``imregionalmin``, ``imregionalmax``, ``imimposemin`` (§5.1, §5.1.3)
 * :mod:`~seaice.core.plotting` — ``label2rgb``, ``surface_plot``, ``contour_overlay`` (display only)
+
+Chapter 6 primitives:
+
+* :mod:`~seaice.core.snake` — the Xu & Prince GVF snake toolbox: ``gvf``, ``snakedeform``, ``snakeinterp``,
+  ``snakeindex``, ``snake_matrix``, ``bound_mirror_*``, ``gradient2``, ``xconv2``, ``gaussian_mask/blur``
+  (§6.1.2, §6.2)
+* :mod:`~seaice.core.regionprops` — MATLAB's ``regionprops`` algorithms (Area, Centroid, BoundingBox,
+  ConvexHull/Image/Area, Solidity, Major/MinorAxisLength, Eccentricity, Orientation, Perimeter)
+* :mod:`~seaice.core.polygon` — ``clip_polygon_rect`` (for ``polybool``), ``poly2mask``/``roipoly``,
+  ``polygeom``, ``minboundrect``, ``polyxpoly``, ``convhull``, ``polyarea``
+* :mod:`~seaice.core.matlab_compat` — ``del2`` (MATLAB's Laplacian/4, used by ``GVF.m``)
+* :mod:`~seaice.core.connectivity` — ``bwperim``; :mod:`~seaice.core.morphology` —
+  ``regional_maxima_by_reconstruction`` (Eqs. 6.57/6.58); :mod:`~seaice.core.filters` —
+  ``homomorphic_butterworth`` (``homofil.m``, an orphan utility); :mod:`~seaice.core.plotting` —
+  ``snake_plot``, ``quiver_field``; :mod:`~seaice.core.synth` — ``u_shape``, ``fig_6_16_circles``,
+  ``FIG_6_14_IMAGE/_DISTANCE``, ``synthetic_floe_field``
 """
 from __future__ import annotations
 
 from . import chaincode, clustering, color, connectivity, distance, edges, filters, histogram, interp, io, \
-    matlab_compat, morphology, plotting, setops, synth, threshold, watershed
+    matlab_compat, morphology, plotting, polygon, regionprops as regionprops_module, setops, snake, synth, \
+    threshold, watershed
 from .chaincode import ChainCode, bound2im, boundaries, code_reverse, fchcode, first_difference, min_magnitude, \
     normalized_first_difference
 from .clustering import KMeansGray, KMeansResult, kmeans_gray, kmeans_lloyd, objective_J, pairwise_distance
 from .color import indexed_to_rgb, rgb2cmy, rgb2cmyk, rgb2hsi, split_rgb
-from .connectivity import bwareaopen, count_components, find_paths, is_adjacent, is_m_adjacent, label_components, \
-    n4, n8, nd, region_boundary_mask
+from .connectivity import bwareaopen, bwperim, count_components, find_paths, is_adjacent, is_m_adjacent, \
+    label_components, n4, n8, nd, region_boundary_mask
 from .distance import bwdist, center_distance_map, distance_transform, pixel_distance, quasi_euclidean_dt
 from .edges import EdgeResult, edge, gradient_roberts, gradient_sobel_prewitt, log_zero_crossings, thin_gradient
-from .filters import conv2, conv_at, fspecial, imfilter
+from .filters import conv2, conv_at, fspecial, homomorphic_butterworth, imfilter
 from .histogram import imhist, normalized_histogram
 from .morphology import disk_decomposition, geodesic_dilation, geodesic_erosion, imclose, imdilate, imerode, \
     imimposemin, imopen, imreconstruct, imregionalmax, imregionalmin, intline, line_strel, minkowski_sum, \
-    morphological_gradient, periodic_line, reconstruct_by_erosion, reconstruct_iterative, se_origin, strel
+    morphological_gradient, periodic_line, reconstruct_by_erosion, reconstruct_iterative, \
+    regional_maxima_by_reconstruction, se_origin, strel
+from .polygon import clip_polygon_rect, convhull, minboundrect, poly2mask, polyarea, polygeom, polyxpoly, roipoly
+from .regionprops import RegionProps, region_table, regionprops
+from .snake import CIRCULANT_MIN_N, bound_mirror_ensure, bound_mirror_expand, bound_mirror_shrink, gaussian_blur, \
+    gaussian_mask, gradient2, gradient2_complex, gradient2_magnitude, gvf, snake_first_column, snake_matrix, \
+    snakedeform, snakeindex, snakeinterp, xconv2
 from .watershed import watershed as watershed_transform, watershed_skimage
 from .interp import interp2, interp_bicubic, interp_bilinear, interp_nearest, keys_kernel, resize, warp_image
 from .io import REPO_ROOT, data_roots, load_image, output_dir, read_image, repo_root
-from .matlab_compat import im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
-from .plotting import finish_figure, imshow_matlab, imshow_scale, save_image, show_matrix, to_display_uint8
+from .matlab_compat import del2, im2double, im2uint8, imcomplement, matlab_round, rgb2gray_matlab
+from .plotting import finish_figure, imshow_matlab, imshow_scale, quiver_field, save_image, show_matrix, snake_plot, to_display_uint8
 from .threshold import BlockOtsu, OtsuCurves, block_otsu, class_coverage, class_mean_intensity, graythresh, \
     ice_concentration, im2bw, imquantize, multithresh, otsu_criterion, otsuthresh, separability
 from .setops import complement, difference, gray_complement, gray_intersection, gray_union, intersection, reflect, \
@@ -68,7 +91,13 @@ from .setops import complement, difference, gray_complement, gray_intersection, 
 
 __all__ = [
     "chaincode", "clustering", "color", "connectivity", "distance", "edges", "filters", "histogram", "interp", "io",
-    "matlab_compat", "morphology", "plotting", "setops", "synth", "threshold", "watershed",
+    "matlab_compat", "morphology", "plotting", "polygon", "setops", "snake", "synth", "threshold", "watershed",
+    "CIRCULANT_MIN_N", "bound_mirror_ensure", "bound_mirror_expand", "bound_mirror_shrink", "gaussian_blur",
+    "gaussian_mask", "gradient2", "gradient2_complex", "gradient2_magnitude", "gvf", "snake_first_column",
+    "snake_matrix", "snakedeform", "snakeindex", "snakeinterp", "xconv2",
+    "RegionProps", "region_table", "regionprops",
+    "clip_polygon_rect", "convhull", "minboundrect", "poly2mask", "polyarea", "polygeom", "polyxpoly", "roipoly",
+    "bwperim", "del2", "homomorphic_butterworth", "regional_maxima_by_reconstruction", "quiver_field", "snake_plot",
     "watershed_transform", "watershed_skimage", "imregionalmin", "imregionalmax", "imimposemin",
     "EdgeResult", "edge", "gradient_roberts", "gradient_sobel_prewitt", "log_zero_crossings", "thin_gradient",
     "fspecial",

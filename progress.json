@@ -44,13 +44,13 @@
     },
     "ch06": {
       "analyze": "pass",
-      "port": "todo",
+      "port": "pass",
       "verify": "todo",
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
       "publish": "todo",
-      "notes": "analysis/ch06.md written 2026-09-09 (693 lines): 34/34 .m mapped, 9 shared names byte-identical (single port); provenance Xu&Prince GVF toolbox + D-Errico minboundrect + Sommer polygeom; new core primitives matlab_compat.del2, core/snake.py, core/regionprops.py, core/polygon.py, connectivity.bwperim, morphology.regional_maxima_by_reconstruction, filters.homomorphic_butterworth; ice_shape_enhancement->ch7, sea_ice_model/SeaIce_Image_Structure/color_hist*->ch8/AppB, minboundrect->ch9 (ported now); homofil.m unclassifiable orphan; alg_seg_gray.jpg identified as Fig 6.15(a) (NCC 0.9882)"
+      "notes": "analysis/ch06.md written 2026-09-09 (693 lines): 34/34 .m mapped, 9 shared names byte-identical (single port); provenance Xu&Prince GVF toolbox + D-Errico minboundrect + Sommer polygeom; new core primitives matlab_compat.del2, core/snake.py, core/regionprops.py, core/polygon.py, connectivity.bwperim, morphology.regional_maxima_by_reconstruction, filters.homomorphic_butterworth; ice_shape_enhancement->ch7, sea_ice_model/SeaIce_Image_Structure/color_hist*->ch8/AppB, minboundrect->ch9 (ported now); homofil.m unclassifiable orphan; alg_seg_gray.jpg identified as Fig 6.15(a) (NCC 0.9882); port 2026-09-09: 8 scripts exit 0 (51 PNGs in outputs/ch06), sea_ice_demo --full raises NotImplementedError by design; new core/snake.py (Xu&Prince), core/regionprops.py (MATLAB moments, not skimage), core/polygon.py (poly2mask from eml, polygeom, minboundrect), matlab_compat.del2, connectivity.bwperim, morphology.regional_maxima_by_reconstruction, filters.homomorphic_butterworth; io.resolve_case_insensitive made recursive (ch06 is the first chapter with images in MATLAB subfolders); Fig 6.14 bit-exact vs the printed matrices; full suite 1145 pass unchanged"
     },
     "ch07": {
       "analyze": "todo",

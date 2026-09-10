@@ -339,3 +339,46 @@ def fspecial(kind: str, p2=None, p3=None, *, hsize=None, sigma: float | None = N
         sgrid[1, crad] -= sg0
     sgrid[crad, crad] = min(sgrid[crad, crad], 1.0)
     return sgrid / sgrid.sum()
+
+
+def homomorphic_butterworth(im: np.ndarray, d: float, n: float = 1.0, *, shape: tuple[int, int] | None = None,
+                            alpha_l: float = 0.0999, alpha_h: float = 1.01,
+                            matlab_bug: bool = True) -> np.ndarray:
+    """Homomorphic Butterworth filter — port of ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/homofil.m``.
+
+    ``H = 1/(1 + (d/A)^{2n})`` with ``A(i, j) = sqrt((i − r/2)² + (j − c/2)²)``, rescaled to
+    ``H ← 1 − ((α_H − α_L)H + α_L)`` and applied to ``log2(1 + im)`` in the Fourier domain,
+    the result being ``exp(|ifft2(H · fft2(log2(1 + im)))|)``.
+
+    **No book section describes this file** — grepping ch2–ch9 for "homomorphic" / "Butterworth" gives zero
+    hits and no `.m` file calls it.  It is ported as a documented orphan utility so the chapter's file
+    inventory is complete.
+
+    # DEVIATION: `unverified` — nothing in the book or the shipped code exercises this function, so there is no
+    # reference output to compare against; it is smoke-tested only.
+
+    Parameters
+    ----------
+    matlab_bug : bool
+        ``True`` (default) reproduces the shipped file literally: the frequency response is built on the
+        **unshifted** DFT grid (``homofil.m`` never calls ``fftshift``, so the "centre" ``(r/2, c/2)`` of the
+        filter is not the DC bin), and the author's typo'd variable ``aplhaH`` is used as ``α_H``.
+        ``False`` centres the response on the DC bin the way the textbook filter is defined.
+    shape : (int, int), optional
+        ``(r, c)`` of the filter grid — the M-file takes them as arguments; defaults to the image's own shape.
+    """
+    im = np.asarray(im, dtype=np.float64)
+    r, c = shape if shape is not None else im.shape[:2]
+    i = np.arange(1, r + 1, dtype=np.float64)[:, None]
+    j = np.arange(1, c + 1, dtype=np.float64)[None, :]
+    A = np.sqrt((i - r / 2.0) ** 2 + (j - c / 2.0) ** 2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        H = 1.0 / (1.0 + (d / A) ** (2.0 * n))
+    H = np.nan_to_num(H, nan=0.0, posinf=1.0, neginf=0.0)
+    H = (alpha_h - alpha_l) * H + alpha_l
+    H = 1.0 - H
+    if not matlab_bug:
+        H = np.fft.ifftshift(H)  # put the designed centre on the DC bin
+    im_l = np.log2(1.0 + im)
+    im_n = np.abs(np.fft.ifft2(H * np.fft.fft2(im_l)))
+    return np.exp(im_n)

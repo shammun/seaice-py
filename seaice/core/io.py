@@ -80,18 +80,32 @@ def _source_label(root: Path) -> str:
 def resolve_case_insensitive(folder: str | Path, name: str) -> Path:
     """Return ``folder/name`` matching ``name`` case-insensitively (MATLAB on Windows opens ``rgb.jpg`` for ``rgb.JPG``).
 
+    The **top level** of ``folder`` is searched first (unchanged behaviour: a top-level file always wins).  Only if
+    that misses are sub-directories walked, again case-insensitively, and the first match in sorted order is
+    returned (sorted so the result is deterministic across filesystems).
+
     Raises ``FileNotFoundError`` if nothing matches.
     """
+    # NOTE (porter): the recursive fallback was added in ch06.  ch06 is the first chapter whose book images live in
+    # sub-folders of the MATLAB archive (``ch6/Sea_Ice_Floe_Identification/sea_ice_test.jpg`` and
+    # ``ch6/for test/{test8,alg_seg_gray}.jpg`` -- note the space in the folder name).  A reader on Colab copies the
+    # book's MATLAB folder into Drive verbatim, sub-folders and all, so the published notebook has to find
+    # ``sea_ice_test.jpg`` under ``data/book/ch06/**`` without anybody flattening the tree by hand.
     folder = Path(folder)
     direct = folder / name
     if direct.is_file():
         return direct
     if folder.is_dir():
         lname = name.lower()
-        for cand in folder.iterdir():
+        for cand in sorted(folder.iterdir()):
             if cand.is_file() and cand.name.lower() == lname:
                 return cand
-    raise FileNotFoundError(f"{name!r} not found in {folder} (case-insensitive).")
+        for sub in sorted(p for p in folder.iterdir() if p.is_dir()):
+            try:
+                return resolve_case_insensitive(sub, name)
+            except FileNotFoundError:
+                continue
+    raise FileNotFoundError(f"{name!r} not found in {folder} (case-insensitive, sub-folders included).")
 
 
 def read_image(path: str | Path) -> np.ndarray:

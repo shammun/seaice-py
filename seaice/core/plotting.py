@@ -183,3 +183,34 @@ def contour_overlay(img: np.ndarray, Z: np.ndarray, path: str | Path | None = No
     if path is not None:
         finish_figure(fig, path, show, dpi=dpi)
     return fig
+
+
+def snake_plot(ax: plt.Axes, x, y, style: str = "r", **kwargs) -> None:
+    """Draw a **closed** snake — port of Xu & Prince ``snakedisp.m`` (``plot([x; x(1)], [y; y(1)], style)``).
+
+    Book: the snake overlays of Figs. 6.5–6.13 and 6.17.  MATLAB source:
+    ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/snakedisp.m``.  Coordinates are MATLAB 1-based ``(x, y)`` =
+    (column, row); the axes are assumed to show the image with :func:`imshow_matlab`, whose extent is 0-based,
+    so 1 is subtracted here.  Display only.
+    """
+    x = np.asarray(x, dtype=np.float64).ravel()
+    y = np.asarray(y, dtype=np.float64).ravel()
+    ax.plot(np.r_[x, x[0]] - 1.0, np.r_[y, y[0]] - 1.0, style, **kwargs)
+
+
+def quiver_field(ax: plt.Axes, u: np.ndarray, v: np.ndarray, step: int = 1, scale: float | None = None,
+                 color: str = "b", **kwargs) -> None:
+    """Quiver plot of a 2-D vector field on image axes — the display of Figs. 6.4(c), 6.8, 6.9 and 6.16(b)–(e).
+
+    ``u`` is the horizontal (column) component and ``v`` the vertical (row) component, as MATLAB's
+    ``quiver(x, y, qx, qy)`` with ``axis('ij')`` expects.  ``step`` subsamples the grid.  Display only.
+    """
+    u = np.asarray(u, dtype=np.float64)
+    v = np.asarray(v, dtype=np.float64)
+    M, N = u.shape
+    rr, cc = np.mgrid[0:M:step, 0:N:step]
+    ax.quiver(cc, rr, u[::step, ::step], v[::step, ::step], color=color, scale=scale, **kwargs)
+    ax.set_xlim(-0.5, N - 0.5)
+    ax.set_ylim(M - 0.5, -0.5)  # axis('ij')
+    ax.set_aspect("equal")
+    ax.axis("off")

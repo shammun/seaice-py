@@ -118,3 +118,77 @@ def imcomplement(img: np.ndarray) -> np.ndarray:
     if np.issubdtype(img.dtype, np.signedinteger):
         return -1 - img  # MATLAB: intmax + intmin - I  == -1 - I for signed types
     return 1.0 - img.astype(np.float64)
+
+
+def _del2_along_columns(f: np.ndarray, x: np.ndarray) -> np.ndarray:
+    """One pass of MATLAB ``del2``: half the centred second difference along the **first** axis of ``f``.
+
+    ``x`` holds the sample locations of that axis (``h = diff(x)``).  Interior points get
+    ``g(i) = (df(i)/h(i) - df(i-1)/h(i-1)) / (h(i) + h(i-1))`` (= ``(f(i+1) - 2 f(i) + f(i-1)) / 2`` for unit
+    spacing); the two border rows are **linearly extrapolated from the interior**
+    (``g(1) = g(2)(h1+h2)/h2 - g(3) h1/h2``), ``n == 3`` copies ``g(2)`` to both borders and ``n <= 2`` gives 0.
+    """
+    n = f.shape[0]
+    g = np.zeros_like(f)
+    h = np.diff(x)
+    if n > 2:
+        df = np.diff(f, axis=0)  # df[i] = f[i+1] - f[i]
+        hi = h[1:n - 1][:, None]  # h(2:n-1) in MATLAB 1-based terms
+        hm = h[0:n - 2][:, None]
+        g[1:n - 1] = (df[1:n - 1] / hi - df[0:n - 2] / hm) / (hi + hm)
+    if n > 3:
+        g[0] = g[1] * (h[0] + h[1]) / h[1] - g[2] * h[0] / h[1]
+        g[n - 1] = -g[n - 3] * h[n - 2] / h[n - 3] + g[n - 2] * (h[n - 2] + h[n - 3]) / h[n - 3]
+    elif n == 3:
+        g[0] = g[1]
+        g[2] = g[1]
+    return g
+
+
+def del2(f: np.ndarray, hx: float | np.ndarray = 1.0, hy: float | np.ndarray | None = None) -> np.ndarray:
+    """MATLAB ``del2``: the **discrete Laplacian divided by 2·ndims** (``∇²/4`` for a 2-D matrix).
+
+    Book: §6.2, Eq. (6.52c) — ``GVF.m`` writes ``mu*4*del2(u)`` precisely because ``4·del2`` restores the
+    five-point Laplacian ``u(x+1,y) + u(x,y+1) + u(x-1,y) + u(x,y-1) - 4u(x,y)`` of Eq. (6.52c).
+    MATLAB source: ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/GVF.m`` line 37 (``del2``); ported from
+    R2025a ``toolbox/matlab/datafun/del2.m``.
+
+    Parameters
+    ----------
+    f : ndarray
+        2-D matrix (a 1-D vector is treated as a column, as MATLAB does; a row vector is transposed back).
+    hx, hy : float or ndarray
+        Spacings (scalar) or explicit sample locations (vector).  ``del2(f, h)`` uses ``h`` for **both**
+        dimensions; ``del2(f, hx, hy)`` swaps them the way MATLAB does (``x`` is the second dimension).
+
+    Notes
+    -----
+    The border values are *not* the Laplacian: MATLAB linearly extrapolates the interior second differences
+    (``g(1) = 2 g(2) - g(3)`` for unit spacing).  Inside ``GVF.m`` those border values are overwritten by
+    :func:`seaice.core.snake.bound_mirror_ensure` at the top of the next iteration and dropped by
+    ``BoundMirrorShrink`` at the end, but the rule is reproduced here anyway.  Parity: exact.
+    """
+    a = np.asarray(f, dtype=np.float64)
+    rflag = False
+    if a.ndim == 1:
+        a = a[:, None]
+    elif a.ndim == 2 and a.shape[0] == 1:  # MATLAB treats a row vector as a column vector and transposes back
+        a = a.T
+        rflag = True
+    if a.ndim != 2:
+        raise ValueError("del2 supports 1-D and 2-D input only")
+    if a.shape[1] == 1:  # column vector: one-dimensional case, v = g, divided by ndims(f) = 2
+        loc0 = hx * np.arange(1, a.shape[0] + 1) if np.isscalar(hx) else np.asarray(hx, dtype=np.float64)
+        v = _del2_along_columns(a, np.asarray(loc0, dtype=np.float64)) / 2.0
+        return (v.T if rflag else v).reshape(np.shape(f))
+    m, n = a.shape
+    if hy is None:  # del2(f) or del2(f, h): the same spacing for both dimensions
+        loc_rows = hx * np.arange(1, m + 1) if np.isscalar(hx) else np.asarray(hx, dtype=np.float64)
+        loc_cols = hx * np.arange(1, n + 1) if np.isscalar(hx) else np.asarray(hx, dtype=np.float64)
+    else:  # del2(f, hx, hy): MATLAB swaps 1 and 2 because x is the second dimension
+        loc_cols = hx * np.arange(1, n + 1) if np.isscalar(hx) else np.asarray(hx, dtype=np.float64)
+        loc_rows = hy * np.arange(1, m + 1) if np.isscalar(hy) else np.asarray(hy, dtype=np.float64)
+    v = _del2_along_columns(a, np.asarray(loc_rows, dtype=np.float64))
+    v = v + _del2_along_columns(a.T, np.asarray(loc_cols, dtype=np.float64)).T
+    v = v / 2.0  # ndims(f) == 2
+    return v.T if rflag else v

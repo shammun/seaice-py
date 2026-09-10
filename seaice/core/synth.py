@@ -457,3 +457,93 @@ def plateau_fixtures() -> dict[str, np.ndarray]:
     fx["random_binary_60x60"] = rng.integers(1, 3, size=(60, 60)).astype(np.uint8)
     fx["random_single_30x30"] = rng.integers(2, 5, size=(30, 30)).astype(np.float32)
     return fx
+
+
+# ----------------------------------------------------------------------------------------------------------
+# Chapter 6 fixtures (GVF snake)
+# ----------------------------------------------------------------------------------------------------------
+
+#: Book **Fig. 6.14(b)**: the city-block distance transform of :data:`FIG_6_14_IMAGE`, transcribed from the
+#: printed 8x8 matrix (p. 134).  Its single regional maximum consists of the **three** pixels of value 3
+#: ("a regional maximum consisting of three local maxima"); the seed radius is ``3/sqrt(2) = 2.1213``
+#: (footnote 4, p. 135).
+FIG_6_14_DISTANCE = np.array([
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 1, 1, 1, 1, 1, 0, 0],
+    [0, 1, 2, 2, 2, 2, 1, 0],
+    [0, 1, 2, 3, 3, 2, 1, 0],
+    [0, 0, 1, 2, 3, 2, 1, 0],
+    [0, 0, 1, 1, 2, 1, 0, 0],
+    [0, 0, 0, 0, 1, 1, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0],
+], dtype=np.float64)
+
+#: Book **Fig. 6.14(a)**: the 8x8 binary image matrix whose city-block distance transform is
+#: :data:`FIG_6_14_DISTANCE` (the printed binary matrix is exactly ``distance > 0``).
+FIG_6_14_IMAGE = FIG_6_14_DISTANCE > 0
+
+
+def fig_6_16_circles(shape: tuple[int, int] = (110, 186), large_diameter: int = 61, small_diameter: int = 9,
+                     large_center: tuple[int, int] | None = None,
+                     small_center: tuple[int, int] | None = None) -> np.ndarray:
+    """Book **Fig. 6.16(a)**: "a 110x186 binary image containing a large circle with 61-pixel wide diameter and a
+    small circle with 9-pixel wide diameter" (§6.5.2, p. 139 caption).
+
+    Used for the GVF capture-range experiment (Figs. 6.16(b)–(e): 5 / 30 / 100 / 250 GVF iterations; Fig. 6.17:
+    snake evolution on the large circle under 30 vs 250 iterations).
+
+    The two *diameters* and the image size are printed in the book; the circle **positions** are not, so they are
+    chosen here to match the printed layout (the large circle left of centre, the small one well to its right,
+    both vertically centred).  Tier 3 — synthetic.
+    """
+    M, N = shape
+    if large_center is None:
+        large_center = (M // 2, N // 4)
+    if small_center is None:
+        small_center = (M // 2, (3 * N) // 4)
+    rr, cc = np.mgrid[0:M, 0:N]
+    big = (rr - large_center[0]) ** 2 + (cc - large_center[1]) ** 2 <= (large_diameter / 2.0) ** 2
+    small = (rr - small_center[0]) ** 2 + (cc - small_center[1]) ** 2 <= (small_diameter / 2.0) ** 2
+    return big | small
+
+
+def u_shape(shape: tuple[int, int] = (64, 64), thickness: int = 8, gap: int = 16,
+            margin: int = 8) -> np.ndarray:
+    """The classic U-shaped test object of Xu & Prince (book **Figs. 6.7 and 6.9**, §6.1.3 / §6.2).
+
+    A traditional snake cannot enter the boundary concavity of a U (Fig. 6.7(c)); a GVF snake can (Fig. 6.9(c)).
+    The book gives no pixel dimensions (only sigma = 4 for the smoothed external energy of Fig. 6.7(b)), so the
+    shape is parametrised: ``thickness`` is the arm/base width, ``gap`` the width of the concavity, ``margin``
+    the distance to the image border.  Tier 3 — synthetic.
+    """
+    M, N = shape
+    bw = np.zeros((M, N), dtype=bool)
+    left = (N - gap) // 2 - thickness
+    right = (N + gap) // 2
+    top = margin
+    bottom = M - margin
+    bw[top:bottom, left:left + thickness] = True                 # left arm
+    bw[top:bottom, right:right + thickness] = True               # right arm
+    bw[bottom - thickness:bottom, left:right + thickness] = True  # base
+    return bw
+
+
+def synthetic_floe_field(shape: tuple[int, int] = (200, 200), n_floes: int = 6, seed: int = 0,
+                         radius: tuple[int, int] = (14, 30), noise: float = 0.0) -> np.ndarray:
+    """A field of overlapping bright discs on a dark background — a stand-in for the aerial floe images the book
+    uses in Figs. 6.10–6.13 and 6.18–6.21, which are **not shipped** with the MATLAB code.
+
+    Returns a uint8 grayscale image.  Tier 3 — synthetic, seeded.
+    """
+    rng = np.random.default_rng(seed)
+    M, N = shape
+    img = np.zeros((M, N), dtype=np.float64)
+    rr, cc = np.mgrid[0:M, 0:N]
+    for _ in range(n_floes):
+        r = rng.integers(radius[0], radius[1] + 1)
+        cy = rng.integers(r, M - r)
+        cx = rng.integers(r, N - r)
+        img[(rr - cy) ** 2 + (cc - cx) ** 2 <= r * r] = 210.0
+    if noise:
+        img = img + rng.normal(0.0, noise, img.shape)
+    return np.clip(np.floor(img + 0.5), 0, 255).astype(np.uint8)
