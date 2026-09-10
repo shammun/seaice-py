@@ -144,6 +144,21 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "description": "Large distinct floes with clear boundaries and open leads; 202×201 RGB like the book's "
                        "alg_seg_gray.jpg (Figure 6.15(a))",
     },
+    # --- ch07: every .m in `matlab/ch7/Sea_Ice_Floe_Identification/` is byte-identical to ch6's, but the shipped
+    # image is NOT: ch7's `sea_ice_test.jpg` is the same photo re-encoded (different MD5; bwlabel(bw,4) = 215 vs
+    # ch06's 231 at the same Otsu level 162/255), and the analysis identified it as **Figure 7.22**, printed
+    # transposed (NCC 0.9787 against the inverted PDF bitmap).  ch07 therefore gets its own key rather than
+    # reusing ch06's, and the substitute is requested at the book image's own 394x1038 size so that every crop
+    # and pixel index in the ch07 notebook stays valid.  Same NASA scene as ch06 (re-verified 2026-09-10).
+    ("ch07", "sea_ice_test.jpg"): {
+        "url": _NASA_WORLDVIEW_394 + "&TIME=2019-07-25&BBOX=73.60,-151.20,75.60,-150.4409",
+        "filename": "nasa_modis_terra_beaufort_floes_394x1038_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack ice, "
+                  "25 July 2019, 73.60–75.60°N 151.20–150.44°W",
+        "licence": _NASA_PD,
+        "description": "Distinct ice floes separated by leads over open water, in a tall strip; "
+                       "394×1038 RGB like the book's sea_ice_test.jpg (Figure 7.22)",
+    },
 }
 
 
