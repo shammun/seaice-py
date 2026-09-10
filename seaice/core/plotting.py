@@ -251,3 +251,108 @@ def size_colorbar(fig, mappable, colors, n: int = 6, *, C1: float = 10000.0, C2:
     if label:
         cb.set_label(label)
     return cb
+
+
+def matlab_jet(m: int) -> np.ndarray:
+    """MATLAB ``jet(m)`` — the ``(m, 3)`` colour table, ported line by line from R2025a ``jet.m``.
+
+    Book: Ch. 8 §8.3 uses ``jet(color_limit_N)`` with ``color_limit_N = 30``
+    (``MATLAB_ROOT/ch8/MCD/plot_color_bar_and_floe.m`` line 17, ``main_WL_new.m`` line 43) and ``jet(255)`` /
+    ``jet`` in ``color_hist.m`` lines 28/35.  R2025a ``toolbox/matlab/graphics/graphics/color/jet.m``::
+
+        n = ceil(m/4);
+        u = [(1:1:n)/n ones(1,n-1) (n:-1:1)/n]';
+        g = ceil(n/2) - (mod(m,4)==1) + (1:length(u))';
+        r = g + n;  b = g - n;
+        g(g>m) = [];  r(r>m) = [];  b(b<1) = [];
+        J = zeros(m,3);  J(r,1) = u(1:length(r));  J(g,2) = u(1:length(g));  J(b,3) = u(end-length(b)+1:end);
+
+    Matplotlib's ``"jet"`` descends from this map but is a piecewise-linear *continuous* colormap sampled at
+    ``m`` points, which is not the same table (it differs in the third decimal for small ``m``), so the M-code is
+    reproduced rather than approximated.  Display only.
+
+    # DEVIATION: older MATLAB releases wrote ``ceil(n/2) - (mod(m,2)==1)`` where R2025a writes ``mod(m,4)==1``.
+    # The two differ only for ``m`` congruent to 3 (mod 4) — e.g. ``jet(255)``, which this chapter uses for a
+    # colormap and never for a numeric value.  ``jet(30)``, the table whose rows *are* consumed numerically
+    # (``color_M(index,:)`` painted into ``rgbImage``), is identical under both rules.
+    """
+    m = int(m)
+    if m <= 0:
+        return np.zeros((0, 3))
+    n = int(np.ceil(m / 4))
+    u = np.concatenate([np.arange(1, n + 1) / n, np.ones(max(n - 1, 0)), np.arange(n, 0, -1) / n])
+    base = int(np.ceil(n / 2)) - (1 if m % 4 == 1 else 0)
+    g = base + np.arange(1, u.size + 1)
+    r = g + n
+    b = g - n
+    g = g[g <= m]
+    r = r[r <= m]
+    b = b[b >= 1]
+    J = np.zeros((m, 3), dtype=np.float64)
+    J[r - 1, 0] = u[:r.size]
+    J[g - 1, 1] = u[:g.size]
+    J[b - 1, 2] = u[u.size - b.size:]
+    return J
+
+
+def mcd_colorbar(fig, ax, color_m: np.ndarray, clim: tuple[float, float], *,
+                 saturate_label: str = "\u2265", label: str | None = "[m]", mappable=None):
+    """The Ch. 8 §8.3 MCD colour bar of Figs. 8.19/8.20 — ``jet(N)`` clamped at the ``N``-th colour.
+
+    MATLAB source: ``MATLAB_ROOT/ch8/MCD/plot_color_bar_and_floe.m`` lines 34-36 and 113-115
+    (and ``main_WL_new.m`` lines 57-59)::
+
+        colormap(color_M)                                              % color_M = jet(color_limit_N), N = 30
+        caxis([histogram_centers(1) histogram_centers(color_limit_N)])  % = [1 30]
+        colorbar
+
+    Every piece whose MCD exceeds ``histogram_centers(color_limit_N)`` is drawn in the **last** colour
+    (``plot_color_bar_and_floe.m`` lines 66-70/78-82), so the top tick means "greater than or equal to".  The
+    book prints the resulting ticks as ``5, 10, 15, 20, 25, >=30 [m]`` (Figs. 8.19/8.20, pp. 191-192), which is
+    MATLAB's default 5:5:30 tick set over ``caxis([1 30])`` with the last label annotated.
+
+    This is a **different** rule from ch7's Eq. (7.6) colour bar (:func:`size_colorbar`), whose ticks are the
+    *inverted areas* of a saturating exponential; both are needed, so this is a second function rather than an
+    overload (rule 9 applies to duplication, not to genuinely different mappings).
+
+    Parameters
+    ----------
+    fig, ax : Figure, Axes
+        Where to attach the bar.
+    color_m : ndarray
+        ``(N, 3)`` colour table, i.e. ``jet(color_limit_N)``.
+    clim : (float, float)
+        ``caxis`` limits — ``(histogram_centers[0], histogram_centers[color_limit_n - 1])``.
+    saturate_label : str
+        Prefix put in front of the top tick label (MATLAB draws a plain number; the book's caption writes ">=").
+    label : str, optional
+        Colour-bar label; the book uses ``[m]``.
+    mappable : ScalarMappable, optional
+        Use an existing mappable (e.g. the one returned by ``imshow``) instead of building one.
+
+    Returns
+    -------
+    matplotlib.colorbar.Colorbar
+
+    Display only — the numbers behind it are :func:`seaice.ch08_applications.plot_color_bar_and_floe`'s
+    ``counts``/``centers``/``color_index``.
+    """
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import ListedColormap, Normalize
+
+    cmap = ListedColormap(np.asarray(color_m, dtype=np.float64)[:, :3])
+    lo, hi = float(clim[0]), float(clim[1])
+    sm = mappable if mappable is not None else ScalarMappable(norm=Normalize(vmin=lo, vmax=hi), cmap=cmap)
+    if mappable is None:
+        sm.set_array([])
+    cb = fig.colorbar(sm, ax=ax)
+    ticks = [t for t in cb.get_ticks() if lo <= t <= hi]
+    if ticks:
+        cb.set_ticks(ticks)
+        texts = [f"{t:g}" for t in ticks]
+        if abs(ticks[-1] - hi) <= 0.5 * (ticks[-1] - ticks[0]) / max(len(ticks) - 1, 1):
+            texts[-1] = f"{saturate_label}{ticks[-1]:g}"
+        cb.set_ticklabels(texts)
+    if label:
+        cb.set_label(label)
+    return cb

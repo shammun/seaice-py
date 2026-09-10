@@ -13,10 +13,12 @@ enhancement"** (the file is byte-identical in ``ch7/Sea_Ice_Floe_Identification/
 layers plus the coverage percentages quoted in §8.3), and ``sea_ice_model.m`` implements **§8.2 / Appendix B**
 (``.Polygon``, ``.Circle``, ``.Intersect``).
 
-``--full`` now also runs the second call through :func:`seaice.ch07_ice_type.ice_shape_enhancement` (ported in
-ch07) and reports its layers; the third call is still ch08's and is reported as deferred.  Note that this script
-runs on **ch6's** ``sea_ice_test.jpg``; ch7 ships a *different JPEG encoding* of the same photograph, so the
-piece counts differ from ``scripts/ch07_sea_ice_demo.py``'s — use that script for the chapter-7 numbers.
+``--full`` now runs **all three** calls: the second through :func:`seaice.ch07_ice_type.ice_shape_enhancement`
+(ported in ch07) and the third through :func:`seaice.ch08_applications.sea_ice_model` (ported in ch08, book
+§8.2.1) — the chapter-8 stub is gone.  Note that this script runs on **ch6's** ``sea_ice_test.jpg``; ch7 ships a
+*different JPEG encoding* of the same photograph, so the piece counts differ from
+``scripts/ch07_sea_ice_demo.py``'s — use that script for the chapter-7 numbers, and
+``scripts/ch08_sea_ice_model.py`` for the chapter-8 ones.
 
 Output of the ch6 part: ``seg`` (= ``out`` of the M-file) has **three levels** — 1 = bright ice (Otsu pass),
 0.5 = dark/slush ice (k-means residual pass), 0 = water — and ``bk`` is the k-means ice mask.
@@ -63,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
                    help="keep only the +1 pixels of bw_kmeans - bw (the script keeps the -1 pixels too)")
     p.add_argument("--solver", default="auto", choices=["auto", "dense", "circulant"])
     p.add_argument("--full", action="store_true",
-                   help="also run ice_shape_enhancement (ch07); sea_ice_model stays deferred to ch08")
+                   help="also run ice_shape_enhancement (ch07) and sea_ice_model (ch08) - the whole M-file")
     args = p.parse_args(argv)
     data, out = resolve_dirs(args)
     try:
@@ -150,8 +152,24 @@ def main(argv: list[str] | None = None) -> int:
         written.append(save_image(out / "sec_6_4_demo_i_identification.png",
                                   label2rgb(e.out, cmap="jet", background=(1, 1, 1), shuffle=True)))
         print("  wrote", written[-1])
-        print("sea_ice_demo.m line 57 `sea_ice_model` implements book section 8.2 / Appendix B and is ported "
-              "in ch08 — not run here.")
+
+        # sea_ice_demo.m line 57 — book section 8.2.1 / Appendix B, ported in ch08.
+        from seaice.ch08_applications import sea_ice_model
+
+        t0 = time.time()
+        m = sea_ice_model(e.ice_floe, e.brash_ice, e.index_floe)
+        n_ff = sum(f.Intersect.floe.size for f in m.floe)
+        n_fb = sum(f.Intersect.brash.size for f in m.floe)
+        n_bb = sum(b.Intersect.brash.size for b in m.brash)
+        print(f"\nsea_ice_model.m (ch08, section 8.2.1, {time.time() - t0:.1f} s): "
+              f"{len(m.floe)} convex-hull floe polygons, {len(m.brash)} area-equivalent brash disks; "
+              f"{m.n_pairs_tested} of {m.n_pairs_total} crossing tests run (AABB prefilter)")
+        print(f"  overlap flags: floe-floe {n_ff}, floe-brash {n_fb}, brash-brash {n_bb}")
+        print(f"  bw_floe {int(m.bw_floe.sum())} px, bw_brash {int(m.bw_brash.sum())} px")
+        written.append(save_image(out / "sec_6_4_demo_j_polygon_model.png", m.bw_floe))
+        written.append(save_image(out / "sec_6_4_demo_k_circle_model.png", m.bw_brash))
+        print("  wrote", written[-2])
+        print("  wrote", written[-1])
     return 0
 
 

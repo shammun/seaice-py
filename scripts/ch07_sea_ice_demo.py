@@ -132,7 +132,8 @@ def main(argv: list[str] | None = None) -> int:
               f"({int(r.fsd.counts.max())} floes)")
     print("NOTE: the book's 154/189 pieces and 60.52/3.34/16.03/20.11 % belong to Fig. 7.10(a), a 205x263 image "
           "that is NOT shipped with the code — those numbers cannot be reproduced here.")
-    print("NOTE: sea_ice_demo.m line 57 `sea_ice_model` is book section 8.2 and is ported in ch08.")
+    print("NOTE: sea_ice_demo.m line 57 `sea_ice_model` is book section 8.2 and is ported in ch08 - run "
+          "scripts/ch08_sea_ice_model.py --source demo for it (it reuses this script's Algorithm-3 cache).")
 
     written = []
     # Fig. 7.22 — the book prints this image transposed.

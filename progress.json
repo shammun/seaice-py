@@ -64,13 +64,13 @@
     },
     "ch08": {
       "analyze": "pass",
-      "port": "todo",
+      "port": "pass",
       "verify": "todo",
       "review": "todo",
       "notebook": "todo",
       "knowledge": "todo",
       "publish": "todo",
-      "notes": "analysis/ch08.md written 2026-09-10: 9/9 .m mapped (5 in ch8/MCD + 4 deferred from ch06/ch07 land here since Appendix B has no chapter); MCD_results.mat = GOLD L3 reference (Raw_MCD 1x2888 double, metres, reproduced at 0.0 from IceImage_290915_2_jpg.0000179.mat); that second .mat is the full Appendix-B IceImage structure (Param/Field/Floe 2888/Brash 3452) confirming the book counts and 58.00/4.85/21.21/15.94 % coverages; NEW FINDING Fig 8.8 = ch06/ch07 sea_ice_test.jpg printed transposed+inverted (NCC 0.982) = Fig 7.22; new primitives core.fitting (lsqcurvefit), core.icestruct (IceImage dataclasses + .mat io); risks: lsqcurvefit near-only, HG1 patches for color_hist*.m, sea_ice_model O(N^2) polyxpoly, convhull vertex order, if xx~=NaN idiom, 498/201 floe counts unverified"
+      "notes": "analysis/ch08.md written 2026-09-10: 9/9 .m mapped (5 in ch8/MCD + 4 deferred from ch06/ch07 land here since Appendix B has no chapter); MCD_results.mat = GOLD L3 reference (Raw_MCD 1x2888 double, metres, reproduced at 0.0 from IceImage_290915_2_jpg.0000179.mat); that second .mat is the full Appendix-B IceImage structure (Param/Field/Floe 2888/Brash 3452) confirming the book counts and 58.00/4.85/21.21/15.94 % coverages; NEW FINDING Fig 8.8 = ch06/ch07 sea_ice_test.jpg printed transposed+inverted (NCC 0.982) = Fig 7.22; new primitives core.fitting (lsqcurvefit), core.icestruct (IceImage dataclasses + .mat io); risks: lsqcurvefit near-only, HG1 patches for color_hist*.m, sea_ice_model O(N^2) polyxpoly, convhull vertex order, if xx~=NaN idiom, 498/201 floe counts unverified; port 2026-09-10: seaice/ch08_applications.py (1300 l) + 8 scripts all exit 0 (31 PNGs + 2 .mat in outputs/ch08), new core primitives fitting.lsqcurvefit (MATLAB optimset defaults, near), stats.mean_caliper_diameter/cumulative_size_distribution (Eqs 8.1/8.2), icestruct (Appendix-B dataclasses + .mat io + overlap_graph), plotting.matlab_jet + mcd_colorbar; ch06_sea_ice_demo --full un-stubbed; sanity: Raw_MCD 0.0 on 2888, coverages 58.00/4.85/21.21/15.95 % (book truncates 15.9460 to 15.94), Field.FSD 51/51 triplets 0, alpha 1.370359 vs book 1.3704 (the log-log OLS the TEXT describes gives 1.8697); L3 bonus: re-running sea_ice_model on the authors own 2888+3452 pieces reproduces the shipped structure (Polygon Area/Center/Perimeter <=1.8e-12, Circle 0.0, hull vertex sets 2888/2888, all four Intersect lists equal as sets); AABB prefilter proven 0-difference vs brute force (26 vs 187250 pairs) and 18.0 s vs ~87 min on the 2888-floe field; new finding: 4 of 3452 brash pieces have a 2x2 Center so MATLAB column-major c(1),c(2) read (x1,x2) - reproduced literally; full suite 1849 pass unchanged"
     },
     "ch09": {
       "analyze": "todo",
