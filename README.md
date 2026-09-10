@@ -13,7 +13,7 @@ Read the chapters online at **https://shammun.github.io/seaice-py/** or open any
 | Ch. 3: Ice Pixel Detection | [View](https://shammun.github.io/seaice-py/notebooks/ch03_ice_pixel_detection.html) | [.ipynb](notebooks/ch03_ice_pixel_detection.ipynb) | [Open](https://colab.research.google.com/github/shammun/seaice-py/blob/main/notebooks/ch03_ice_pixel_detection_colab.ipynb) |
 | Ch. 4: Ice Edge Detection | [View](https://shammun.github.io/seaice-py/notebooks/ch04_ice_edge_detection.html) | [.ipynb](notebooks/ch04_ice_edge_detection.ipynb) | [Open](https://colab.research.google.com/github/shammun/seaice-py/blob/main/notebooks/ch04_ice_edge_detection_colab.ipynb) |
 | Ch. 5: Watershed-Based Ice Floe Segmentation | [View](https://shammun.github.io/seaice-py/notebooks/ch05_watershed_segmentation.html) | [.ipynb](notebooks/ch05_watershed_segmentation.ipynb) | [Open](https://colab.research.google.com/github/shammun/seaice-py/blob/main/notebooks/ch05_watershed_segmentation_colab.ipynb) |
-| Ch. 6: GVF Snake-Based Ice Floe Boundary Identification and Ice Image Segmentation | — (pending) | — (pending) | — (pending) |
+| Ch. 6: GVF Snake-Based Ice Floe Boundary Identification and Ice Image Segmentation | [View](https://shammun.github.io/seaice-py/notebooks/ch06_gvf_snake.html) | [.ipynb](notebooks/ch06_gvf_snake.ipynb) | [Open](https://colab.research.google.com/github/shammun/seaice-py/blob/main/notebooks/ch06_gvf_snake_colab.ipynb) |
 | Ch. 7: Sea Ice Type Identification | — (pending) | — (pending) | — (pending) |
 | Ch. 8: Sea Ice Image Processing Applications | — (pending) | — (pending) | — (pending) |
 | Ch. 9: Model Sea Ice Image Processing Applications | — (pending) | — (pending) | — (pending) |
