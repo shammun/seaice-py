@@ -35,12 +35,12 @@
     "ch05": {
       "analyze": "pass",
       "port": "pass",
-      "verify": "in_progress",
-      "review": "todo",
-      "notebook": "todo",
+      "verify": "pass",
+      "review": "in_progress",
+      "notebook": "in_progress",
       "knowledge": "todo",
       "publish": "todo",
-      "notes": "analysis/ch05.md written 2026-09-09: 15/15 .m mapped (3 byte-identical duplicates in watershed_based/), new core primitives watershed (eml twin port), imregionalmin/max, imimposemin; port 2026-09-09: 9 scripts exit 0 (116 PNGs), core.watershed eml twin port 0 px vs analyst pre-checks (27 cases + main/cc), imimposemin bit-identical float32"
+      "notes": "analysis/ch05.md written 2026-09-09: 15/15 .m mapped (3 byte-identical duplicates in watershed_based/), new core primitives watershed (eml twin port), imregionalmin/max, imimposemin; port 2026-09-09: 9 scripts exit 0 (116 PNGs), core.watershed eml twin port 0 px vs analyst pre-checks (27 cases + main/cc), imimposemin bit-identical float32; verify 2026-09-09 PASS: 15/15 .m exact vs MATLAB R2025a, watershed 0 px on 74 constructed cases (initial column-major scan order-sensitive on 31/80, MATLAB matches all), imregionalmin 126 cases, imimposemin bit-identical 88 cases, 394 ch05 tests + 1 strict xfail (Eq 5.2 all-Inf), full suite 1140 pass; parity 23 exact/0 near/1 approx/3 reimplemented/1 unverified (§5.3 images unshipped)"
     },
     "ch06": {
       "analyze": "todo",
