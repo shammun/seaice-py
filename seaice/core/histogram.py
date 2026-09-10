@@ -81,19 +81,25 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
 
     Book: §7.2.4 floe size distribution (Fig. 7.15) and §8.3.  MATLAB source:
     ``ch7/Sea_Ice_Floe_Identification/ice_shape_enhancement.m`` line 212 ``[z, n] = hist(floe_area, nbins)``
-    (``nbins = 50``) and ``color_hist.m`` lines 18/21 ``hist(x, min_x:inter:max_x)`` (the explicit-centres form).
-    Ported line by line from R2025a ``toolbox/matlab/graphics/math/hist.m`` lines 36–101.
+    (``nbins = 50``) and ``color_hist.m`` line 18 / ``color_hist_comparison.m`` lines 21, 25
+    ``hist(x, min_x:inter:max_x)`` (the explicit-centres form).
+    Ported line by line from R2025a ``toolbox/matlab/graphics/math/hist.m`` lines 81–156 (the empty-``y``
+    branch 81–89, the computing branch 90–156).
 
     Parameters
     ----------
     y : array_like
-        Data (flattened; non-finite values are excluded from the min/max, MATLAB lines 50–59).
+        Data (flattened; non-finite values are excluded from the min/max — the real-input guard at MATLAB
+        lines 91–105, whose ``isempty(yind)`` case sets ``miny = maxy = 0``; lines 106–115 are the *complex*
+        branch, which is not ported).
     bins : int or array_like
         Scalar ``n`` → ``n`` equal-width bins spanning ``[min(y), max(y)]``, whose **centres** are returned
-        (``edges = linspace(miny, maxy, n+1)``, ``x = edges(1:end-1) + binwidth/2``).  When ``min(y) == max(y)``
-        MATLAB widens the range to ``[miny - floor(n/2) - 0.5, maxy + ceil(n/2) - 0.5]`` (line 71–74).
+        (``edges = linspace(miny, maxy, n+1)`` line 123, ``x = edges(1:end-1) + binwidth/2`` line 129).  When
+        ``min(y) == max(y)`` MATLAB widens the range to ``[miny - floor(n/2) - 0.5, maxy + ceil(n/2) - 0.5]``
+        (lines 119–122).
         A vector → those values are the bin **centres**; the internal edges are their midpoints and the two outer
-        bins are unbounded (lines 85–87), so values outside the centre range are *counted*, not dropped.
+        bins are unbounded (the explicit-centres branch, lines 133–137), so values outside the centre range
+        are *counted*, not dropped.
 
     Returns
     -------
@@ -102,22 +108,27 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
 
     Notes
     -----
-    The comparison edges are ``edges + eps(edges)`` (line 93), i.e. the next representable float above each edge,
-    so a value that sits exactly on an edge falls in the **lower** bin; ``histc``'s overflow bin is then folded
-    into the last real bin (lines 98–101).  ``np.histogram`` does neither and uses edges rather than centres —
+    The comparison edges are ``edges + eps(edges)`` (line 145), i.e. the next representable float above each
+    edge, so a value that sits exactly on an edge falls in the **lower** bin; ``histc``'s overflow bin is then
+    folded into the last real bin (lines 150–154).  ``np.histogram`` does neither and uses edges rather than centres —
     getting this wrong shifts every FSD bar by half a bin (analysis/ch07.md risk R7).
 
     Non-finite values follow ``histc``'s rules and are *not* dropped: ``NaN`` is counted in no bin, ``-Inf``
     is counted in the **first** bin (``edgesc(1) = -Inf``) and ``+Inf`` in the **last** (``edgesc(end) = Inf``
-    feeds histc's overflow bin, which lines 151-153 fold back).  ``min``/``max`` still ignore all of them
-    (lines 107-115).  ``hist([1, 2, NaN, 3, Inf, -Inf, 4], 4)`` is therefore ``[2, 1, 1, 2]``, not ``[1, 1, 1, 2]``.
+    feeds histc's overflow bin, which lines 151–153 fold back).  ``min``/``max`` still ignore all of them
+    (lines 94–105).  ``hist([1, 2, NaN, 3, Inf, -Inf, 4], 4)`` is therefore ``[2, 1, 1, 2]``, not ``[1, 1, 1, 2]``.
     Parity: exact (line-by-line port of ``hist.m``), including ``NaN`` and ``+/-Inf`` — counts and centres are
     identical to R2025a on the 16 ``reference/ch07/hist.mat`` cases plus six all-/mixed-non-finite probes.
+
+    **Known deviation** (ch07 review S6(c)): a scalar ``bins < 1`` raises here, where MATLAB takes the
+    ``x == 0`` → ``binwidth = Inf`` branch (lines 124–125) and returns an empty/degenerate histogram.  The
+    branch is unreachable from the book's parameters (``nbins`` is 50 or 8) and a caller asking for zero bins
+    is far more likely to have a bug than to want MATLAB's ``Inf`` bin width.
     """
     y = np.asarray(y, dtype=np.float64).ravel()
     scalar_bins = np.isscalar(bins) or (np.ndim(bins) == 0)
 
-    if y.size == 0:  # hist.m lines 38-45
+    if y.size == 0:  # hist.m lines 81-89
         centers = np.arange(1.0, float(int(bins)) + 1.0) if scalar_bins else np.asarray(bins, dtype=np.float64)
         return np.zeros(centers.shape, dtype=np.int64), centers
 
@@ -127,8 +138,10 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
     if scalar_bins:
         n = int(bins)
         if n < 1:
+            # DEVIATION (ch07 review S6(c)): MATLAB `hist(y, 0)` takes the `binwidth = Inf` branch (hist.m
+            # lines 124-125) instead of erroring.  Unreachable from the book's parameters; we refuse loudly.
             raise ValueError("hist: the number of bins must be >= 1")
-        if miny == maxy:  # hist.m lines 71-74
+        if miny == maxy:  # hist.m lines 119-122
             miny = miny - np.floor(n / 2) - 0.5
             maxy = maxy + np.ceil(n / 2) - 0.5
         edges = np.linspace(miny, maxy, n + 1)
@@ -140,7 +153,7 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
         mid = centers[:-1] + np.diff(centers) / 2.0
         edges = np.concatenate(([-np.inf], mid, [np.inf]))
 
-    # ``edges + eps(edges)`` (hist.m line 93).  MATLAB's ``eps(x)`` is the positive spacing at ``|x|``,
+    # ``edges + eps(edges)`` (hist.m line 145).  MATLAB's ``eps(x)`` is the positive spacing at ``|x|``,
     # so it is NOT ``np.nextafter(edges, inf)``: for a negative edge whose magnitude is an exact power of
     # two, ``eps(-1)`` steps 2**-52 while ``nextafter`` steps only 2**-53.  ``np.spacing`` is signed, hence
     # the ``abs``.  Verified bit-exact against MATLAB R2025a on [-1, -2, -0.5, 1, 2, 0, -3].
@@ -151,6 +164,6 @@ def hist(y: np.ndarray, bins: int | np.ndarray = 10) -> tuple[np.ndarray, np.nda
     # because ``edgesc(end) = Inf`` (line 147), which lines 151-153 fold into the last real bin.
     idx = np.searchsorted(edgesc, y[~np.isnan(y)], side="right") - 1
     counts = np.bincount(np.clip(idx, 0, edgesc.size - 1), minlength=edgesc.size).astype(np.int64)
-    if counts.size > 1:  # histc's overflow bin folded into the last real bin (hist.m lines 98-101)
+    if counts.size > 1:  # histc's overflow bin folded into the last real bin (hist.m lines 150-154)
         counts[-2] += counts[-1]
     return counts[:-1], centers

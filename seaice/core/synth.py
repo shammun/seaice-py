@@ -555,7 +555,8 @@ def synthetic_floe_field(shape: tuple[int, int] = (200, 200), n_floes: int = 6, 
 # Every block below was transcribed from ``chapters/ch07.txt`` (row-major, verified against the ``.m`` literals of
 # ``ch7/cleaning & labeling & filling/*.m``) and re-derived with ``core.morphology``: Fig. 7.2(b)/(c)/(d) from
 # ``imclose``/``imopen`` with ``strel('square', 2)``, Figs. 7.3-7.7 from the Eq. (7.1)/(7.2) recursion and
-# Fig. 7.8 from ``imreconstruct(F_m, F^c, conn=4)``.  **All 44 printed blocks agree 0 px except one** — Fig. 7.7(e)
+# Fig. 7.8 from ``imreconstruct(F_m, F^c, conn=4)``.  **All 48 printed blocks agree 0 px except one**
+# (4 + 8 + 7 + 8 + 4 + 10 + 7 step blocks for Figs. 7.2-7.8) — Fig. 7.7(e)
 # block ``X_8`` (see :data:`FIG_7_7_STEPS_BOOK` / :data:`FIG_7_7_X8_TYPO`).
 # ---------------------------------------------------------------------------------------------------------------
 
@@ -1214,9 +1215,15 @@ FIG_7_7_STEPS_BOOK = (
 
 #: Fig. 7.7(e) with the ``X_8`` typo corrected (sums 9, 4, 6, 13, 19, 29, 38, 47, **55**, 56).  This is the
 #: sequence the Eq. (7.1) recursion actually produces and the one the port reproduces.
-FIG_7_7_STEPS = tuple(b.copy() for b in FIG_7_7_STEPS_BOOK)
-FIG_7_7_STEPS[8][7, 8] = True   # 1-based (8, 9)
-FIG_7_7_STEPS[8][8, 8] = True   # 1-based (9, 9)
+def _with_typo_fixed(blocks: tuple[np.ndarray, ...]) -> tuple[np.ndarray, ...]:
+    """``FIG_7_7_STEPS_BOOK`` with the two ``X_8`` typo pixels set (the arrays are frozen read-only below)."""
+    out = [b.copy() for b in blocks]
+    out[8][7, 8] = True   # 1-based (8, 9)
+    out[8][8, 8] = True   # 1-based (9, 9)
+    return tuple(out)
+
+
+FIG_7_7_STEPS = _with_typo_fixed(FIG_7_7_STEPS_BOOK)
 
 #: The two pixels the book prints as 0 in Fig. 7.7(e) ``X_8`` (0-based row, col).
 FIG_7_7_X8_TYPO = ((7, 8), (8, 8))
@@ -1237,7 +1244,8 @@ FIG_7_8_IMAGE = _m(
 ).astype(bool)
 
 #: Fig. 7.8(d) — the **Eq. (7.3)** border marker ``F_m`` (``filling_reconstruct.m`` lines 23-31): ``1 - F`` on
-#: the image border, 0 elsewhere (48 pixels).  Verified equal to Eq. (7.3) applied to :data:`FIG_7_8_IMAGE`.
+#: the image border, 0 elsewhere (**27** pixels; the 48 belongs to ``H``, the last-but-one block of
+#: :data:`FIG_7_8_STEPS`).  Verified equal to Eq. (7.3) applied to :data:`FIG_7_8_IMAGE`.
 FIG_7_8_MARKER = _m(
     """
     1 1 1 1 1 1 1 1 0 0 0
@@ -1348,3 +1356,25 @@ FIG_7_8_STEPS = (
         """
     ).astype(bool),
 )
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# The chapter-7 fixtures are module-level *constants*: freeze them read-only (ch07 review nit N7) so that a
+# caller writing into a block cannot corrupt every later use of the same array.  Everything in the package and
+# in tests/ only reads them (or copies via ``.astype`` / ``.copy()``), so this is a no-op at run time.
+# ---------------------------------------------------------------------------------------------------------------
+
+def _freeze(obj):
+    """Set ``write=False`` on an ndarray or on every ndarray of a tuple; returns ``obj``."""
+    if isinstance(obj, np.ndarray):
+        obj.setflags(write=False)
+    elif isinstance(obj, tuple):
+        for item in obj:
+            _freeze(item)
+    return obj
+
+
+for _name, _value in list(globals().items()):
+    if _name.startswith("FIG_7_"):
+        _freeze(_value)
+del _name, _value

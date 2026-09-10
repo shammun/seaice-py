@@ -19,10 +19,12 @@ MATLAB sources ported here (one Python home each, `analysis/ch07.md` §3):
 ``ch7/cleaning & labeling & filling/filling.m`` (55 l)                :func:`hole_fill_dilation`
 ``ch7/cleaning & labeling & filling/filling_reconstruct.m`` (71 l)    :func:`border_marker`, :func:`hole_fill_reconstruct`
 ``ch7/Sea_Ice_Floe_Identification/ice_shape_enhancement.m`` (252 l)   :func:`ice_shape_enhancement`
+``ch7/Sea_Ice_Floe_Identification/sea_ice_demo.m`` (driver)           ``scripts/ch07_sea_ice_demo.py``
 ===================================================================  ====================================
 
-The other 22 ``.m`` files of ``ch7/Sea_Ice_Floe_Identification/`` are **byte-identical** to ``ch6/``'s copies and
-are already ported (`knowledge/function_map.md`): the whole :mod:`seaice.core.snake` stack,
+All 23 ``.m`` files of ``ch7/Sea_Ice_Floe_Identification/`` are **byte-identical** to ``ch6/``'s copies
+(``cmp`` 23/23).  The 21 not listed above are already ported (`knowledge/function_map.md`): the whole
+:mod:`seaice.core.snake` stack,
 :mod:`seaice.core.polygon`, :func:`seaice.ch06_gvf_snake.gvf_distance` and
 :func:`seaice.ch06_gvf_snake.seaice_kmean_gvf` (= Algorithm 3).  ``sea_ice_model.m``, ``color_hist*.m`` and
 ``SeaIce_Image_Structure.m`` belong to ch8 / Appendix B and are deliberately **not** ported here.
@@ -442,19 +444,26 @@ def colorbar_area_ticks(colors, n: int = 6, *, C1: float = C1_COLOR,
     -------
     (values, labels)
         ``values`` = ``ysh`` (the colour values the ticks sit at), ``labels`` = the printed integers (areas).
-        Both are empty when ``colors`` is empty, and a single element when ``max == min`` (MATLAB's ``a:0:b``
-        is empty, so that degenerate case is returned as the single value ``min``).
+        Both are empty when ``colors`` is empty.
 
-    Parity: **exact** — a pure function whose output integers are the book's printed truths.
+    Parity: **near** — exact for every non-degenerate input (the output integers are the book's printed truths),
+    with one documented deviation (ch07 review S6(a)): when ``d = fix((max - min)/n)`` is ``0`` (all colours
+    equal, or a spread smaller than ``n``) MATLAB's ``min : 0 : max`` is the **empty** vector, so its
+    ``for i = 1:length(ysh)`` loop never runs and the figure gets *no* ticks at all.  This function returns the
+    single tick ``min`` instead, because an axis with zero ticks is useless and every caller here is a plot.
     """
     c = np.asarray(colors, dtype=np.float64).ravel()
     if c.size == 0:
         return np.zeros(0), np.zeros(0, dtype=np.int64)
     lo, hi = float(c.min()), float(c.max())
     d = float(np.trunc((hi - lo) / int(n)))      # MATLAB fix()
-    if d <= 0:                                    # MATLAB `lo : 0 : hi` is empty; keep one usable tick
+    if d <= 0:
+        # DEVIATION (ch07 review S6(a)): MATLAB `lo : 0 : hi` is empty and its YT loop never runs; we keep one
+        # usable tick so the colour bar is still labelled.
         return np.array([lo]), color_to_area(np.array([lo]), C1, C2)
-    count = int(np.floor((hi - lo) / d + 1e-12)) + 1   # MATLAB `lo : d : hi`
+    # `lo : d : hi`.  `colors` are Eq. (7.6) integers and `d = fix(...)`, so lo, hi and d are all integral and
+    # the count is exact integer arithmetic (ch07 review N6 — no floating-point fudge needed).
+    count = (int(hi) - int(lo)) // int(d) + 1
     values = lo + d * np.arange(count, dtype=np.float64)
     return values, color_to_area(values, C1, C2)
 
@@ -469,11 +478,16 @@ class IcePiece:
 
     The field names are the ones ``SeaIce_Image_Structure.m`` (Appendix B) and ``sea_ice_model.m`` (§8.2) read,
     so they are kept verbatim: ``Center``, ``Area``, ``Perimeter``, ``PixelsPosition``.
+
+    ``Center``/``Perimeter`` follow MATLAB's ``cat(1, cen.Centroid)`` (lines 130/133): one row **per
+    connected component** of ``out == i``.  In every observed run each label is a single component, so
+    they are a ``(2,)`` vector and a scalar; the ``k > 1`` shapes are reproduced rather than assumed away
+    (ch07 review S4).
     """
 
-    Center: np.ndarray          #: ``regionprops(out == i, 'centroid')`` — 1-based ``[x, y]``
+    Center: np.ndarray          #: ``cat(1, cen.Centroid)`` — 1-based ``[x, y]``; ``(2,)`` for one component, ``(k, 2)`` if the label ever splits
     Area: int                   #: ``length(find(out == i))``
-    Perimeter: float            #: ``regionprops(out == i, 'perimeter')``
+    Perimeter: float | np.ndarray  #: ``cat(1, per.Perimeter)`` — a float for one component, ``(k,)`` if the label ever splits
     PixelsPosition: np.ndarray  #: ``[c, r]`` — 1-based ``(x, y)`` of every pixel, in MATLAB ``find`` (column-major) order
     label: int = 0              #: the ``out`` label ``i`` this piece came from (not in the M-file; for traceability)
 
@@ -528,6 +542,8 @@ class IceShapeEnhancement:
     t: int                     #: number of superimposed pieces = ``max(out)``
     nn_bw: int                 #: number of light ("SEG_L") pieces
     nn_k: int                  #: number of dark ("SEG_D") pieces after removing the overlap with the light ones
+    #: The §7.2.4 FSD; ``None`` when ``nbins`` is falsy or no floe survived, where MATLAB's
+    #: ``hist([], 50)`` would instead give ``zeros(1, 50)`` at centres ``1:50`` (ch07 review S6(b)).
     fsd: FloeSizeDistribution | None = None
 
 
@@ -777,9 +793,22 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
         region = np.zeros((br1 - br0, bc1 - bc0), dtype=bool)
         region[rows - br0, cols - bc0] = True
         props = regionprops(region, ("Centroid", "Perimeter"))
-        cen = (props[0].Centroid + np.array([bc0, br0], dtype=np.float64)) if props \
-            else np.array([np.nan, np.nan])
-        per = float(props[0].Perimeter) if props else float("nan")
+        # `cen = cat(1, cen.Centroid)` / `per = cat(1, per.Perimeter)` (lines 130/133): a label whose pixels form
+        # k > 1 connected components contributes **k** rows, and `floe_cen = [floe_cen; cen]` appends all of them.
+        # (`struct('Center', cen, ...)` does not expand a numeric matrix, so `s0` stays 1x1 with a k x 2 field.)
+        # k > 1 is unreachable for the shipped pipeline — a later, larger piece can only overwrite an earlier
+        # label inside its own concavities/holes, which a disjoint 4-connected neighbour cannot straddle; the
+        # ch07 review searched 700 fixtures and found 0 splits — but MATLAB's shape is reproduced rather than
+        # assumed away, so a future caller cannot get a silently different answer.
+        if props:
+            offset = np.array([bc0, br0], dtype=np.float64)
+            cen_all = np.array([pr.Centroid for pr in props], dtype=np.float64) + offset  # k x 2
+            per_all = np.array([pr.Perimeter for pr in props], dtype=np.float64)          # k
+        else:                                     # unreachable: `p` is non-empty here
+            cen_all = np.array([[np.nan, np.nan]])
+            per_all = np.array([np.nan])
+        cen = cen_all[0] if cen_all.shape[0] == 1 else cen_all      # MATLAB 1x2 row -> (2,) for the usual k == 1
+        per = float(per_all[0]) if per_all.size == 1 else per_all
 
         piece = IcePiece(Center=np.asarray(cen, dtype=np.float64), Area=area0, Perimeter=per,
                          PixelsPosition=pixels, label=i)
@@ -790,13 +819,13 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
             index_floe[rows, cols] = color_label
             floe_area.append(area0)
             color_floe.append(color_label)
-            floe_cen.append(np.asarray(cen, dtype=np.float64))
+            floe_cen.append(cen_all)      # `floe_cen = [floe_cen; cen]` — k rows, not one
             ice_floe.append(piece)
         elif is_brash:
             index_brash[rows, cols] = color_label
             brash_area.append(area0)
             color_brash.append(color_label)
-            brash_cen.append(np.asarray(cen, dtype=np.float64))
+            brash_cen.append(cen_all)     # `brash_cen = [brash_cen; cen]` — k rows, not one
             brash_ice.append(piece)
 
     # ---- lines 155-169: the slush / water / residue layers ----------------------------------------------------
@@ -819,6 +848,10 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
                         Slush=float(np.count_nonzero(index_slush == 1)) / total,
                         Water=float(np.count_nonzero(index_water == 1)) / total)
 
+    # DEVIATION (ch07 review S6(b)): with no floes at all MATLAB's `hist([], 50)` (hist.m lines 81-89) returns
+    # `zeros(1, 50)` counts at centres `1:50`; we return `fsd = None` so callers cannot plot a meaningless bar
+    # chart of an empty ice field.  Unreachable for the book's images; `core.histogram.hist` itself does
+    # reproduce the MATLAB values if called directly.
     fsd = floe_size_distribution(floe_area, nbins) if (nbins and floe_area) else None
 
     return IceShapeEnhancement(
@@ -826,8 +859,8 @@ def ice_shape_enhancement(bk: np.ndarray, seg: np.ndarray, min_floe: float = MIN
         index_slush=index_slush, index_water=index_water, index_residue=index_residue, coverage=coverage,
         l=l, fill=fill, index=index, ice_area=ice_area_arr, order=order,
         color_floe=np.asarray(color_floe, dtype=np.int64), color_brash=np.asarray(color_brash, dtype=np.int64),
-        floe_cen=np.asarray(floe_cen, dtype=np.float64).reshape(-1, 2),
-        brash_cen=np.asarray(brash_cen, dtype=np.float64).reshape(-1, 2),
+        floe_cen=(np.vstack(floe_cen) if floe_cen else np.zeros((0, 2))).astype(np.float64),
+        brash_cen=(np.vstack(brash_cen) if brash_cen else np.zeros((0, 2))).astype(np.float64),
         t=t, nn_bw=nn_bw, nn_k=nn_k, fsd=fsd)
 
 

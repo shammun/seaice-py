@@ -669,11 +669,12 @@ def imregionalmax(I: np.ndarray, conn: int | np.ndarray = 8) -> np.ndarray:
 
 def _complement_like(x: np.ndarray) -> np.ndarray:
     """MATLAB ``imcomplement`` computed *in the input class* (``1 - x`` in single stays single; integer rules of
-    :func:`seaice.core.matlab_compat.imcomplement`)."""
+    :func:`seaice.core.matlab_compat.imcomplement`).
+
+    Thin alias kept for readability at the ``imimposemin`` call sites: since the ch07 review's must-fix M1,
+    :func:`seaice.core.matlab_compat.imcomplement` is itself class-preserving for every MATLAB class."""
     from .matlab_compat import imcomplement as _imc
 
-    if np.issubdtype(x.dtype, np.floating):
-        return (x.dtype.type(1) - x).astype(x.dtype, copy=False)
     return _imc(x)
 
 
@@ -817,6 +818,10 @@ def imfill(I: np.ndarray, mode: str = "holes", *, conn: int | np.ndarray = 4) ->
     -----
     The ``-Inf`` pad is written *after* the class cast, so it is ``0`` for a uint8 (or logical→uint8) image and a
     true ``-Inf`` only for single/double — this port reproduces that with :func:`_pad_minus_inf_value`.
+    The two ``imcomplement`` calls are evaluated **in the input class** (ch07 review M1): on a ``single`` image
+    MATLAB round-trips ``1 - (1 - x)`` in single, so e.g. ``single(1e-8)`` fills to ``0`` and ``single(0.1)`` to
+    ``0.100000024``; doing it in float64 leaves those pixels unchanged (2/25 pixels, max 2.235e-8 on the
+    reviewer's probe).
     Parity: **exact** (line-by-line port).  ``scipy.ndimage.binary_fill_holes`` agrees on the logical branch only
     and would silently return ``bool`` for a double input.
     """

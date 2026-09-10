@@ -130,25 +130,36 @@ def rgb2gray_matlab(rgb: np.ndarray) -> np.ndarray:
 
 
 def imcomplement(img: np.ndarray) -> np.ndarray:
-    """MATLAB ``imcomplement``: uint8 → ``255 - I``; logical → ``~I``; float → ``1 - I``.
+    """MATLAB ``imcomplement``: logical → ``~I``; unsigned → ``intmax - I``; signed → ``bitcmp(I)``; float → ``1 - I``.
 
     Book: §2.1.2.2, Eq. (2.3) ``[C; M; Y] = [1; 1; 1] - [R; G; B]`` (RGB normalised to [0, 1]); Eq. (2.21) set
     complement for binary images.  MATLAB source: ``MATLAB_ROOT/ch2/color_image.m`` lines 10–13
     (``I_cmy = imcomplement(I)``; ``Ic = imcomplement(Ir)`` on *doubles in 0–255*, giving ``1 - Ir``, i.e.
     negative values that ``imshow(Ic, [])`` rescales).
 
-    Parity: exact.
+    The class rules are R2025a ``toolbox/images/images/imcomplement.m`` lines 39–54 — "IM2 has the same class
+    and size as IM" (line 4).  The branches are exactly MATLAB's: ``islogical`` → ``~im``;
+    ``uint8/uint16/uint32/uint64`` → ``intmax(class(im)) - im``; ``int8/int16/int32/int64`` → ``bitcmp(im)``
+    (= ``-1 - im`` in two's complement); otherwise "should be a float" → ``1 - im`` **evaluated in the input
+    class**.  Keeping the float branch in the input class matters: ``imfill``'s grayscale branch
+    (``imfill.m`` lines 128–140) complements twice around the reconstruction, and MATLAB round-trips a
+    ``single`` image through ``1 - (1 - x)`` in single, which is *not* the float64 value
+    (``imcomplement(single(1e-8))`` is exactly ``1``, so ``imfill`` returns ``0`` there, and ``single(0.1)``
+    comes back as ``0.100000024``).  ch06 established the same rule for ``imimposemin``.
+
+    Parity: exact (branch for branch vs ``imcomplement.m``; class-preserving).
     """
     img = np.asarray(img)
     if img.dtype == np.bool_:
         return ~img
-    if img.dtype == np.uint8:
-        return (255 - img.astype(np.int16)).astype(np.uint8)
-    if img.dtype == np.uint16:
-        return (65535 - img.astype(np.int32)).astype(np.uint16)
+    if np.issubdtype(img.dtype, np.unsignedinteger):
+        # intmax(class) - im, computed in the input class (uint8/uint16/uint32/uint64)
+        return np.asarray(np.iinfo(img.dtype).max, dtype=img.dtype) - img
     if np.issubdtype(img.dtype, np.signedinteger):
-        return -1 - img  # MATLAB: intmax + intmin - I  == -1 - I for signed types
-    return 1.0 - img.astype(np.float64)
+        return -1 - img  # MATLAB bitcmp(im) == intmax + intmin - I == -1 - I for signed types
+    if np.issubdtype(img.dtype, np.floating):
+        return img.dtype.type(1) - img  # float32 stays float32, float64 stays float64
+    return 1.0 - img.astype(np.float64)  # anything else (e.g. object/Python ints) -> MATLAB's double default
 
 
 def _del2_along_columns(f: np.ndarray, x: np.ndarray) -> np.ndarray:
