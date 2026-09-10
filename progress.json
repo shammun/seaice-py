@@ -56,11 +56,11 @@
       "analyze": "pass",
       "port": "pass",
       "verify": "pass",
-      "review": "todo",
+      "review": "in_progress",
       "notebook": "todo",
       "knowledge": "todo",
       "publish": "todo",
-      "notes": "analysis/ch07.md written 2026-09-10 (447 lines): 27/27 .m mapped - 4 NEW in cleaning&labeling&filling/, ice_shape_enhancement.m NEW (chapter core, 252 l), 19 REUSE from ch06 (all 25 SIFI .m byte-identical to ch6), 4 DEFERRED to ch08/AppB (sea_ice_model, color_hist, color_hist_comparison, SeaIce_Image_Structure); new primitives core.morphology.imfill, core.histogram.hist (centres), label2rgb extension, Eq 7.6 colorbar; key findings: ch7 sea_ice_test.jpg != ch6 (re-encoded, bwlabel4 215 vs 231) and IS Figure 7.22 printed transposed (NCC 0.9787); Fig 7.7(e) X8 book typo (2 px, sum 53 vs 55); ice_shape_enhancement.m HG1 calls break in R2025a"
+      "notes": "analysis/ch07.md written 2026-09-10 (447 lines): 27/27 .m mapped - 4 NEW in cleaning&labeling&filling/, ice_shape_enhancement.m NEW (chapter core, 252 l), 17 REUSE from ch06 (ch7/Sea_Ice_Floe_Identification/ holds 23 .m, 23/23 byte-identical to ch6's; 6 ported here + 17 reused + 4 deferred = 27), 4 DEFERRED to ch08/AppB (sea_ice_model, color_hist, color_hist_comparison, SeaIce_Image_Structure); new primitives core.morphology.imfill, core.histogram.hist (centres), label2rgb extension, Eq 7.6 colorbar; key findings: ch7 sea_ice_test.jpg != ch6 (re-encoded, bwlabel4 215 vs 231) and IS Figure 7.22 printed transposed (NCC 0.9787); Fig 7.7(e) X8 book typo (2 px, sum 53 vs 55); ice_shape_enhancement.m HG1 calls break in R2025a"
     },
     "ch08": {
       "analyze": "todo",
