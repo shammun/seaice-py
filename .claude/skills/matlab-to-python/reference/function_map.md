@@ -25,7 +25,8 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `montage` | grid with matplotlib | — | |
 | `imcrop(I, rect)` | slicing (`rect` = [x y w h], 1-based) | E | |
 | `padarray(A, [p q], 'replicate'/'symmetric'/0)` | `np.pad(A, ((p,p),(q,q)), mode='edge'/'symmetric'/'constant')` | E | |
-| `VideoReader`/`read` | `imageio.v3.imiter`, `cv2.VideoCapture` | E | |
+| `VideoReader(f)` + `read(v)` + `get(v,'numberOfFrames')` | `core.video.read_video(path) -> (H, W, 3, N) uint8`, `video_num_frames` (backed by `imageio.v3` / `cv2.VideoCapture`) | E on **Uncompressed AVI** only | `read` returns **`(H, W, 3, N)`** — keep that layout so `vidFrames(:,:,:,k)` ports as `frames[:, :, :, k]`; imageio gives `(N, H, W, 3)`. **Pin the axis order against MATLAB's own `size()`, not just the pixels.** Decode parity is a **precondition**: a lossy container decoded by two codecs can differ by several gray levels and one level moves an Otsu threshold — write every reference uncompressed and measure 0 differing bytes before claiming anything downstream (verified ch09: 0 of 22 118 400 and of 9 216 000). `mmreader` is **removed** from current MATLAB |
+| `movie2avi(M, name, 'FPS', f)` (**removed**) / `VideoWriter(name, 'Uncompressed AVI')` + `writeVideo` | `core.video.write_video(path, frames, fps, codec='rawvideo')` | E | bit-identical to `VideoWriter`'s Uncompressed AVI (0 differing bytes, identical file sizes) — verified ch09 |
 
 ## Histogram / intensity
 | MATLAB | Python | P | Notes |

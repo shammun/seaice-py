@@ -19,6 +19,11 @@ it overrides this skill when they disagree.
 | `length(A)` = max dim | `max(A.shape)` | |
 | `A(i,j,:) = v` **out of range grows `A`** (no error), so a result's *size* is data-dependent | numpy raises `IndexError` | a variable that starts as `[]` and is written at scattered indices ends up `max(i) × max(j) × …`, **not** the image size — reproduce the growth (track the running maxima), **never pre-allocate where the original grows**, and remember a run in which every maximum happens to be attained **cannot distinguish** the two (verified ch08: 627×1114 on the full field but 627×1096 and 489×865 on two subsets, all byte-identical). If you offer a pre-allocating override, give it its own test |
 | `if x ~= NaN` (and any `if <array>`) | `if len(x) > 0` — i.e. `~isempty(x)` | a comparison with NaN is **false for every element**, so the `if` tests an empty/non-empty array, not equality; `if` on an array is "all elements non-zero", and an **empty** array is false. Published algorithms carry this: an overlap test written `[xx,yy] = polyxpoly(...); if xx ~= NaN` therefore **cannot detect containment** (a polygon strictly inside another has no boundary crossing → empty → "no overlap"). Reproduce it literally and put the corrected behaviour behind a flag; confirm all three branches (`[1 2 3]` taken, `[]` not, `[1 NaN]` taken) in MATLAB (verified ch08) |
+| `if <scalar> >= <a vector that GROWS each iteration>` (`t(k) = graythresh(...)` then `if pix >= t*255`) | `all(...)` — the effective bound is the **running maximum** `max_{j<=k} t(j)` | a comparison whose right-hand side is an accumulating vector is **not** a scalar comparison: `if` means "all elements non-zero" (and an **empty** array is false). MATLAB: `uint8(50) >= [25 51]` → `[1 0]`, **not** taken; `>= [25 40]` → taken. **Read every `if` whose operand accumulates**, reproduce the running-maximum behaviour behind a flag, and choose a fixture whose threshold **falls** at some point — on a monotone series the bug is invisible (verified ch09: 17 of 24 frames change, max Δ 3.09 pp) |
+| `n = n+1` where `n` is a **vector** grown by `n(k) = 0` | increment **every** element; closed form `n_final[j] = Σ_{m>=j} count_m` (a reverse cumulative sum) | the author meant `n(k) = n(k)+1`. MATLAB probe: per-frame counts (7, 6, 4) end at `n = [17 10 4]`. A quantity read **inside** the same iteration escapes this but not the running-maximum trap above — **name which of the two each reported number depends on** (verified ch09) |
+| `x(k) = <call returning 0x0>` **past the end** of a growing vector | **raise** — it is not a deletion | a null assignment past the end errors, and the identifier depends on the RHS **form**: the literal `x(k) = []` is parsed as a deletion → `MATLAB:subsdeldimmismatch`; a function call returning `0x0` is an assignment → `MATLAB:matrix:singleSubscriptNumelMismatch`. Delete-and-shift only happens for `k <= numel(x)`. Make the port raise by default and put the deletion semantics behind a flag (verified ch09) |
+| `np.hypot(dx, dy)` as a stand-in for `sqrt(dx.^2 + dy.^2)` | `np.sqrt(dx*dx + dy*dy)` | `hypot` is a **different, more accurate** algorithm and can differ in the last ulp — which decides the outcome when the value feeds a **strict** inequality (`if k1 < k && k < k2`). Write the literal expression; it costs nothing and removes a class of doubt (ch09) |
+| a toolbox/FEX function on a **degenerate** input (1 point, 2 points, none) | probe it in MATLAB before assuming a clean return | shapes, not just values, diverge: `repmat(x,1,5)` on a 1x1 gives a **1x5 row**, so a caller's `[rectx, recty]` becomes **1x10** and MATLAB's *own* next line raises `MATLAB:badsubscript`; a 2-point branch returned a **2x1** perimeter and a 0-point branch `0x0` empties where a port returns `NaN`. If reproducing the malformed shapes would break earlier verified callers, keep the values, **document the divergence and pin MATLAB's shapes in a test** so a later silent "fix" fails (verified ch09) |
 | `a:step:b` with a **non-integer** step | `core.matlab_compat.matlab_colon(a, step, b)` — **not** `np.arange` | MATLAB computes the count **once** (`floor((b−a)/step) + 1`, with a near-integer snap) and multiplies; `np.arange` accumulates and can add or drop the last element. The vector **does not reach `b`**: `0:0.05:6.28` is **126** points ending **6.25** (a "circle" drawn on it is an open polygon with a gap) and `21:79:3979` is **51** ending **3971**. Pin **both** the element count and the last value — and choose a fixture whose `(b−a)/step` is *not* integral, or the truncation logic is never exercised. MATLAB's colon is also **more accurate** than `a + k·step`: ≤ 1 ulp on 30 of 126 angles, so a port of it is `near`, not `exact` (verified ch08) |
 | `jet(m)`, `hsv(m)`, … colormap tables used **numerically** (`C(index,:)` written into an image) | port the M-file (project: `core.plotting.matlab_jet`, exact for m = 1, 3, 4, 7, 30, 255) | matplotlib's `"jet"` descends from it but is a **continuous** colormap sampled at `m` points — a different table in the third decimal. R2025a's rule is `g = ceil(n/2) − (mod(m,4)==1) + (1:length(u))'`; **pre-R2014 wrote `mod(m,2)==1`**, which differs for `m ≡ 3 (mod 4)`, so test a value in that class (255) *and* one outside it (30), computing the old variant explicitly to prove the test discriminates (verified ch08) |
 | `uint8` arithmetic **saturates** (200+100=255) and **rounds** (`uint8(3)/uint8(2) = 2`) | numpy **wraps** and truncates | do math in float, then push **every step** through one round-half-away-from-zero + saturate (project: `core.matlab_compat.saturate_to_class(x, dtype)`, verified ch06) — the intermediates are *not* the float64 ones. This applies **inside library/toolbox functions too**: a routine that normalises `(f − fmin)/(fmax − fmin)` evaluates it in the **input's** class, so a uint8 image comes back with only the values `{0, 1}` (ch06 `GVF.m`; ch05 `imimposemin`'s `I + h` is the same rule). Check the class of every argument a `.m` file passes down, not just the top-level one |
@@ -97,7 +102,18 @@ it overrides this skill when they disagree.
    sets/masks, and **measure the sensitivity** by re-parameterising your own output — that converts an unexplained
    residual into a bounded, explained one.
 8. Before closing the chapter, re-read every docstring parity label and every number embedded in a comment against the
-   verification report: they drift (ch06 review found five wrong labels and two stale numbers).
+   verification report: they drift (ch06 review found five wrong labels and two stale numbers).  This includes **retracted** claims that
+   survive in a *neighbouring* module's docstring (ch09: a corrected MATLAB error semantics was still asserted in the
+   fixture generator).
+9. **Port dead code as dead.** A shipped file can carry validation that can never run — `if (nargin<3)` inside a
+   **two-argument** function makes the whole `elseif` unreachable, so MATLAB silently accepts *every* value of that
+   argument (`''`, `[]`, `'x'`, a number, a string — all identical). Reproduce the reachable behaviour, honour the
+   `isempty` half of such a guard (an empty argument is the **default**, not an error), and record any stricter
+   validation you add as a deviation.
+10. **Generate the patch record, never hand-write it.** Emit it from the same dictionaries that drive the patching and
+   assert in a test that every recorded `removed` line is **byte-identical to the shipped line it claims to replace** —
+   a hand-written record drifts (it omitted appended lines that a test was already consuming, and misrecorded a kept
+   line as deleted).
 
 ## 3. Things that are not bugs
 - Different label numbers, different cluster indices, JPEG decoder ±1 level differences, Otsu threshold ±1 level on 256 bins,
@@ -173,11 +189,29 @@ it overrides this skill when they disagree.
   one-level move would break it. That is a result; the first version was an artefact (ch08).
 - **A cited measurement must name its input.** "1232 pieces / 433 floes / 290 brash" came from the port's own upstream
   stage; the reference stage gives 1211 / 433 / 274. Both are true, only one is a parity number, and a report that
-  mixes them cannot be audited. Write the input beside every number (ch07).
+  mixes them cannot be audited. Write the input beside every number (ch07). **It recurs at every boundary between a verified stage and
+  its consumer**: an `exact` label measured on *MATLAB's own* intermediate array is not the end-to-end result — feeding
+  the port's own upstream output (0.2 % different) moved an overlap-flag count 34 → 36 and a derived concentration by
+  0.104 pp. State both, and add **ceiling assertions** for the end-to-end numbers so a regression cannot hide behind
+  count-only checks (ch09).
 - **Duplicated code across folders does not mean duplicated data.** Two chapter folders held 23 byte-identical `.m`
   files but re-encoded copies of the same JPEG (84 % of samples differ, max 43): the same Otsu level, but 215 vs 231
   labelled components, and a stage previously measured at 0 px now differing on 0.125 %. Diff the **data** as well as
   the code before inheriting any earlier number, and make the loader resolve to the current chapter's own copy (ch07).
+- **When two definitions coincide on your fixture, you have not discriminated them.** A report claimed an arithmetic
+  agreement *proved* which of two definitions a caption meant — but on six **equal** blocks the two are algebraically
+  identical (`Σ num/(r·c) ≡ mean(ic_b)`, measured equal to the last bit), so the fixture forced the match. The claim was
+  downgraded to "consistent with, cannot discriminate", and the only real evidence turned out to be a *deleted line* in
+  the script. Before writing "proves", construct the input on which the two candidates differ — and if none exists,
+  say so (ch09; same family as the degenerate-fixture and saturating-agreement traps above).
+- **A known-answer assertion must be chosen so the *wrong* implementations fail it.** `29/9` as the aspect ratio of an
+  **axis-aligned** rectangle does not discriminate a minimum-area-rectangle rule from a bounding-box rule — they agree
+  there. A **45°-rotated** rectangle does (min-rect **4.0** vs bbox **1.0**). Compute the wrong rules inside the test and
+  assert they differ; a test that only asserts "the two options disagree" pins neither (ch09).
+- **`reimplemented` requires a reference or a known answer; a no-reference wiring is `unverified`.** Two carefully
+  written, documented functions for book text with **no shipped `.m` and no stated grid/overlap/stitch rule** were
+  relabelled `unverified`, given a `# DEVIATION` marker, kept out of every parity assertion and given their own open
+  item. Do not inflate a label for effort (ch09).
 - **An integer- or single-class branch of a *library* function needs a fixture in that class** — the two must-fix
   defects of this project (ch06 `GVF` on uint8, ch07 `imcomplement` on `single`) both hid behind float64 inputs for a
   whole verification round, and both were latent in the chapter that introduced them and fatal in the next one.
