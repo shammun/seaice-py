@@ -159,9 +159,13 @@ BOX_5100: tuple[int, int, int, int] = (307, 400, 268, 380)
 IC_DENOMINATOR_5100: int = (400 - 180 + 1) * (521 - 125 + 1) - (400 - 307 + 1) * (380 - 268 + 1)
 
 #: Table 9.1 p. 196 — target ice conditions per run: ``(target IC, floe edge lengths in m, their shares)``.
-#: See risk **R8**: "one 1.50 m strip, four 1.00 m and nine 0.50 m coincide with the percentages" gives
-#: 26.5/47.1/26.5 % by **area**, 7/29/64 % by **count** and 15/40/45 % by **strip width** — none of which is
-#: 45/40/15 % in the printed order.  All three readings are recorded; none is silently chosen.
+#: **R8 is resolved and Table 9.1 is correct** (verify phase, 2026-09-11): nine 0.50 m strips, four 1.00 m and one
+#: 1.50 m give 4.5/4.0/1.5 m of 10.0 m = **45/40/15 %**, in the printed order against the printed size labels — and
+#: because the text says the strips were cross-cut into *squares*, the area share equals the width share, so this is
+#: both readings at once.  An earlier comment here claimed the arithmetic gave 26.5/47.1/26.5 % by area and that no
+#: reading matched; that was wrong twice (it assumed one square per strip, and it wrote the width share against the
+#: size labels in reverse order).  The two readings that genuinely do not match are 64.3/28.6/7.1 % by strip count
+#: and 79.4/17.6/2.9 % by floe count; see ``test_R8_table_9_1_strip_arithmetic_all_three_readings``.
 TABLE_9_1: dict[int, dict[str, Any]] = {
     5100: dict(target_ic=0.86, sizes_m=(0.50, 1.00, 1.50), shares=(0.45, 0.40, 0.15)),
     5200: dict(target_ic=0.70, sizes_m=(0.50, 1.00, 1.50), shares=(0.45, 0.40, 0.15)),
