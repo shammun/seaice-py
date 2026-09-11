@@ -92,13 +92,56 @@ def model_fixtures() -> dict[str, dict]:
         "shape": (450, 450)}
 
     # --- touching: boundaries sharing a single point vs bounding boxes that touch without a crossing ---------
+    # The image is deliberately **NON-SQUARE** (80 rows x 137 columns).  Review item S1: every other fixture
+    # here is square, and `SeaIce_Image_Structure.m` lines 50-51 (`NumPix_x = size(index_floe, 2)`,
+    # `NumPix_y = size(index_floe, 1)`) can be transposed without changing a single assertion on a square
+    # image - `PixScale_x = 50/N` and `PixScale_y = 18/N` also survive the swap when the two sizes are equal.
+    # With 80 != 137 MATLAB's own `NumPix_x = 137`, `NumPix_y = 80`, `PixScale_x = 50/137` and
+    # `PixScale_y = 18/80` pin the mapping (rows -> y, columns -> x) in `test_sea_ice_image_structure_parity`.
     out["touching"] = {
         "ice_floe": [_piece(_square(10, 10, 20, 20)),      # 1: x 10..29
                      _piece(_square(29, 29, 20, 20)),      # 2: shares the corner pixel (29,29) with 1
                      _piece(_square(30, 10, 30, 20))],     # 3: AABB disjoint from 1 in x (30 > 29)
         "brash_ice": [_brash([29.0, 29.0], 4.0)],
-        "shape": (80, 80)}
+        "shape": (80, 137)}
     return out
+
+
+# ------------------------------------------------------------------------------------------------------------
+# Review item S4 - a `plot_color_bar_and_floe` input whose floes reach NEITHER the last row NOR the last column
+# ------------------------------------------------------------------------------------------------------------
+#: `plot_color_bar_and_floe.m` line 79 never pre-allocates `rgbImage`: MATLAB grows it from the assignments, so
+#: its final size is `(max y, max x, 3)` over the **painted** pixels.  On the shipped 2888-floe field both
+#: maxima are attained (627 x 1114 = the image), so that run cannot distinguish "grown" from "pre-allocated to
+#: the image size".  These two subsets can: `GROW_FIRST_N` = the first 50 floes (max y = 627 but max x = 1096)
+#: and `grow_fixture()` = the first 50 floes that lie inside `x <= 900`, `y <= 500` (both maxima strictly
+#: inside the image).
+GROW_FIRST_N = 50
+GROW_MAX_X, GROW_MAX_Y, GROW_N = 900, 500, 50
+
+
+def grow_fixture() -> np.ndarray | None:
+    """0-based indices of the first ``GROW_N`` shipped floes whose pixels satisfy ``x <= 900`` and ``y <= 500``.
+
+    Returns ``None`` without the book data.  Both MATLAB (``reference/ch08/make_refs.py::ref_grow``, through
+    ``grow_inputs.mat``) and the Python test select **these** floes, so the two sides paint the same pixels.
+    """
+    if not have_book_data():
+        return None
+    import sys
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from seaice.core.icestruct import load_iceimage_mat
+
+    ice = load_iceimage_mat(SHIPPED)
+    sel = []
+    for i, f in enumerate(ice.Floe):
+        px = np.atleast_2d(np.asarray(f.Pixels))
+        if px[:, 0].max() <= GROW_MAX_X and px[:, 1].max() <= GROW_MAX_Y:
+            sel.append(i)
+        if len(sel) == GROW_N:
+            break
+    return np.array(sel, dtype=np.int64)
 
 
 def window_fixture(window: tuple[int, int, int, int] = WINDOW) -> dict | None:

@@ -243,3 +243,37 @@ def del2(f: np.ndarray, hx: float | np.ndarray = 1.0, hy: float | np.ndarray | N
     v = v + _del2_along_columns(a.T, np.asarray(loc_cols, dtype=np.float64)).T
     v = v / 2.0  # ndims(f) == 2
     return v.T if rflag else v
+
+
+def matlab_colon(start: float, step: float, stop: float) -> np.ndarray:
+    """MATLAB's colon operator ``start:step:stop`` — ``floor((stop-start)/step) + 1`` elements.
+
+    ``np.arange`` decides its length by floating-point accumulation and can add or drop the last element; MATLAB
+    computes the count once and multiplies.  Needed literally for ``sea_ice_model.m`` line 25
+    ``t = 0:0.05:6.28`` (**126** points, last value **6.25** — the "circle" is a 125-gon with a gap, ch08 risk
+    R18 / erratum E10) and for ``min_x : inter : max_x`` in ``color_hist.m`` and ``SeaIce_Image_Structure.m``.
+
+    Book: no equation — this is a language primitive.  MATLAB source: the ``:`` operator as used by
+    ``MATLAB_ROOT/ch{6,7}/Sea_Ice_Floe_Identification/sea_ice_model.m`` line 25,
+    ``SeaIce_Image_Structure.m`` line 98 and ``ch8/SIFI/color_hist.m`` line 36.
+
+    Parity: **near** (``reports/ch08_verification.md``, deviation D1).  ``0:0.05:6.28`` agrees with MATLAB in
+    **length (126) and last value (6.25) exactly**, but **30 of the 126** non-integer angles differ by exactly
+    **≤ 1 ulp** (max abs diff 8.9e-16 — MATLAB's colon is more accurate than ``start + k·step``).  Bounded:
+    substituting MATLAB's own ``t`` vector into ``sea_ice_model`` changes the brash raster by **0 px**; the
+    integer colon vectors (``20:70:3500``, ``21:79:3971``) are **bit-exact**.
+    """
+    start, step, stop = float(start), float(step), float(stop)
+    if step == 0:
+        return np.zeros(0, dtype=np.float64)
+    q = (stop - start) / step
+    # MATLAB's colon snaps `q` to the nearest integer when it is within a few ulps (so `0:0.1:1` has 11 elements
+    # and its last value is exactly 1) and truncates otherwise (`0:0.05:6.28` -> 126 elements, last 6.25).
+    nearest = np.round(q)
+    n = int(nearest) if abs(q - nearest) <= 3.0 * np.finfo(float).eps * max(abs(q), 1.0) else int(np.floor(q))
+    if n < 0:
+        return np.zeros(0, dtype=np.float64)
+    v = start + step * np.arange(n + 1, dtype=np.float64)
+    if n >= 1 and abs(v[-1] - stop) <= 3.0 * np.finfo(float).eps * max(abs(stop), 1.0):
+        v[-1] = stop
+    return v

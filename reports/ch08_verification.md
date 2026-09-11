@@ -1,6 +1,8 @@
 # Chapter 8 verification — Sea Ice Image Processing Applications (book pp. 175–194)
 
-Date 2026-09-10 · commit `a400a03` (`ch08: port — 9/9 .m ported, 8 scripts exit 0, MCD 0.0 vs the gold .mat, alpha 1.370359`)
+Date 2026-09-10 · verify phase at commit `a400a03` (`ch08: port — 9/9 .m ported, 8 scripts exit 0, MCD 0.0
+vs the gold .mat, alpha 1.370359`), **revised after the independent review** (`reports/ch08_review.md`, commit
+`46e6c21`): see the "Review revision" section for every item and its disposition.
 
 ## Environment
 
@@ -11,17 +13,29 @@ python 3.11.5 · numpy 2.4.6 · scipy 1.17.1 · scikit-image 0.26.0 · opencv 5.
 Toolboxes exercised and licensed on this host: Image Processing, **Optimization** (`lsqcurvefit`),
 **Mapping** (`polyxpoly`).
 
-Seven MATLAB sessions, all `status: ok` (`outputs/ch08/verify/refs_log.json`):
+**Eight** MATLAB sessions, all `status: ok` (`outputs/ch08/verify/refs_log.json`).  Three of them were
+re-run for the review revision (marked *): `misc` gained the real FSD colon case (N4), `model` was regenerated
+after one fixture was made **non-square** (S1), and `grow` is new (S4).
 
-| `.mat` | vars | seconds |
-|---|---|---|
-| `misc.mat` | 23 | 63.7 |
-| `fit.mat` | 19 | 56.3 |
-| `colorhist.mat` | 91 | 53.8 |
-| `model.mat` | 72 | 73.1 |
-| `orphan.mat` | 39 | 42.2 |
-| `window.mat` | 24 | 160.3 |
-| `mcd.mat` (+ `mcd_rgb.mat`) | 26 | 33.2 |
+| `.mat` | vars | seconds | |
+|---|---|---|---|
+| `misc.mat` | 26 | 213.0 | * re-run (N4; the host was loaded, hence 213 s against the first run's 63.7 s) |
+| `fit.mat` | 19 | 56.3 | |
+| `colorhist.mat` | 91 | 53.8 | |
+| `model.mat` | 72 | 64.0 | * re-run (S1: the `touching` fixture is now 80x137, not 80x80) |
+| `orphan.mat` | 39 | 42.2 | |
+| `window.mat` | 24 | 160.3 | |
+| `mcd.mat` (+ `mcd_rgb.mat`) | 26 | 33.2 | |
+| `grow.mat` | 19 | 57.9 | * **new** (S4: `size(rgbImage)` on two subsets of `IceImage.Floe`) |
+
+The `grow` session introduced **no new patch**: it calls the very same `ch08_pcbf_ref.m` copy the `mcd` session
+uses.  The patch set is unchanged from the one the review audited edit by edit — 122 edits in total
+(46 + 28 + 3 + 13 + 13 + 19), all graphics/plumbing.
+
+(`reference/ch08/probe.mat` — `has_map`, `has_opt`, `lsq_defaults`, `ver_str` — also sits in that folder but is
+**not** produced by `make_refs.py`: it is the one-off toolbox/licence probe run before the reference script was
+written, kept because it is the provenance of the `optimoptions` default table quoted below.  It is not one of
+the eight sessions above.  Review item N10.)
 
 ### Patches applied to the original `.m` files (all recorded verbatim in `reference/ch08/patches.json`)
 
@@ -55,7 +69,7 @@ Evidence levels: **L1** synthetic truth · **L2** MATLAB R2025a parity · **L3**
 | MATLAB file / function | Python | Evidence | Result | Parity | Notes |
 |---|---|---|---|---|---|
 | `MCD/main_WL_new.m` (67 l) | `ch08_applications.mcd_analysis`, `scripts/ch08_main_WL_new.py` | L2 `mcd.mat`, L3 `MCD_results.mat`, L4 | `Poly_Area`, `Poly_MCD`, `Raw_Area`, `Raw_MCD`, `Poly_counts/centers`, `Raw_counts/centers`, `count_error`, `color_M`, `N`, `Y_limi`, all three `caxis` limits: **max abs diff = 0.0** on all 2888 values / 100 bins | **exact** | `Raw_MCD` also matches the shipped `MCD_results.mat` at **0.0** |
-| `MCD/plot_color_bar_and_floe.m` (116 l) | `ch08_applications.plot_color_bar_and_floe`, `core.plotting.mcd_colorbar` | L2 `mcd.mat` + `mcd_rgb.mat`, L4 Figs. 8.19/8.20 | `counts`/`centers`/`index_all` **0.0**; the grown `rgbImage` **627×1114×3 with 0 differing bytes**, its size exactly MATLAB's; `Vertices`-branch `fill` coordinates (20 floes) **0.0**; `polyc` colours **0.0**; white-dot `dotxy` **0.0** in both branches | **exact** (arrays); **display** (the figures) | MATLAB never pre-allocates `rgbImage` — R17's grown-array claim is confirmed, both maxima are attained |
+| `MCD/plot_color_bar_and_floe.m` (116 l) | `ch08_applications.plot_color_bar_and_floe`, `core.plotting.mcd_colorbar` | L2 `mcd.mat` + `mcd_rgb.mat`, L4 Figs. 8.19/8.20 | `counts`/`centers`/`index_all` **0.0**; the grown `rgbImage` **627×1114×3 with 0 differing bytes**, its size exactly MATLAB's; `Vertices`-branch `fill` coordinates (20 floes) **0.0**; `polyc` colours **0.0**; white-dot `dotxy` **0.0** in both branches | **exact** (arrays); **display** (the figures) | R17: MATLAB never pre-allocates `rgbImage`. On the full field **both pixel maxima are attained**, so that run alone cannot tell "grown" from "pre-allocated" (review S4); the new `grow.mat` fixtures do: `Floe(1:50)` -> **627x1096x3** and the 50 floes inside `x<=900, y<=500` -> **489x865x3**, both reproduced exactly and byte-identically, and the `image_shape` override branch is now executed |
 | `MCD/fitting_iceFloes_distribution.m` (63 l) | `ch08_applications.cumulative_fsd_powerlaw`, `scripts/ch08_fitting_ice_floes_distribution.py` | L2 `fit.mat`, L4 α | `MCD`/`N_L` (Eq. 8.2) **0.0**; `eta` = `[11.85785671, 1.37035854]` vs MATLAB `[11.85785670, 1.37035854]` → **rel. diff 6.6e-10 / 2.4e-10 (10 s.f.)**; `resnorm` 2.2425018400 vs 2.2425018400 (rel. 5.9e-14); `exitflag` **3 = 3** | **near** | the file as shipped is unrunnable (erratum E1) |
 | `MCD/PowerLaw_fitting_method_and_plotting.m` (34 l, orphan) | `ch08_applications.power_law_fit` | L2 `orphan.mat` | `eta` agrees to ≤ 4.1e-5 relative on 3 fixtures (best 3.3e-10); `resnorm` to ≤ 1e-6 relative; `exitflag` identical (1/3/3) | **near** | no caller exists anywhere in `MATLAB_ROOT` |
 | `MCD/three_fitting_method_and_plotting.m` (65 l, commented call site) | `ch08_applications.three_distribution_fits`, `scripts/ch08_three_fitting.py` | L2 `orphan.mat` | plain power law ≤ 4.1e-5 rel.; Weibull `resnorm` ≤ 1e-6 rel. of MATLAB's; **upper-truncated power law: `ε₃` differs by up to 3 orders of magnitude** — see deviation D2 | **near** | its only call site (`fitting_iceFloes_distribution.m:37`) is commented out |
@@ -70,12 +84,24 @@ Evidence levels: **L1** synthetic truth · **L2** MATLAB R2025a parity · **L3**
 | **new** `core.icestruct` (Appendix B) | — | L1, L2, L3 | field-by-field against MATLAB (above) plus a `save_iceimage_mat`/`load_iceimage_mat` round-trip; `overlap_graph` = **1106 / 1171 / 1171 / 544**, all three symmetry checks `True` | **exact** | |
 | **new** `core.plotting.matlab_jet` | — | L2 `misc.mat` | `jet(1)`, `jet(3)`, `jet(4)`, `jet(7)`, `jet(30)`, `jet(255)`: **max abs diff = 0.0** | **exact** | the porter's recorded `mod(m,4)` vs `mod(m,2)` deviation is a *historical* note only — R2025a uses `mod(m,4)==1` and `jet(255)` matches; a test computes the old rule and asserts it differs (D3) |
 | **new** `core.plotting.mcd_colorbar` | — | L2 (its `caxis` limits) / L4 | `caxis([centers(1) centers(30)]) = [1, 30]` reproduced in all three call sites; the book's printed ticks 5,10,…,≥30 follow | **display** | drawing only; the numbers behind it are exact |
-| **new** `ch08_applications.matlab_colon` | — | L1, L2 `misc.mat` | `0:0.05:6.28` → **126** elements, last **6.25** (MATLAB agrees exactly on both); integer colons `20:70:3500` and `21:79:3971` **bit-exact** | **near** | ≤ **1 ulp** on 30 of the 126 non-integer angles (D1) |
-| §8.1.2 Otsu / k-means ice concentration (text only) | `ch08_applications.shipborne_ice_concentration`, `scripts/ch08_ice_concentration_series.py` | L1 only | method reuses ch03 `graythresh`/`im2bw` (`exact`) and ch06 `kmeans_lloyd` (`approx`); on a synthetic two-tone frame k=2 k-means and Otsu agree on **> 99 %** of pixels and k=3/top-2 is measurably higher | **unverified** as a §8.1 *result* | see Open item O1 |
-| §8.2 pipeline driver (no `.m` in `ch8/`) | `ch08_applications.sea_ice_field` | L4 | **does not reproduce the printed 498 floes / 201 brash** — see Open item O2 | **unverified** | |
+| **new** `core.matlab_compat.matlab_colon` (re-exported as `ch08_applications.matlab_colon`) | — | L1, L2 `misc.mat`, `fit.mat` | `0:0.05:6.28` → **126** elements, last **6.25** (MATLAB agrees exactly on both); integer colons `20:70:3500`, `21:79:3971` **and the real FSD line `21:79:3979`** (51 elements, last **3971** — the stated endpoint is never reached) **bit-exact**; `x_plot = min(MCD):0.001:max(MCD)*1.5` **119 822** elements, ≤ 1 ulp | **near** | ≤ **1 ulp** on 30 of the 126 non-integer angles (D1). Moved to `core/matlab_compat.py` (review S5); `test_matlab_colon_lives_in_core_and_is_re_exported` asserts the two names are the same object |
+| §8.1.2 Otsu / k-means ice concentration (text only) | `ch08_applications.shipborne_ice_concentration`, `scripts/ch08_ice_concentration_series.py` | L1 only | **methods**: ch03 `graythresh`/`im2bw` (`exact`); k-means now has two branches (review S6) — `impl='authors'` (**the default**) is ch03's port of the authors' own `MATLAB_ROOT/ch3/kmeans.m`, deterministic, parity **exact**, and `impl='lloyd'` is the seeded k-means++/Lloyd routine, parity **approx**. Both pinned on the new ramp fixture: k=2 centres `[45.746939, 186.758134]` in *both* branches → IC **41.3021 %** = Otsu's, masks agree **100.00 %**; k=3/top-2 `authors` `[35.364295, 122.842687, 209.718880]` → **51.1042 %** vs `lloyd` (seed 0) `[34.834807, 120.788106, 208.897883]` → **51.6979 %** | **unverified** as a §8.1 *result* (the *method* is `exact` with the default `impl`) | see Open item O1 |
+| §8.2 pipeline driver (no `.m` in `ch8/`) | `ch08_applications.sea_ice_field` | L1 (smoke), L4 | **does not reproduce the printed 498 floes / 201 brash** — see Open item O2. The function itself is now **executed by a test** (review S7): `test_sea_ice_field_runs_the_ch07_pipeline` runs it on a 160x240 crop of `sea_ice_test.jpg` (40 floes / 36 brash, coverages summing to 1.0, `index_floe` carrying exactly the 21 174 floe pixels) and exercises **both** cache branches (write, then reuse → identical arrays) | **unverified** | its two constituents are ch07's `sea_ice_edge_detection` / `ice_shape_enhancement`, verified there |
 
-**Parity counts (17 rows with a label): exact 10 · near 4 · approx 0 · reimplemented 0 · unverified 2 · deferred 0**
-(plus 1 row labelled `display` for `mcd_colorbar`; `plot_color_bar_and_floe` is counted once, as `exact`).
+**Parity counts — 19 rows: exact 10 · near 5 · approx 0 · reimplemented 0 · unverified 2 · display 1 ·
+deferred 0, plus 1 mixed row.**  Itemised so the count can be checked against the table above:
+9 rows are pure `exact` (`main_WL_new`, `SeaIce_Image_Structure`, `color_hist`, `color_hist_comparison`,
+`mean_caliper_diameter`, `cumulative_size_distribution`, `core.fitting.{power_law, truncated_power_law,
+weibull_survival}`, `core.icestruct`, `matlab_jet`) and `plot_color_bar_and_floe` is `exact` for its arrays and
+`display` for its figures — 10 exact; 5 rows are pure `near` (`fitting_iceFloes_distribution`,
+`PowerLaw_fitting_method_and_plotting`, `three_fitting_method_and_plotting`, `core.fitting.lsqcurvefit`,
+`matlab_colon`); 1 is pure `display` (`mcd_colorbar`); 2 are `unverified` (§8.1's results, §8.2's counts); and
+`sea_ice_model` is **mixed** — `exact` for `Area`/`Center`/`Perimeter`/`Radius`/`Intersect`, `near` for
+`Vertices` (hull vertex *order*).  9 + 1 + 5 + 1 + 2 + 1 = 19.
+(Review item S3: the previous wording said "17 rows · near 4", which did not match this table.)
+The review revision moved **no label**: the §8.1 row's parity *label* is still `unverified` (it is a statement
+about §8.1's printed *results*), even though its Result cell now says that the **method** is `exact` under the
+new default `impl='authors'` and `approx` under `impl='lloyd'` (review item S6).  Counts therefore stay at 19.
 The `deferred` item of this chapter is the Appendix-A.1.2 linear rectification, which belongs to ch10 and is
 not a ch08 port-plan row.
 
@@ -95,7 +121,7 @@ Comparison PNGs in `reports/ch08_verification/figures/` (git-ignored, CLAUDE.md 
 | Fig. 8.12 (p. 187) | `fig_8_12_compare.png` | Same two-panel structure — a dense packing of white convex-hull polygons over black, and a sparse field of small bright disks — at the same aspect; the printed (a) panel is denser, consistent with the larger floe count. |
 | Fig. 8.13 (p. 187) | `fig_8_13_compare.png` | Our close-up shows exactly the printed content: closed polygon boundaries drawn over the floes with the identified centres (`*`) and the modelled centres (`+`) nearly coincident; the crop region is our choice (rows 409–609, cols 88–288) because the book does not state it. |
 | Fig. 8.14 (p. 188) | `fig_8_14_compare.png` | Same shape as the printed polygonized histogram (a taller first bin, a shifted body, a thin tail); heights differ for the same reason as Fig. 8.11. |
-| Fig. 8.15 (p. 188) | `fig_8_15_compare.png` | Same character: a signed difference oscillating within roughly ±10 counts about zero, largest at the small-size end — the printed panel is within ±5. Produced with `--max-x 3500` to match the printed colour bar (erratum E3). |
+| Fig. 8.15 (p. 188) | `fig_8_15_compare.png` | Same character: a signed difference oscillating within roughly ±10 counts about zero, largest at the small-size end — the printed panel is within ±5. **Sign checked, not just shape:** our first bin is `z_d[0] = +10` (positive) and the book panel's leftmost bar also rises above the zero line, so the plate plots `z − z0` = polygonized − identified, the direction the code computes and the *opposite* of the p. 188 sentence (erratum E11). A global sign flip would now be caught. Produced with `--max-x 3500` to match the printed colour bar (erratum E3). |
 | Figs. 8.1–8.7, 8.16–8.18 | — | **Not reproducible**: third-party photographs, a schematic, an external DEM simulator, and the raw §8.3 frame, none of which ship (O1, O3). |
 
 ---
@@ -114,7 +140,7 @@ Comparison PNGs in `reports/ch08_verification/figures/` (git-ignored, CLAUDE.md 
 | N9 | Fig. 8.10 ticks 1, 177, 391, 664, 1040, 1650, 3483 | **not reproduced**: our §8.2 run gives 2, 173, 379, 640, 993, 1544, **2870** | our §8.2 pipeline on `sea_ice_test.jpg` (433 floes + 290 brash) | **not reproducible with the shipped parameters.** This list *is* data-dependent: enumerating every `(C_min, C_max)` that yields the printed list gives `C_min = 9` uniquely and `C_max ∈ {9693…9698}`, i.e. the book's smallest piece is **exactly 1 px** and its largest is in **[3484, 3503] px**; ours are 2 px and 2871 px. Independent confirmation of O2. |
 | N7 | 76.73 / 0.46 / 9.05 / 13.76 % | 76.23 / 0.99 / 9.21 / 13.57 % | our §8.2 pipeline on ch07's `sea_ice_test.jpg`, ch07's shipped `sea_ice_demo.m` parameters, `kmeans_lloyd(seed=0)` | **not reproducible** — the authors' §8.2 parameters are not printed (O2) |
 | N8 | 498 ice floes, 201 brash pieces | **433 floes / 290 brash** | same input as N7. (ch07's MATLAB **reference** stage on the same image gave 433 / 274 — a different number from a different input stage, recorded here so the two are never mixed.) | **not reproducible** (O2) |
-| §8.1 p. 179 | "k = 2 k-means ≈ Otsu" | on a synthetic two-tone frame with a mid-grey patch the two masks agree on **> 99 %** of pixels; k = 3 with ice = the two brightest clusters is **higher** by > 2 pp, which is the mechanism the book gives for Fig. 8.5 | synthetic fixture | **reproduced as a relation**, not as the book's numbers (no data) |
+| §8.1 p. 179 | "k = 2 k-means ≈ Otsu" | **on a fixture built so that the agreement is not forced** (review S4's lesson applied to §8.1): water 30 / a grey ramp covering *every* level 55…205 / dry ice 225, ±5 noise. Otsu's threshold is **116**, the k = 2 centre midpoint is **116.2525** — *different numbers* — and the masks nevertheless agree on **100.00 %** of pixels (IC **41.3021 %** both). The fixture discriminates: 11 pixels sit at level 116 and 30 at 117, so a one-level move of either threshold would break the agreement. k = 3 with ice = the two brightest clusters is **51.1042 %**, higher by 9.8 pp — the mechanism the book gives for Fig. 8.5 | synthetic fixture (`_ramp_frame`) | **reproduced as a relation**, not as the book's numbers (no data). The earlier two-tone fixture had a 150-level empty gap in its histogram, which makes *any* agreement inevitable; it is kept only for the trivial 50 %-Otsu check |
 | N1–N6, N11–N13, N20, N21 | camera/platform specifications and code literals | transcribed; `length_over_Pixel = 1.1794`, `color_limit_N = 30`, `x_bin = 1:100` used verbatim | — | context |
 
 ---
@@ -125,7 +151,12 @@ Comparison PNGs in `reports/ch08_verification/figures/` (git-ignored, CLAUDE.md 
 **length (126) and last value (6.25) exactly**, but 30 of the 126 angles differ by exactly one ulp (max abs
 diff 8.9e-16; MATLAB's colon is more accurate than `start + k·step`).  Bounded: substituting MATLAB's own `t`
 vector into `sea_ice_model` changes the brash raster by **0 px** and the circle coordinates by < 1e-14, and
-the two integer colon vectors this chapter uses (`20:70:3500`, `21:79:3971`) are **bit-exact**.  Label `near`.
+the integer colon vectors this chapter uses (`20:70:3500`, `21:79:3971` and the FSD line's actual
+`21:79:3979`) are **bit-exact**.  Review item N4: the fixture originally pinned `21:79:3971`, whose `(b-a)/d`
+is exactly 50, so it exercised none of the truncation logic; the line `SeaIce_Image_Structure.m:98` really
+evaluates for the shipped field is `21:79:3979` with `(b-a)/d = 50.1`, and MATLAB's own vector confirms **51**
+elements ending at **3971** — the stated endpoint is never reached.  Both are now asserted, as is the
+119 822-element `x_plot` of `fitting_iceFloes_distribution.m:45` (≤ 1 ulp).  Label `near`.
 
 **D2 — the upper-truncated power law lands in a different point of the same flat valley.**
 `three_fitting_method_and_plotting.m`'s first fit has an *unidentifiable* third parameter: as `ε₃ → ∞` the
@@ -153,17 +184,28 @@ the rule.  No open item.
 **D4 — `sea_ice_model`'s `brash(i).Center` field holds a different object from MATLAB's when `Center` is
 `k×2`.**  MATLAB's line 143 stores `c = cat(1, brash_ice(i).Center)` — the **whole matrix** — while the port
 stores the pair `(c(1), c(2))` it is read as everywhere downstream.  Measured on the `center2x2` fixture:
-MATLAB's `cat(1, brash.Center)` is 4×2 for 3 pieces, ours is 3×2.  Functionally inert: every *use* of that
+MATLAB's `cat(1, brash.Center)` is **4×2 for 3 pieces** — `[[100, 300], [200, 400], [100, 200], [100, 300]]` —
+while ours is 3×2 (`[[100, 200], [100, 200], [100, 300]]`).  Review item N9: this is now **asserted**
+(`test_brash_center_field_is_the_documented_deviation_D4` on the reference variable `center2x2_bC`) instead of
+resting on a human loading the `.mat`.  Functionally inert: every *use* of that
 field (`sea_ice_model.m` lines 150–153, and `SeaIce_Image_Structure.m` line 34, which copies
 `brash_ice(i).Center` rather than `brash(i).Center`) reads `c(1)`, `c(2)` again, and both the circle raster and
 the Appendix-B `Brash.Center` are identical to MATLAB's.  Recorded, not filed as a defect.
 
 **D5 — the AABB prefilter, the cropped `roipoly` and the fast crossing test are speed-ups, proven inert.**
-On 60 real floes and 60 real brash pieces, `prefilter=True/False`, `raster_crop=True/False` and
-`intersect_impl='fast'/'polyxpoly'` give **identical** `Intersect` lists and **0 px** raster differences, and
-the prefilter demonstrably skipped work (900 of 160 262 pairs reached the crossing test on the 227/240 window;
-13 466 of 28 276 408 on the whole field).  The equivalence is also an argument, not just a measurement: a
-common point of two polylines lies inside both AABBs, so disjoint AABBs cannot cross.
+Two separate measurements, on two different inputs — do not merge them (review item N8).
+**(a) Flag-by-flag equivalence, on a 60-floe + 60-brash subset:** `prefilter=True/False`,
+`raster_crop=True/False` and `intersect_impl='fast'/'polyxpoly'` give **identical** `Intersect` lists and
+**0 px** raster differences in every combination.
+**(b) The prefilter demonstrably skipped work, on the full runs:** 900 of 160 262 candidate pairs
+(= 227·226 + 2·227·240) reached the crossing test on the 227/240 MATLAB-parity window, and 13 466 of
+28 276 408 on the whole 2 888/3 452 field.  The defaults used for (b) are the configuration
+`test_sea_ice_model_parity_on_a_real_window` compares against MATLAB's literal loop, so (b) is the stronger
+evidence: the speed-ups are inert on exactly the run that is pinned at 0 px against MATLAB.
+The equivalence is also an argument, not just a measurement: a common point of two polylines lies inside both
+AABBs, so disjoint AABBs cannot cross.  (An independent 4 000-case randomised check of `_segments_cross`
+against `core.polygon.polyxpoly` on integer-lattice rings, including collinear and single-point-touch cases,
+agreed 4 000/4 000 — `reports/ch08_review.md`.)
 
 **D6 — `colorbar_area_ticks` returns one tick where MATLAB returns none when `d = 0`.**  Inherited from ch07
 (review S6(a)); it cannot arise for `color_hist*.m`, whose `d = fix((9698−198)/8) = 1187` is a constant.
@@ -244,6 +286,20 @@ genuine limitation of the published algorithm, faithfully reproduced.
 `numel` and `t(end)` confirm it, so every brash "circle" in the book's results is an open 125-gon with a
 0.033 rad gap.
 
+**E11 (new, review item S2, minor) — p. 188 states the Fig. 8.15 subtraction in the wrong order.**  The text
+reads *"By subtracting the histograms of Figure 8.12(a) from Figure 8.10, we get the floe size distribution
+error"* (`chapters/ch08.txt` l. 364-365).  Figure 8.11 is the histogram *of* Fig. 8.10 (the identified field)
+and Figure 8.14 is the histogram *of* Fig. 8.12(a) (the polygonized field), so the sentence says
+**identified − polygonized**.  The shipped code computes the opposite: `color_hist_comparison.m` l. 29 is
+`z_d = z - z0` with `z = hist(floe.Area)` (polygonized, Fig. 8.14) and `z0 = hist(ice_floe.Area)` (identified,
+Fig. 8.11), i.e. **polygonized − identified**.  The *printed figure* follows the code, not the sentence: in
+`reports/ch08_verification/figures/fig_8_15_compare.png` the book panel's leftmost bar rises **above** the
+zero line, the same sign as our `z_d[0] = +10`.  Fig. 8.15's own caption ("Error between the floe size
+distributions of Figure 8.11 and Figure 8.14") is order-neutral and correct.  **The code and the plate are the
+authority; the body sentence is the erratum.**  The port follows the code
+(`seaice/ch08_applications.py` `color_hist_comparison`, docstring: "the polygon histogram *minus* the pixel
+histogram").
+
 ---
 
 ## Open items
@@ -252,9 +308,13 @@ genuine limitation of the published algorithm, faithfully reproduced.
 calibration, rectified frames, the 6-hour Otsu-vs-k-means concentration series, Events #1/#2) are credited to
 Lu, Zhang, Lubbad, Løset & Skjetne (OTC 2016) and neither the images nor a `.m` file ship.
 `shipborne_ice_concentration` is therefore verified only as a *method* (L1 on synthetic frames, and its
-constituents `graythresh`/`im2bw` are `exact` from ch03 and `kmeans_lloyd` `approx` from ch06); every number
-the book prints for §8.1 stays `unverified`.  The linear 4-corner rectification of Appendix A.1.2 that
-precedes it is **deferred to ch10** — do not write a second rectifier here.
+constituents `graythresh`/`im2bw` are `exact` from ch03 and, after review item S6, its **default** k-means is
+the authors' own deterministic `kmeans_gray` — `exact` from ch03 — with the seeded `kmeans_lloyd` (`approx`)
+kept behind `impl='lloyd'`); every number the book prints for §8.1 stays `unverified`.  Both branches are
+pinned by `test_shipborne_kmeans_impl_branches_are_both_pinned`, and the fixture they run on was rebuilt so
+that the "k = 2 ≈ Otsu" agreement is not forced by an empty band in the histogram (see the Review revision).
+The linear 4-corner rectification of Appendix A.1.2 that precedes it is **deferred to ch10** — do not write a
+second rectifier here.
 `scripts/ch08_ice_concentration_series.py` prints `SKIP` without a `--frames` folder.
 
 **O2 — §8.2's printed counts do not reproduce (`unverified`), and the authors' parameters are not printed.**
@@ -290,8 +350,22 @@ against the port come from the **verbatim** files.
 
 ## Test suite
 
-`tests/test_ch08.py` — **79 tests, 79 passed** (`.venv/Scripts/python.exe -m pytest tests/test_ch08.py -q
--p no:cacheprovider`), 68 parity/L1/L3/L4 tests in 46 s plus 11 headless script runs in 83 s.
+`tests/test_ch08.py` — **88 tests, 88 passed** in 84.95 s (`.venv/Scripts/python.exe -m pytest
+tests/test_ch08.py -q -p no:cacheprovider`), 77 parity/L1/L3/L4 tests plus 11 headless script runs.
+The nine tests added in the review revision are:
+
+| test | item | what it pins |
+|---|---|---|
+| `test_sea_ice_image_structure_parity[touching]` (extended) | S1 | the (row, col) ↔ (x, y) mapping, on an **80 × 137** image |
+| `test_rgb_image_is_grown_not_preallocated[g50]` / `[gin]` | S4 | `size(rgbImage)` = **627×1096×3** / **489×865×3**, 0 differing bytes |
+| `test_image_shape_override_preallocates_without_moving_a_pixel` | S4 | the `image_shape` branch (previously never executed) |
+| `test_sea_ice_field_runs_the_ch07_pipeline` | S7 | the §8.2 driver + both cache branches |
+| `test_matlab_colon_lives_in_core_and_is_re_exported` | S5 | `ch8.matlab_colon is core.matlab_compat.matlab_colon` |
+| `test_fsd_colon_endpoint_is_truncated_parity` | N4 | `21:79:3979` → 51 elements ending **3971** |
+| `test_x_plot_colon_parity` | N9 | the 119 822-element `x_plot`, ≤ 1 ulp |
+| `test_brash_center_field_is_the_documented_deviation_D4` | N9 | `center2x2_bC` is **4×2 for 3 pieces** (D4) |
+| `test_shipborne_kmeans_impl_branches_are_both_pinned` | S6 | both k-means branches, and that they are distinguishable |
+
 Test-design rules followed (ch07's recorded lessons):
 
 * every "fixed defect" is pinned **in both directions** — `matlab_jet`'s old `mod(m,2)` rule is computed
@@ -306,11 +380,21 @@ Test-design rules followed (ch07's recorded lessons):
   parity evidence;
 * every cited measurement names its input (the parity table's `sea_ice_model` row separates the 227/240 L2
   window from the 2888/3452 L3 field; O2 separates our pipeline's counts from ch07's reference-stage counts);
-* the prefilter test asserts that the prefilter actually *skipped* work, so the fixture cannot pass vacuously.
+* the prefilter test asserts that the prefilter actually *skipped* work, so the fixture cannot pass vacuously;
+* **(new, S1/S4)** the two fixtures that could not distinguish a bug from its fix were replaced rather than
+  re-asserted: one `sea_ice_model` fixture is now **non-square** (80 × 137) and two new `plot_color_bar_and_floe`
+  fixtures paint floes that reach neither the last row nor the last column.  Both were verified to discriminate
+  — swapping `NumPix_x`/`NumPix_y` in `seaice/ch08_applications.py:968` is *accepted* by the two square fixtures
+  and **rejected** by the non-square one (`PixScale_x` 0.625 vs MATLAB's 50/137 = 0.36496350364963503); the swap
+  was applied locally, observed to fail, and reverted (the file's MD5 is unchanged, `4e2adf8ced39f2abc015b1eb3d2def67`);
+* **(new, S6)** the §8.1 k-means fixture is a ramp rather than a two-tone frame, because a two-tone histogram
+  makes "k = 2 ≈ Otsu" true for *every* threshold — ch07's saturating-agreement lesson applied to a claim the
+  chapter makes in words.
 
-Full suite `.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider` → **`1928 passed, 2 skipped,
-1 xfailed in 1 321.84 s`** (`outputs/ch08/verify/pytest_full.txt`; 1849 + 79 = 1928) = the ch02–ch07 baseline
-(**1849 passed, 2 skipped, 1 xfailed** — the surviving xfail is ch03's) **unchanged** plus the 79 ch08 tests.
+Full suite `.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider` → **`1937 passed, 2 skipped,
+1 xfailed, 15 warnings in 1 622.45 s`** (`outputs/ch08/verify/pytest_full.txt`, re-run after the review
+revision; 1849 + 88 = 1937) = the ch02–ch07 baseline (**1849 passed, 2 skipped, 1 xfailed** — the surviving
+xfail is ch03's) **unchanged** plus the 88 ch08 tests.  (The verify phase measured 1928 = 1849 + 79.)
 **No regression.**  15 warnings: the 14 pre-existing ch03/ch04 pytest deprecations ch06/ch07 reported, plus one
 new `RuntimeWarning: invalid value encountered in power` raised inside
 `core.fitting.weibull_survival` during `test_three_distribution_fits_parity_on_fixtures`: the trust-region
@@ -321,10 +405,68 @@ port and MATLAB could in principle diverge on a *rejected* trial point rather th
 
 ---
 
+## Review revision (`reports/ch08_review.md`, 2026-09-10, commit `46e6c21`)
+
+The independent review found **0 must-fix**, 7 should-fix and 10 nits.  Every item and its disposition, so this
+report is a complete record of what changed after the verify phase:
+
+| item | what it said | disposition | by |
+|---|---|---|---|
+| **S1** | the Appendix-B (row,col)↔(x,y) mapping is untested — all four fixtures are square | **applied.** The `touching` fixture is now **80 rows × 137 columns**; `model.mat` was regenerated in MATLAB R2025a (`NumPix_x = 137`, `NumPix_y = 80`, `PixScale_x = 50/137`, `PixScale_y = 18/80`) and `test_sea_ice_image_structure_parity` asserts the mapping *and* that the swapped variant differs. **Verified by doing the swap:** with the swap, the two square fixtures still pass and `touching` **fails** (`PixScale_x` 0.625 vs MATLAB's 0.36496350364963503); the edit was reverted and `seaice/ch08_applications.py` is byte-identical to the porter's version (MD5 `4e2adf8ced39f2abc015b1eb3d2def67`) | verifier |
+| **S2** | p. 188 states the Fig. 8.15 subtraction in the wrong order, and nothing records it | **applied** — erratum **E11**, `analysis/ch08.md:207` corrected, the Fig. 8.15 verdict now states the sign of the first bin | main session |
+| **S3** | the parity counts did not match the table | **applied** — recounted: **19 rows**, exact 10 · near 5 · display 1 · unverified 2 · 1 mixed. Unchanged by this revision (no label moved) | main session |
+| **S4** | R17's mitigation was never carried out; the "grown array" claim cannot be evidence where both maxima are attained | **applied.** New MATLAB session `grow.mat` runs `ch08_pcbf_ref` on two subsets of the *same* `IceImage.Floe` struct array: `Floe(1:50)` → `size(rgbImage)` = **627×1096×3** and the 50 floes inside `x ≤ 900, y ≤ 500` → **489×865×3**, i.e. strictly smaller than the 627×1114 image in one and in **both** axes respectively. Our arrays match those sizes exactly and the painted maps are byte-identical (0 differing bytes of 2 061 576 and 1 268 955). The `image_shape` override branch is exercised by a separate test. The parity-table sentence that called the rule "confirmed" is replaced | verifier |
+| **S5** | `matlab_colon` is a general primitive living in a chapter module (rule 9) | **applied** — moved to `seaice/core/matlab_compat.py`, re-exported from `ch08_applications`; a test asserts the two names are the *same object* | porter (+ verifier test) |
+| **S6** | §8.1 used ch06's seeded Lloyd where the book's own §3.2 k-means exists | **applied** — `shipborne_ice_concentration(..., impl='authors')` is now the default (`core.clustering.kmeans_gray`, the authors' `ch3/kmeans.m`, deterministic, parity **exact**); `impl='lloyd'` keeps the seeded path (**approx**). Both branches are pinned with numbers (below) | porter (+ verifier test) |
+| **S7** | `sea_ice_field`, the §8.2 driver, is executed by no test | **applied** — `test_sea_ice_field_runs_the_ch07_pipeline` runs it on a 160×240 crop of `sea_ice_test.jpg` (~4 s): 40 floes / 36 brash, `index_floe` carrying exactly the 21 174 floe pixels, coverages summing to 1.0, and **both** cache branches (write then reuse → identical arrays). Its parity label stays **unverified** (O2 is about the counts) | verifier |
+| **N1** | `matlab_jet`'s "Display only." contradicts its own next paragraph | **applied** — sentence dropped | porter |
+| **N2** | over-tight `polygeom ≤ 1e-12` in a docstring | **applied** — now quotes 1.8e-12 / the test's 1e-11 | porter |
+| **N3** | "minimum-area bounding polygon" should say **convex** | **applied** | porter |
+| **N4** | the colon fixture pinned `21:79:3971`, not the line the port evaluates | **applied** — `misc.mat` re-run with `21:79:3979`; MATLAB returns **51** elements ending at **3971** (`(b−a)/d = 50.1`, so the truncation rule really is exercised) and our vector is bit-identical | verifier |
+| **N5** | `Area` read C-order while `Center` is read column-major | **applied** — `ravel(order="F")[0]` in both places (inert on the shipped data) | porter |
+| **N6** | the script's white-dot expression differed from the M-file's (~1e-13) | **applied** — `scripts/ch08_main_WL_new.py` now writes `Y_limi*lop − centre*lop` | porter |
+| **N7** | stale pre-check `eta` in `analysis/ch08.md` | **applied** | main session |
+| **N8** | D5 mixed two inputs in one sentence | **applied** — D5 is now (a) the 60+60 flag-by-flag run and (b) the full-window/full-field prefilter counts | main session |
+| **N9** | unused reference variables; two carry real evidence | **applied for the two named**: `center2x2_bC` (deviation **D4** — MATLAB's `cat(1, brash.Center)` is **4×2 for 3 pieces**) and `x_plot` (**119 822** elements, ≤ 1 ulp) are now asserted. **The rest stay unasserted, deliberately:** `y_fit_powerlaw0`, `sorted_floe_size`, `a_sorted_floe_size`, `jac`, `out_iterations`/`funcCount`/`firstorderopt`, `legend_err` (quoted verbatim in erratum E1 but not machine-checked), `{tag}_bA` (except `center2x2_bA`), `{tag}_ver`, `ch_zs_`/`ch_izs_`/`ch_cf_`, `cc_color_`/`cc_cmin_`, `st_polyV`, `st_bCircle` — each is either a plotting by-product or a quantity already covered transitively by an asserted one; they are kept in the `.mat` files because re-running MATLAB is expensive | verifier |
+| **N10** | `probe.mat` is not produced by `make_refs.py` | **applied** — explained in the Environment section | main session |
+
+**Not applicable / deferred: none.**  No review item was declined.
+
+**Two measurements the revision adds, quoted here so they can be audited:**
+
+1. **The `impl` split (S6).**  On the ramp fixture `_ramp_frame()` (water 30 | a grey ramp covering every level
+   55…205 | dry ice 225, ±5 noise, 80×120 = 9 600 px):
+
+   | method | centres | ice concentration |
+   |---|---|---|
+   | Otsu (`graythresh` = 116/255) | — | **41.3021 %** |
+   | k = 2, `impl='authors'` | `[45.746939, 186.758134]` (midpoint **116.2525**) | **41.3021 %**, mask = Otsu's on **100.00 %** of pixels |
+   | k = 2, `impl='lloyd'` (seed 0) | identical to `authors` to 1e-9 | **41.3021 %** |
+   | k = 3 / top-2, `impl='authors'` | `[35.364295, 122.842687, 209.718880]` | **51.1042 %** |
+   | k = 3 / top-2, `impl='lloyd'` (seed 0) | `[34.834807, 120.788106, 208.897883]` | **51.6979 %** |
+
+   The k = 3 row is what makes the test meaningful: the two branches give **different** centres, so a test in
+   which `impl` silently routed both to the same routine would fail.  `'lloyd'` is also seed-dependent — seeds
+   0, 1 and 7 give three different centre triplets (seed 1 happens to land on the authors' answer) — while
+   `'authors'` has no RNG at all, which is the justification for the default change.
+   **On the degeneracy question:** the *previous* fixture (a two-tone frame plus a mid-grey patch) made the
+   k = 2 ≈ Otsu agreement **inevitable** — its histogram has a 150-level empty gap, so every threshold in that
+   gap produces the same mask.  The ramp fixture removes that: Otsu picks **116**, k-means' centre midpoint is
+   **116.2525**, they are *different thresholds*, and 11 / 30 pixels sit at levels 116 / 117, so a one-level
+   move would destroy the 100 % agreement.  The agreement is therefore a result, not an artefact — but note it
+   is still a statement about *this* synthetic frame; §8.1's own numbers remain **unverified** (O1).
+
+2. **The grown `rgbImage` (S4).**  `full_size = [627 1114]`; `size(rgbImage)` = `[627 1096 3]` for
+   `Floe(1:50)` and `[489 865 3]` for the inside-`x ≤ 900, y ≤ 500` subset, both reproduced exactly with
+   0 differing bytes.  The old assertion (`[627 1114 3]` on the full field) is kept, with a comment saying what
+   it can and cannot prove.
+
+---
+
 ## Verdict: **PASS**
 
-All nine `.m` files have a row and a MATLAB reference; all eight `scripts/ch08_*.py` exit 0; 79/79 chapter
-tests pass; the two `unverified` rows (§8.1's results, §8.2's printed counts) each have an explicit open item
+All nine `.m` files have a row and a MATLAB reference; all eight `scripts/ch08_*.py` exit 0; **88/88** chapter
+tests pass (79 from the verify phase + 9 added by the review revision); the two `unverified` rows (§8.1's results, §8.2's printed counts) each have an explicit open item
 (O1, O2) explaining exactly why no reference exists, and no tolerance was loosened anywhere.  The chapter's
 strongest evidence is that the §8.3 chain — `main_WL_new.m` → `plot_color_bar_and_floe.m` → Eq. (8.1) →
 Eq. (8.2)/(8.3) — is **bit-exact against MATLAB** down to the 627×1114×3 painted map, and that re-running

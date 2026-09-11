@@ -34,6 +34,7 @@ from seaice.core.fitting import (LsqOptions, MATLAB_LSQ_DEFAULTS, lsqcurvefit, o
                                  truncated_power_law, weibull_survival)
 from seaice.core.histogram import hist as mhist  # noqa: E402
 from seaice.core.icestruct import load_iceimage_mat, overlap_graph, save_iceimage_mat  # noqa: E402
+from seaice.core.matlab_compat import matlab_colon  # noqa: E402  (review S5: moved out of ch08)
 from seaice.core.plotting import matlab_jet  # noqa: E402
 from seaice.core.polygon import polygeom, polyxpoly  # noqa: E402
 from seaice.core.stats import cumulative_size_distribution, mean_caliper_diameter  # noqa: E402
@@ -162,6 +163,50 @@ def test_matlab_colon_parity():
     assert np.array_equal(ch8.matlab_colon(21, 79, 3971), flat(d, "colon_21_79_3971"))
 
 
+def test_matlab_colon_lives_in_core_and_is_re_exported():
+    """L1 — review item S5: the colon primitive now lives in ``core.matlab_compat``; ``ch8.matlab_colon`` is
+    the *same object*, so every existing call site and test keeps testing the one implementation."""
+    assert ch8.matlab_colon is matlab_colon
+    assert "matlab_colon" in ch8.__all__
+
+
+def test_fsd_colon_endpoint_is_truncated_parity():
+    """L2 — review item N4: the line ``SeaIce_Image_Structure.m`` line 98 really evaluates for the shipped
+    field is ``min_x : inter : max_x`` = **21:79:3979**, not ``21:79:3971``.
+
+    ``(3979-21)/79 = 50.1`` is **not** integral, so this case — unlike the 3971 one, whose quotient is exactly
+    50 — exercises the colon's truncation rule: MATLAB returns **51** elements ending at **3971**, i.e. the
+    stated endpoint 3979 is *never reached*.  Asserted against MATLAB's own vector and pinned in the other
+    direction (a rule that snapped the last element to `stop` would give 3979).
+    """
+    d = ref("misc")
+    ml = flat(d, "colon_21_79_3979")
+    ours = matlab_colon(21, 79, 3979)
+    assert int(scal(d, "colon_21_79_3979_n")) == 51 and scal(d, "colon_21_79_3979_last") == 3971.0
+    assert np.array_equal(ours, ml)
+    assert ours.size == 51 and ours[-1] == 3971.0 and ours[-1] != 3979.0
+    # ... and it is the vector the port feeds to `hist` for the shipped FSD (51 triplets, test below)
+    assert np.array_equal(ours, matlab_colon(21.0, float(np.trunc((3979 - 21) / 50)), 3979.0))
+
+
+def test_x_plot_colon_parity():
+    """L2 — review item N9: ``fitting_iceFloes_distribution.m`` line 45 ``x_plot = min(x):0.001:max(x)*1.5``.
+
+    119 822 elements with a non-integer step — by far the longest colon in the chapter and the only one whose
+    length is decided by floating-point rounding of ``(stop-start)/step``.  It was saved by ``make_refs.py``
+    but asserted by no test until now.
+    """
+    d = ref("fit")
+    ml = flat(d, "x_plot")
+    mcd = flat(d, "MCD")
+    ours = matlab_colon(mcd.min(), 0.001, mcd.max() * 1.5)
+    assert ours.size == ml.size == 119822
+    assert ours[0] == ml[0]
+    ulps = np.abs(ours.view(np.int64) - ml.view(np.int64))
+    assert ulps.max() <= 1, f"max {ulps.max()} ulp"
+    assert np.abs(ours - ml).max() <= 1e-13
+
+
 @needs_book
 def test_circle_angles_ulp_is_harmless():
     """L2 — replacing our ``t`` by MATLAB's own must change **nothing** in ``sea_ice_model`` (bounds the ulp)."""
@@ -278,7 +323,10 @@ def test_plot_color_bar_and_floe_pixels_branch_parity():
     """L2 — Figure 8.19: the grown ``rgbImage``, its size, the white-dot coordinates, all bit-exact."""
     d = ref("mcd")
     a = ch8.mcd_analysis(shipped_ice())
-    assert np.array_equal(flat(d, "rgb_size"), [627, 1114, 3])          # risk R17: MATLAB never pre-allocates
+    # Risk R17.  On the FULL field both pixel maxima are attained, so this assertion alone cannot distinguish
+    # "grown from the painted pixels" from "pre-allocated to the image size" (review item S4) — that is what
+    # `test_rgb_image_is_grown_not_preallocated` does on two subsets whose maxima are *not* attained.
+    assert np.array_equal(flat(d, "rgb_size"), [627, 1114, 3])
     assert a.raw.rgb_image.shape == (627, 1114, 3)
     p = REF / "mcd_rgb.mat"
     if p.exists():
@@ -306,6 +354,82 @@ def test_plot_color_bar_and_floe_vertices_branch_parity():
     dots = np.column_stack([a.poly.centres_xy[:, 0] * lop,
                             shipped_ice().Param.NumPix_y * lop - a.poly.centres_xy[:, 1] * lop])
     assert np.array_equal(np.asarray(d["Poly_dotxy"], dtype=np.float64), dots)
+
+
+def _grow_subset(ice, which: str):
+    """The two S4 subsets of ``IceImage.Floe`` — identical selection on both sides (``fixtures.grow_fixture``)."""
+    if which == "g50":
+        idx = np.arange(FX.GROW_FIRST_N)
+    else:
+        sel = FX.grow_fixture()
+        if sel is None:
+            pytest.skip("book data absent")
+        idx = sel
+    return [ice.Floe[int(i)] for i in idx]
+
+
+@needs_book
+@pytest.mark.parametrize("tag", ["g50", "gin"])
+def test_rgb_image_is_grown_not_preallocated(tag):
+    """L2 — review item S4: ``size(rgbImage)`` on floes that do **not** reach the last row/column.
+
+    ``plot_color_bar_and_floe.m`` line 79 never pre-allocates ``rgbImage``; MATLAB grows it from the
+    assignments, so its size is ``(max y, max x, 3)`` over the **painted** pixels.  On the shipped 2888-floe
+    field both maxima are attained (627x1114 = the image size), so that run — the one the report used to call
+    "confirmed" — cannot tell the grown rule from a pre-allocation.  These two subsets can:
+
+    * ``g50`` = ``IceImage.Floe(1:50)`` -> MATLAB returns **627 x 1096 x 3** (1096 < 1114 columns);
+    * ``gin`` = the 50 floes inside ``x <= 900, y <= 500`` -> **489 x 865 x 3**, strictly smaller in **both**
+      axes than the 627 x 1114 image.
+
+    Asserted: our size equals MATLAB's exactly, it is strictly smaller than the image, and every byte of the
+    painted map agrees.
+    """
+    d = ref("grow")
+    ice = shipped_ice()
+    pieces = _grow_subset(ice, tag)
+    mcd = mean_caliper_diameter(np.array([f.Area for f in pieces], dtype=np.float64), ch8.LENGTH_OVER_PIXEL)
+    assert np.array_equal(mcd, flat(d, f"{tag}_mcd"))            # main_WL_new.m lines 30-31 on the subset
+    r = ch8.plot_color_bar_and_floe(ch8.COLOR_LIMIT_N, mcd, ice.Param.NumPix_y, len(pieces), pieces,
+                                    ch8.LENGTH_OVER_PIXEL)
+    assert r.kind == "Pixels"
+    ml_size = flat(d, f"{tag}_size").astype(int)
+    full = flat(d, "full_size").astype(int)                      # [627, 1114]
+    assert np.array_equal(full, [627, 1114])
+    assert tuple(r.rgb_image.shape) == tuple(ml_size), f"{r.rgb_image.shape} vs MATLAB {ml_size}"
+    # the discriminating clause: MATLAB's array is NOT the image size
+    assert not np.array_equal(ml_size[:2], full), "fixture no longer discriminates grown from pre-allocated"
+    assert ml_size[1] < full[1]
+    if tag == "gin":
+        assert ml_size[0] < full[0] and ml_size[1] < full[1]     # strictly smaller in BOTH axes
+    py = np.clip(np.round(r.rgb_image * 255), 0, 255).astype(np.uint8)
+    assert int((np.asarray(d[f"{tag}_rgb_u8"]) != py).sum()) == 0
+    assert np.array_equal(r.counts, flat(d, f"{tag}_counts"))
+    assert np.array_equal(r.centers, flat(d, f"{tag}_centers"))
+    assert np.array_equal(r.color_index.astype(float), flat(d, f"{tag}_index"))
+    assert np.array_equal(r.centres_xy, np.asarray(d[f"{tag}_centre"], dtype=np.float64))
+
+
+@needs_book
+def test_image_shape_override_preallocates_without_moving_a_pixel():
+    """L1 — the ``image_shape`` override branch (never executed before this test, review item S4).
+
+    Forcing the full image size must give exactly that array and leave the painted content unchanged inside
+    the grown sub-window — i.e. the override changes the canvas, not the drawing.
+    """
+    ice = shipped_ice()
+    pieces = _grow_subset(ice, "gin")
+    mcd = mean_caliper_diameter(np.array([f.Area for f in pieces], dtype=np.float64), ch8.LENGTH_OVER_PIXEL)
+    grown = ch8.plot_color_bar_and_floe(ch8.COLOR_LIMIT_N, mcd, ice.Param.NumPix_y, len(pieces), pieces,
+                                        ch8.LENGTH_OVER_PIXEL)
+    forced = ch8.plot_color_bar_and_floe(ch8.COLOR_LIMIT_N, mcd, ice.Param.NumPix_y, len(pieces), pieces,
+                                         ch8.LENGTH_OVER_PIXEL, image_shape=(627, 1114))
+    assert forced.rgb_image.shape == (627, 1114, 3)
+    assert grown.rgb_image.shape == (489, 865, 3)
+    h, w = grown.rgb_image.shape[:2]
+    assert np.array_equal(forced.rgb_image[:h, :w], grown.rgb_image)
+    assert float(forced.rgb_image[h:, :].max()) == 0.0 and float(forced.rgb_image[:, w:].max()) == 0.0
+    assert np.array_equal(forced.color_index, grown.color_index)
 
 
 @needs_book
@@ -480,6 +604,30 @@ def test_matlab_c1c2_reads_a_2x2_center_column_major():
     c = np.array([[100.0, 300.0], [200.0, 400.0]])
     assert ch8._matlab_c1c2(c) == (100.0, 200.0)
     assert ch8._matlab_c1c2(c) != (100.0, 300.0), "the naive row reading must NOT be what the port does"
+
+
+def test_brash_center_field_is_the_documented_deviation_D4():
+    """L2 — review item N9: assert the reference variable that deviation **D4** rests on (``center2x2_bC``).
+
+    ``sea_ice_model.m`` line 143 stores ``c = cat(1, brash_ice(i).Center)`` — the *whole matrix* — so for the
+    ``center2x2`` fixture (3 brash pieces, the first with a 2x2 ``Center``) MATLAB's
+    ``cat(1, brash.Center)`` is **4x2**, not 3x2.  The port stores the **pair** ``(c(1), c(2))`` that every
+    downstream line re-reads, so ours is 3x2.  D4's claim was true but rested on a human loading the ``.mat``.
+    """
+    d = ref("model")
+    bC = np.asarray(d["center2x2_bC"], dtype=np.float64)
+    assert bC.shape == (4, 2), bC.shape                       # 4 rows for 3 pieces = the 2x2 Center
+    assert np.array_equal(bC, [[100.0, 300.0], [200.0, 400.0], [100.0, 200.0], [100.0, 300.0]])
+    fx = FX.model_fixtures()["center2x2"]
+    ifl, ibr = pieces_of(fx)
+    m = ch8.sea_ice_model(ifl, ibr, np.zeros(fx["shape"]))
+    ours = np.array([np.asarray(b.Center, dtype=np.float64).ravel() for b in m.brash])
+    assert ours.shape == (3, 2)
+    assert np.array_equal(ours[0], [100.0, 200.0])            # the `c(1), c(2)` pair, not the matrix
+    # ... and the value MATLAB itself *uses* (rows 1 and 3 of its own stack read as c(1), c(2)) is the same
+    assert (bC.ravel(order="F")[0], bC.ravel(order="F")[1]) == (100.0, 200.0)
+    # the shipped Brash.Center of the Appendix-B structure is the pair too (D4: functionally inert)
+    assert np.array_equal(np.asarray(d["center2x2_bA"], dtype=np.float64).ravel(), [100.0, 100.0, 100.0])
 
 
 def test_crosses_containment_is_not_detected():
@@ -733,6 +881,21 @@ def test_sea_ice_image_structure_parity(name):
         assert float(getattr(ice.Param, f)) == float(getattr(P, f)), f
     for f in ("Location", "Creator"):
         assert getattr(ice.Param, f) == str(getattr(P, f))
+    # Review item S1 — the (row, col) <-> (x, y) mapping of lines 50-51.  On a square image swapping the two
+    # names leaves every assertion above true; the `touching` fixture is 80 rows x 137 columns, so MATLAB's
+    # own NumPix_x = 137 / NumPix_y = 80 (and PixScale_x = 50/137, PixScale_y = 18/80) pin it.  The wrong
+    # variant is computed explicitly and asserted to DIFFER, which is the proof that the fixture discriminates.
+    rows, cols = fx["shape"]
+    assert (int(ice.Param.NumPix_x), int(ice.Param.NumPix_y)) == (cols, rows)
+    if rows != cols:
+        assert (int(P.NumPix_x), int(P.NumPix_y)) == (cols, rows) != (rows, cols)
+        swapped = (float(ice.Param.NumPix_y), float(ice.Param.NumPix_x))
+        assert swapped != (float(P.NumPix_x), float(P.NumPix_y)), "transposing rows/cols must be visible"
+        assert float(F.PixScale_x) != float(F.PixScale_y)      # 50/137 vs 18/80 - a swap moves both
+        assert float(ice.Field.PixScale_x) == pytest.approx(50.0 / cols, rel=0, abs=1e-15)
+        assert float(ice.Field.PixScale_y) == pytest.approx(18.0 / rows, rel=0, abs=1e-15)
+    else:
+        assert rows == cols  # nested / center2x2 are square: they cannot see the transposition (S1)
     assert int(scal(ref("model"), f"{name}_st_nFloe")) == len(ice.Floe)
     assert int(scal(ref("model"), f"{name}_st_nBrash")) == len(ice.Brash)
 
@@ -948,27 +1111,147 @@ def test_shipborne_ice_concentration_otsu_on_a_known_frame():
     assert r.mask.dtype == bool
 
 
+def _ramp_frame(seed: int = 1) -> np.ndarray:
+    """A **discriminating** section-8.1 frame: water 30 | a broad grey ramp 55...205 | dry ice 225, +/-5 noise.
+
+    The two-tone frame above cannot test "k = 2 k-means is approximately Otsu": its histogram has a 150-level
+    empty gap, so *every* sensible threshold produces the identical mask and a 100 % agreement is inevitable
+    (ch07's saturating-agreement lesson).  This frame has pixels at **every** gray level between the classes —
+    :func:`test_kmeans_k2_is_approximately_otsu` asserts that a one-level move of either threshold would
+    displace 11 / 30 pixels, so the agreement it measures is a result and not an artefact of the fixture.
+    """
+    rng = np.random.default_rng(seed)
+    img = np.zeros((80, 120), dtype=np.uint8)
+    img[:, :50] = 30                                             # open water
+    img[:, 50:100] = np.linspace(55, 205, 50).astype(np.uint8)[None, :]   # rubble / wet ice, every level
+    img[:, 100:] = 225                                           # dry ice
+    return np.clip(img.astype(np.int16) + rng.integers(-5, 6, img.shape), 0, 255).astype(np.uint8)
+
+
 def test_kmeans_k2_is_approximately_otsu():
     """L1 — p. 179: "if we choose two clusters ... this method is approximately reduced to Otsu".
 
-    Quantified, not asserted as the book's number: on a two-tone frame the two masks agree on > 99 % of pixels.
-    With **k = 3 and ice = the two brightest clusters** the concentration is *higher*, which is the mechanism
-    the book gives for Fig. 8.5 (k-means above Otsu).
+    Measured on the ramp frame (the authors' own k-means, ``impl='authors'``): Otsu's level is
+    ``graythresh`` = 116/255 and the k = 2 centres are ``[45.746939, 186.758134]``, whose midpoint is
+    **116.2525** — a *different* threshold that happens to select the same pixels, so the masks agree on
+    **100.00 %**.  The fixture is not degenerate: 11 pixels sit at level 116 and 30 at 117, so a one-level
+    move of either threshold would break the agreement (asserted).  With **k = 3 and ice = the two brightest
+    clusters** the concentration is *higher* (51.10 % vs 41.30 %), the mechanism the book gives for Fig. 8.5.
     """
-    img = _two_tone_frame()
-    img[20:40, 20:40] = 120                       # a mid-grey patch: melt pond / rubble
+    img = _ramp_frame()
     otsu = ch8.shipborne_ice_concentration(img, "otsu")
     k2 = ch8.shipborne_ice_concentration(img, "kmeans", k=2, ice_clusters=1)
+    assert 255 * otsu.level == pytest.approx(116.0, abs=1e-12)
+    mid = float((k2.centers[0] + k2.centers[1]) / 2)
+    assert mid == pytest.approx(116.25253622255963, rel=1e-9)
+    assert mid != 255 * otsu.level                 # the two methods do NOT pick the same threshold
     agree = float((otsu.mask == k2.mask).mean())
-    assert agree > 0.99, agree
+    assert agree == 1.0, agree
+    assert k2.concentration == pytest.approx(otsu.concentration, abs=1e-12)
+    assert k2.concentration == pytest.approx(0.4130208333333333, rel=0, abs=1e-12)
+    # the fixture discriminates: the gray levels straddling the two thresholds are populated, so a one-level
+    # move of either threshold would move 11 / 30 of the 9600 pixels and the 100 % agreement would be lost.
+    h = np.bincount(img.ravel(), minlength=256)
+    assert int(h[116]) == 11 and int(h[117]) == 30
+    assert float((img > 117).mean()) != float((img > 116).mean())
     k3 = ch8.shipborne_ice_concentration(img, "kmeans", k=3, ice_clusters="top2")
     assert k3.concentration > otsu.concentration + 0.02
     assert k3.centers.size == 3 and np.all(np.diff(k3.centers) > 0)
 
 
+def test_shipborne_kmeans_impl_branches_are_both_pinned():
+    """L1 — both ``impl`` branches, with numbers (review item S6: the default moved to the authors' k-means).
+
+    ``impl='authors'`` is ch03's line-by-line port of the book's own ``MATLAB_ROOT/ch3/kmeans.m``
+    (deterministic, parity **exact**); ``impl='lloyd'`` is the generic seeded k-means++/Lloyd routine
+    (parity **approx**).  Measured on the ramp frame:
+
+    ==========  ==========================================  ==============
+    k           centres                                     concentration
+    ==========  ==========================================  ==============
+    2 (both)    ``[45.746939, 186.758134]``                 41.3021 %
+    3 authors   ``[35.364295, 122.842687, 209.718880]``     51.1042 % (top2)
+    3 lloyd     ``[34.834807, 120.788106, 208.897883]``     51.6979 % (top2, seed 0)
+    ==========  ==========================================  ==============
+
+    The k = 3 row is the discriminating one: the two implementations give **different** centres, so this test
+    would fail if ``impl`` silently routed both branches to the same routine.  ``'lloyd'`` is also shown to be
+    **seed-dependent** (seed 1 lands on the authors' answer, seed 7 on a third one) while ``'authors'`` has no
+    RNG at all — the reason the default was changed.
+    """
+    img = _ramp_frame()
+    a2 = ch8.shipborne_ice_concentration(img, "kmeans", k=2, ice_clusters=1, impl="authors")
+    l2 = ch8.shipborne_ice_concentration(img, "kmeans", k=2, ice_clusters=1, impl="lloyd", seed=0)
+    assert np.allclose(a2.centers, [45.746939, 186.758134], rtol=0, atol=1e-6)
+    assert np.allclose(l2.centers, a2.centers, rtol=0, atol=1e-9)          # k = 2: the two agree exactly
+    assert a2.concentration == l2.concentration == pytest.approx(0.4130208333333333, rel=0, abs=1e-12)
+    assert a2.method == "kmeans(k=2, authors)" and l2.method == "kmeans(k=2, lloyd)"
+
+    a3 = ch8.shipborne_ice_concentration(img, "kmeans", k=3, impl="authors")
+    l3 = ch8.shipborne_ice_concentration(img, "kmeans", k=3, impl="lloyd", seed=0)
+    assert np.allclose(a3.centers, [35.364295, 122.842687, 209.718880], rtol=0, atol=1e-6)
+    assert np.allclose(l3.centers, [34.834807, 120.788106, 208.897883], rtol=0, atol=1e-6)
+    assert a3.concentration == pytest.approx(0.5110416666666666, rel=0, abs=1e-12)
+    assert l3.concentration == pytest.approx(0.5169791666666667, rel=0, abs=1e-12)
+    assert not np.allclose(a3.centers, l3.centers, atol=1e-3), "the two impl branches must be distinguishable"
+
+    # determinism of the default vs seed-dependence of 'lloyd'
+    assert np.array_equal(a3.centers,
+                          ch8.shipborne_ice_concentration(img, "kmeans", k=3, impl="authors", seed=7).centers)
+    seeds = {tuple(np.round(ch8.shipborne_ice_concentration(img, "kmeans", k=3, impl="lloyd", seed=s).centers, 6))
+             for s in (0, 1, 7)}
+    assert len(seeds) == 3, "the 'lloyd' branch is expected to depend on its seed"
+    with pytest.raises(ValueError):
+        ch8.shipborne_ice_concentration(img, "kmeans", impl="magic")
+
+
 def test_shipborne_rejects_unknown_method():
     with pytest.raises(ValueError):
         ch8.shipborne_ice_concentration(_two_tone_frame(), "magic")
+
+
+# =====================================================================================================================
+# L1 — section 8.2's driver (review item S7: `sea_ice_field` was executed by no test)
+# =====================================================================================================================
+
+CH07_IMAGE = ROOT / "data/book/ch07/Sea_Ice_Floe_Identification/sea_ice_test.jpg"
+
+
+@pytest.mark.skipif(not CH07_IMAGE.exists(), reason="private book data absent (ch07 sea_ice_test.jpg)")
+def test_sea_ice_field_runs_the_ch07_pipeline(tmp_path):
+    """L1 — review item S7: the section-8.2 driver itself, on a 160x240 crop (~4 s), including its cache branch.
+
+    ``sea_ice_field`` is Algorithm 3 (``sea_ice_edge_detection``) followed by Algorithms 4/5
+    (``ice_shape_enhancement``), both verified in ch07; this test exercises **the driver** — the
+    ``BOOK_PARAMS['sea_ice_demo']`` defaults, the ``seg``/``bk`` hand-off, the ``.npz`` cache write and the
+    cache **reuse** — which the script tests bypassed by passing ``--source iceimage``.  Its parity label
+    stays **unverified** (no ``.m`` file, printed counts do not reproduce: open item O2); this is coverage,
+    not parity.
+    """
+    import imageio.v3 as iio
+
+    rgb = iio.imread(CH07_IMAGE)
+    crop = np.ascontiguousarray(rgb[120:280, 200:440])
+    cache = tmp_path / "stage3_crop.npz"
+    first = ch8.sea_ice_field(crop, cache=cache, verbose=False)      # cache MISS -> runs Algorithm 3
+    assert cache.exists(), "the cache branch never wrote its .npz"
+    assert len(first.ice_floe) > 0 and len(first.brash_ice) > 0
+    assert first.index_floe.shape == first.out.shape == crop.shape[:2]
+    areas = np.array([p.Area for p in first.ice_floe], dtype=np.float64)
+    # the Fig. 7.14(a) floe layer carries exactly the floe pixels (it is colour-valued, not labelled)
+    assert int(np.count_nonzero(first.index_floe)) == int(areas.sum())
+    assert first.t == len(first.ice_floe) + len(first.brash_ice)
+    cov = first.coverage
+    assert cov.IceFloe + cov.BrashIce + cov.Slush + cov.Water == pytest.approx(1.0, abs=1e-12)
+
+    second = ch8.sea_ice_field(crop, cache=cache, verbose=False)     # cache HIT -> identical result
+    assert len(second.ice_floe) == len(first.ice_floe)
+    assert np.array_equal(np.array([p.Area for p in second.ice_floe]), areas)
+    assert np.array_equal(second.index_floe, first.index_floe)
+
+    # the pieces it returns are exactly what `sea_ice_model` consumes downstream (the section-8.2 chain)
+    m = ch8.sea_ice_model(first.ice_floe[:8], first.brash_ice[:8], first.index_floe, raster=False)
+    assert len(m.floe) == 8 and len(m.brash) == 8
 
 
 # =====================================================================================================================

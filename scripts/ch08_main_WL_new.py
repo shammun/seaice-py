@@ -117,8 +117,10 @@ def main(argv: list[str] | None = None) -> int:
     fig, ax = plt.subplots(figsize=(14, 8))
     for i, poly in enumerate(r.poly.polygons):
         ax.fill(poly[:, 0], poly[:, 1], color=r.poly.color_m[r.poly.color_clamped[i] - 1], linewidth=0)
+    # `plot_color_bar_and_floe.m` line 106: Y_limi*length_over_Pixel - centre(i,2)*length_over_Pixel
     ax.plot(r.poly.centres_xy[:, 0] * args.length_over_pixel,
-            (ice.Param.NumPix_y - r.poly.centres_xy[:, 1]) * args.length_over_pixel, "w.", markersize=1.5)
+            ice.Param.NumPix_y * args.length_over_pixel - r.poly.centres_xy[:, 1] * args.length_over_pixel,
+            "w.", markersize=1.5)
     ax.set_aspect("equal")
     ax.margins(0)
     ax.set_facecolor("k")

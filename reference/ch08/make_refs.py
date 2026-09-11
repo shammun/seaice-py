@@ -7,7 +7,7 @@ that ch07 deferred here, through ``tools.run_matlab_ref.run_ref`` (``matlab -bat
 Usage::
 
     .venv/Scripts/python.exe reference/ch08/make_refs.py [name ...]
-    names = misc, mcd, fit, orphan, colorhist, model, window
+    names = misc, mcd, fit, orphan, colorhist, model, window, grow
 
 Scratch policy (CLAUDE.md rule 8: nothing under ``MATLAB_ROOT`` is touched)
 --------------------------------------------------------------------------
@@ -271,6 +271,13 @@ t_n = numel(t_circle);
 t_last = t_circle(end);
 colon_20_70_3500 = 20:70:3500;
 colon_21_79_3971 = 21:79:3971;
+% review item N4: the line the port actually evaluates for the shipped FSD is
+% `min_x : inter : max_x` = 21:79:3979 (SeaIce_Image_Structure.m line 98, min = 21, max = 3979,
+% inter = fix((3979-21)/50) = 79).  (3979-21)/79 = 50.1 is NOT integral, so this one - unlike
+% 21:79:3971 - exercises the colon's truncation rule (51 elements, last 3971, NOT 3979).
+colon_21_79_3979 = 21:79:3979;
+colon_21_79_3979_n = numel(colon_21_79_3979);
+colon_21_79_3979_last = colon_21_79_3979(end);
 colon_0_1e3_1 = 0:0.001:1;
 o = optimoptions('lsqcurvefit');
 opt_tolfun = o.FunctionTolerance;
@@ -310,7 +317,8 @@ cx2 = [29 48 48 29 29]; cy2 = [29 29 48 48 29];
 touch_pts = [tx, ty];
 """
     _run(code, ["jet30", "jet255", "jet3", "jet7", "jet1", "jet4", "t_circle", "t_n", "t_last",
-                "colon_20_70_3500", "colon_21_79_3971", "colon_0_1e3_1",
+                "colon_20_70_3500", "colon_21_79_3971", "colon_21_79_3979", "colon_21_79_3979_n",
+                "colon_21_79_3979_last", "colon_0_1e3_1",
                 "opt_tolfun", "opt_tolx", "opt_maxiter", "opt_alg", "opt_maxfun",
                 "idiom_nonempty", "idiom_branch_nonempty", "idiom_branch_empty", "idiom_branch_withnan",
                 "contain_empty", "touch_pts"], "misc.mat")
@@ -516,6 +524,65 @@ def ref_model() -> None:
     _run("\n".join(lines), save_vars, "model.mat", timeout=3600)
 
 
+def ref_grow() -> None:
+    """Review item S4 — ``size(rgbImage)`` when the painted floes reach neither the last row nor the last column.
+
+    ``plot_color_bar_and_floe.m`` line 79 grows ``rgbImage`` from its assignments (it is never pre-allocated),
+    so MATLAB's array is ``(max y, max x, 3)`` over the painted pixels.  The shipped full field attains both
+    maxima (627x1114 = the image), so it cannot tell the grown rule from a pre-allocated one.  Two subsets of
+    the very same ``IceImage.Floe`` struct array can:
+
+    * ``g50`` — ``IceImage.Floe(1:50)`` (the review's suggestion): max x = 1096 < 1114;
+    * ``gin`` — the 50 floes inside ``x <= 900``, ``y <= 500`` (:func:`fixtures.grow_fixture`): **both**
+      maxima strictly inside the image.
+
+    Everything else is ``main_WL_new.m`` lines 29–35 verbatim, with ``N = numel(F)`` instead of 2888.  No new
+    patch: the same ``ch08_pcbf_ref.m`` copy the ``mcd`` session uses is called.
+    """
+    if not (DATA / "IceImage_290915_2_jpg.0000179.mat").exists():
+        print("SKIP grow: data/book/ch08/MCD/IceImage_290915_2_jpg.0000179.mat is absent")
+        return
+    sel = FX.grow_fixture()
+    savemat(str(REF / "grow_inputs.mat"), {"grow_idx": (sel + 1).reshape(1, -1).astype(np.float64)},
+            do_compression=True)
+    body = """
+Sg = load({inputs});
+load({mat})
+length_over_Pixel = 1.1794;
+color_limit_N = 30;
+Y_limi = IceImage.Param.NumPix_y;
+full_size = [IceImage.Param.NumPix_y, IceImage.Param.NumPix_x];
+sets = {{ (1:{first})', Sg.grow_idx(:) }};
+tags = {{ 'g50', 'gin' }};
+for s = 1:2
+    F = IceImage.Floe(sets{{s}});
+    Nsub = numel(F);
+    clear Raw_Area Raw_MCD
+    for i = 1:1:Nsub
+        Raw_Area(i) = F(i).Area*length_over_Pixel^2;
+        Raw_MCD(i)=sqrt(Raw_Area(i)*4/pi);
+    end
+    [c_,h_,ia_,cm_,ce_,rgb_,~,~,~,~,cx_] = ch08_pcbf_ref(color_limit_N,Raw_MCD,Y_limi,Nsub,F,length_over_Pixel);
+    if s == 1
+        g50_counts=c_; g50_centers=h_; g50_index=ia_; g50_centre=ce_; g50_caxis=cx_;
+        g50_size=size(rgb_); g50_rgb_u8=uint8(round(rgb_*255)); g50_N=Nsub; g50_mcd=Raw_MCD;
+    else
+        gin_counts=c_; gin_centers=h_; gin_index=ia_; gin_centre=ce_; gin_caxis=cx_;
+        gin_size=size(rgb_); gin_rgb_u8=uint8(round(rgb_*255)); gin_N=Nsub; gin_mcd=Raw_MCD;
+    end
+end
+"""
+    code = body.format(inputs=q(REF / "grow_inputs.mat"),
+                       mat=q(DATA / "IceImage_290915_2_jpg.0000179.mat"),
+                       first=FX.GROW_FIRST_N)
+    _run(code, ["full_size",
+                "g50_counts", "g50_centers", "g50_index", "g50_centre", "g50_caxis", "g50_size",
+                "g50_rgb_u8", "g50_N", "g50_mcd",
+                "gin_counts", "gin_centers", "gin_index", "gin_centre", "gin_caxis", "gin_size",
+                "gin_rgb_u8", "gin_N", "gin_mcd"],
+         "grow.mat", timeout=3600)
+
+
 def ref_window() -> None:
     """``sea_ice_model.m`` on a real 200x200-pixel window of the shipped §8.3 field (227 floes, 240 brash)."""
     fx = FX.window_fixture()
@@ -553,7 +620,7 @@ def _run(code: str, save_vars, out_name: str, timeout: int = 1800) -> None:
 
 
 TARGETS = {"misc": ref_misc, "mcd": ref_mcd, "fit": ref_fit, "orphan": ref_orphan,
-           "colorhist": ref_colorhist, "model": ref_model, "window": ref_window}
+           "colorhist": ref_colorhist, "model": ref_model, "window": ref_window, "grow": ref_grow}
 
 
 def main(argv: list[str]) -> int:

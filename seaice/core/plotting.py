@@ -269,7 +269,7 @@ def matlab_jet(m: int) -> np.ndarray:
 
     Matplotlib's ``"jet"`` descends from this map but is a piecewise-linear *continuous* colormap sampled at
     ``m`` points, which is not the same table (it differs in the third decimal for small ``m``), so the M-code is
-    reproduced rather than approximated.  Display only.
+    reproduced rather than approximated.
 
     # DEVIATION: older MATLAB releases wrote ``ceil(n/2) - (mod(m,2)==1)`` where R2025a writes ``mod(m,4)==1``.
     # The two differ only for ``m`` congruent to 3 (mod 4) — e.g. ``jet(255)``, which this chapter uses for a

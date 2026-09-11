@@ -56,6 +56,7 @@ from .core.fitting import (LsqOptions, LsqResult, lsqcurvefit, optimset, power_l
                            weibull_survival)
 from .core.histogram import hist as matlab_hist
 from .core.icestruct import Brash, Circle, Field, Floe, IceImage, Intersect, Param, Polygon
+from .core.matlab_compat import matlab_colon
 from .core.polygon import convhull, poly2mask, polygeom, polyxpoly, roipoly
 from .core.stats import cumulative_size_distribution, mean_caliper_diameter
 
@@ -90,29 +91,10 @@ MCD_X_BIN = np.arange(1, 101, dtype=np.float64)
 COLOR_HIST_PARAMS = {"min_x": 20, "inter": 70, "max_x": 3500, "nn": 8}
 
 
-def matlab_colon(start: float, step: float, stop: float) -> np.ndarray:
-    """MATLAB's colon operator ``start:step:stop`` — ``floor((stop-start)/step) + 1`` elements.
-
-    ``np.arange`` decides its length by floating-point accumulation and can add or drop the last element; MATLAB
-    computes the count once and multiplies.  Needed literally for ``sea_ice_model.m`` line 25
-    ``t = 0:0.05:6.28`` (**126** points, last value **6.25** — the "circle" is a 125-gon with a gap, risk R18)
-    and for ``min_x : inter : max_x`` in ``color_hist.m`` and ``SeaIce_Image_Structure.m``.
-    """
-    start, step, stop = float(start), float(step), float(stop)
-    if step == 0:
-        return np.zeros(0, dtype=np.float64)
-    q = (stop - start) / step
-    # MATLAB's colon snaps `q` to the nearest integer when it is within a few ulps (so `0:0.1:1` has 11 elements
-    # and its last value is exactly 1) and truncates otherwise (`0:0.05:6.28` -> 126 elements, last 6.25).
-    nearest = np.round(q)
-    n = int(nearest) if abs(q - nearest) <= 3.0 * np.finfo(float).eps * max(abs(q), 1.0) else int(np.floor(q))
-    if n < 0:
-        return np.zeros(0, dtype=np.float64)
-    v = start + step * np.arange(n + 1, dtype=np.float64)
-    if n >= 1 and abs(v[-1] - stop) <= 3.0 * np.finfo(float).eps * max(abs(stop), 1.0):
-        v[-1] = stop
-    return v
-
+# `matlab_colon` lives in `core/matlab_compat.py` (CLAUDE.md rule 9 — the colon operator's element-count /
+# endpoint rule is a general MATLAB-semantics primitive, not a chapter-8 one; ch09's model-ice work needs it
+# too).  It is imported above and re-exported in `__all__`, so `from seaice.ch08_applications import
+# matlab_colon` keeps working.
 
 #: ``sea_ice_model.m`` line 25 — ``t = 0:0.05:6.28``.  126 angles, the last one 6.25 rad: 6.28 < 2π, so the
 #: sampled "circle" does **not** close (the gap spans ≈ 0.033 rad).  Reproduced exactly; an off-by-one here
@@ -710,7 +692,9 @@ def sea_ice_model(ice_floe: Sequence[Any], brash_ice: Sequence[Any], img: np.nda
     each ice floe is replaced by its bounding minimum-area polygon and each brash piece by an area-equivalent
     disk.  The polygonized floes will not be smaller than the actual identified floes, and they may overlap
     other floes and brash pieces" (p. 184).  The "bounding minimum-area polygon" is coded as the **convex
-    hull** (line 37, ``convhull(x, y, 'simplify', true)``), which is indeed the minimum-area bounding polygon.
+    hull** (line 37, ``convhull(x, y, 'simplify', true)``), which is the minimum-area **convex**
+    bounding polygon (the book's phrase omits "convex": a non-convex bounding polygon can be
+    smaller).
 
     Structure of the M-file:
 
@@ -756,7 +740,9 @@ def sea_ice_model(ice_floe: Sequence[Any], brash_ice: Sequence[Any], img: np.nda
 
     Notes
     -----
-    Parity: ``Area``/``Center``/``Perimeter`` **exact** (``polygeom`` ≤ 1e-12 against the shipped structure);
+    Parity: ``Area``/``Center``/``Perimeter`` **exact** (``polygeom``: ``Area`` ≤ **1.8e-12** against
+    the shipped L3 structure of all 2888 floes, ``Center`` ≤ 1.1e-13, ``Perimeter`` ≤ 5.7e-14;
+    the test asserts < 1e-11);
     ``Vertices`` **near** — MATLAB's ``convhull`` keeps collinear hull points and starts at a different vertex,
     so the contract is on the vertex **set** and on the rasterised mask (ch06 lesson, risk R5);
     ``Intersect`` lists **exact as sets**.
@@ -776,7 +762,10 @@ def sea_ice_model(ice_floe: Sequence[Any], brash_ice: Sequence[Any], img: np.nda
     # ---- brash circles (lines 73-78 use them inside the floe loop; precomputed once here) -----------------------
     brash_xy: list[tuple[np.ndarray, np.ndarray, float, np.ndarray]] = []
     for piece in brash_ice:
-        a = float(np.asarray(piece.Area).ravel()[0]) if np.size(piece.Area) else float(piece.Area)
+        # `Area` is read column-major for consistency with `_matlab_c1c2`'s `c(1), c(2)`.  Inert on the
+        # shipped data (all 3452 `Brash.Area` values are scalars, including the 4 pieces with a 2x2
+        # `Center`); a non-scalar would make MATLAB build a k x 126 circle matrix and `polyxpoly` error.
+        a = float(np.asarray(piece.Area).ravel(order="F")[0]) if np.size(piece.Area) else float(piece.Area)
         cx, cy, r = _circle(piece.Center, a, t)
         # `c` below is the pair the M-file's `c(1)`, `c(2)` actually read (see `_matlab_c1c2`), which is what
         # the brash-brash distance test of lines 122-124 compares.
@@ -838,7 +827,8 @@ def sea_ice_model(ice_floe: Sequence[Any], brash_ice: Sequence[Any], img: np.nda
     centers = np.array([c for _, _, _, c in brash_xy]) if brash_xy else np.zeros((0, 2))
     radii = np.array([r for _, _, r, _ in brash_xy]) if brash_xy else np.zeros(0)
     for i, (cx, cy, r, c) in enumerate(brash_xy):
-        a = float(np.asarray(brash_ice[i].Area).ravel()[0]) if np.size(brash_ice[i].Area) \
+        # column-major, as above (inert: every shipped `Brash.Area` is a scalar)
+        a = float(np.asarray(brash_ice[i].Area).ravel(order="F")[0]) if np.size(brash_ice[i].Area) \
             else float(brash_ice[i].Area)
         p = 2.0 * np.pi * r                                                  # line 110 (analysis C2)
 
@@ -1172,12 +1162,13 @@ class ShipborneIC:
 
 
 def shipborne_ice_concentration(frame: np.ndarray, method: str = "otsu", *, k: int = 3,
-                                ice_clusters: str | int = "top2", seed: int = 0) -> ShipborneIC:
+                                ice_clusters: str | int = "top2", impl: str = "authors",
+                                shift_bug: bool = False, seed: int = 0) -> ShipborneIC:
     """§8.1.2 "Methods", pp. 176–179 — ice concentration of one rectified shipborne frame.
 
     Book text only — **§8.1 ships no MATLAB code and no images** (every figure is credited to Lu, Zhang,
     Lubbad, Løset & Skjetne, OTC Arctic Technology Conference 2016).  The two methods it names are already
-    ported: the global Otsu threshold of §3.1 and k-means of §3.2.
+    ported: the global Otsu threshold of §3.1 and the k-means of §3.2.
 
     * ``method='otsu'`` — ``bw = im2bw(gray, graythresh(gray))``; **white = ice** (:mod:`seaice.core.threshold`).
     * ``method='kmeans'`` — ``k = 3`` clusters read as water (black) / **wet ice** (grey: rubble, young ice,
@@ -1190,13 +1181,44 @@ def shipborne_ice_concentration(frame: np.ndarray, method: str = "otsu", *, k: i
     Ice concentration is ice pixels / total pixels (there is no area weighting: the frame is already
     rectified, and the two white triangles are cropped away before this is called — p. 178).
 
-    Parity: **exact** for the *method* (ch3's ``graythresh``/``im2bw``, ch6's ``kmeans_lloyd`` = Statistics-TB
-    ``kmeans``, ``approx`` because of its RNG); **unverified** as a §8.1 *result* — the 6-hour series of
-    Fig. 8.5, Event #1 and Event #2 cannot be reproduced without the authors' frames (risk R13).  The linear
-    4-corner rectification of Appendix A.1.2 that precedes it is **deferred to ch10** — do not write a second
-    rectifier here.
+    Parameters
+    ----------
+    frame : ndarray
+        One rectified frame, RGB or gray (``rgb2gray_matlab`` is applied to RGB).
+    method : {'otsu', 'kmeans'}
+    k : int
+        Number of clusters for ``method='kmeans'`` (the book's §8.1 choice is 3, p. 179).
+    ice_clusters : {'top2', 'top1'} or int
+        How many of the **brightest** clusters count as ice.  Identical rule in both ``impl`` branches, so the
+        two are interchangeable.
+    impl : {'authors', 'lloyd'}
+        Which k-means.  ``'authors'`` (**default**) is the book's own §3.2/§3.3 routine,
+        :func:`seaice.core.clustering.kmeans_gray` — a line-by-line port of ``MATLAB_ROOT/ch3/kmeans.m``,
+        **deterministic** (equal-division initialisation ``mu = (1:k)·m/(k+1)``, histogram-weighted centroid
+        update, exact ``mu == oldmu`` stop), so no seed is involved.  It requires an **integer-valued** gray
+        image, exactly as ``kmeans.m`` does (it indexes ``h(ima(i))``).  ``'lloyd'`` routes through
+        :func:`seaice.core.clustering.kmeans_lloyd` with ``init='kmeans++'`` and ``seed`` — the generic
+        Lloyd/Statistics-Toolbox-style routine, kept for continuous data and for comparison.
+    shift_bug : bool
+        Only for ``impl='authors'``: ``False`` (default, ch03's default) is the text-consistent branch;
+        ``True`` reproduces ``kmeans.m`` lines 64–70 literally (the unshifted image compared with the shifted
+        centroids), which is what every k-means number *printed in ch3* requires.
+    seed : int
+        Meaningful **only** for ``impl='lloyd'`` (the ``'authors'`` routine has no RNG).
+
+    Parity
+    ------
+    ``method='otsu'`` — **exact** (ch03 ``graythresh``/``im2bw``).
+    ``method='kmeans', impl='authors'`` — **exact** (ch03's port of the authors' ``kmeans.m``; MATLAB source
+    ``MATLAB_ROOT/ch3/kmeans.m``, verified in ``reports/ch03_verification.md``).
+    ``method='kmeans', impl='lloyd'`` — **approx** (a different algorithm from the authors' routine, with an
+    RNG-seeded k-means++ initialisation).
+    The §8.1 **results** stay **unverified** in either case: no §8.1 data and no §8.1 ``.m`` file ship, so the
+    6-hour series of Fig. 8.5, Event #1 and Event #2 cannot be reproduced (``reports/ch08_verification.md``,
+    open item O1).  The linear 4-corner rectification of Appendix A.1.2 that precedes this step is **deferred
+    to ch10** — do not write a second rectifier here.
     """
-    from .core.clustering import kmeans_lloyd
+    from .core.clustering import kmeans_gray, kmeans_lloyd
     from .core.matlab_compat import rgb2gray_matlab
     from .core.threshold import graythresh, im2bw
 
@@ -1211,16 +1233,27 @@ def shipborne_ice_concentration(frame: np.ndarray, method: str = "otsu", *, k: i
     if method != "kmeans":
         raise ValueError("method must be 'otsu' or 'kmeans'")
 
-    X = gray.astype(np.float64).reshape(-1, 1)
-    res = kmeans_lloyd(X, k, init="kmeans++", seed=seed)
-    centers = np.asarray(res.centers, dtype=np.float64).ravel()
+    if impl == "authors":
+        # The book's own routine (§3.2/§3.3, `MATLAB_ROOT/ch3/kmeans.m`): deterministic, no seed.
+        res = kmeans_gray(gray, k=k, shift_bug=shift_bug)
+        centers = np.asarray(res.centroids, dtype=np.float64).ravel()
+        raw_labels = np.asarray(res.mask).ravel() - 1          # `mask` is 1..k
+    elif impl == "lloyd":
+        # PARITY: approx — generic Lloyd with a seeded k-means++ start; not the authors' routine.
+        X = gray.astype(np.float64).reshape(-1, 1)
+        res = kmeans_lloyd(X, k, init="kmeans++", seed=seed)
+        centers = np.asarray(res.centers, dtype=np.float64).ravel()
+        raw_labels = np.asarray(res.labels).ravel()
+    else:
+        raise ValueError("impl must be 'authors' or 'lloyd'")
+
     order = np.argsort(centers)                       # darkest ... brightest
     rank = np.empty_like(order)
     rank[order] = np.arange(k)
-    labels = rank[np.asarray(res.labels).ravel()].reshape(gray.shape)
+    labels = rank[raw_labels].reshape(gray.shape)
     m = 2 if ice_clusters == "top2" else (1 if ice_clusters == "top1" else int(ice_clusters))
     mask = labels >= (k - m)          # the `m` brightest clusters count as ice
-    return ShipborneIC(concentration=float(mask.mean()), mask=mask, method=f"kmeans(k={k})",
+    return ShipborneIC(concentration=float(mask.mean()), mask=mask, method=f"kmeans(k={k}, {impl})",
                        centers=np.sort(centers), labels=labels)
 
 
@@ -1229,7 +1262,7 @@ def shipborne_ice_concentration(frame: np.ndarray, method: str = "otsu", *, k: i
 # ==================================================================================================================
 
 def sea_ice_field(rgb: np.ndarray, *, cache: Any = None, verbose: bool = True, **params: Any):
-    """Run the ch6/ch7 pipeline on the §8.2 image — the input every §8.2 figure needs.
+    r"""Run the ch6/ch7 pipeline on the §8.2 image — the input every §8.2 figure needs.
 
     Book: §8.2, p. 182 — "Since the image is undistorted, **Algorithms 3, 4 and 5 are carried out directly**",
     i.e. the whole ch7 chain with no rectification and no tiling.  There is no ``.m`` file for this step in
@@ -1257,6 +1290,11 @@ def sea_ice_field(rgb: np.ndarray, *, cache: Any = None, verbose: bool = True, *
     **not** to reproduce: ch07 measured 433 floes / 274 brash on the same image with the shipped
     ``sea_ice_demo.m`` parameters, and the authors' §8.2 parameter set is not printed anywhere (risk R7).
     Report both, do not search parameters until they match.
+
+    Parity: **unverified** — no ``.m`` file ships for this driver and the printed counts do not reproduce
+    (``reports/ch08_verification.md`` open item O2); its two constituents are ch07's
+    :func:`~seaice.ch07_ice_type.sea_ice_edge_detection` and
+    :func:`~seaice.ch07_ice_type.ice_shape_enhancement`, verified in ch07.
     """
     from pathlib import Path as _Path
 
