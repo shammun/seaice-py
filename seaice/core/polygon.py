@@ -26,7 +26,7 @@ import numpy as np
 
 from .matlab_compat import matlab_round
 
-__all__ = ["clip_polygon_rect", "poly2mask", "roipoly", "polygeom", "minboundrect", "polyxpoly",
+__all__ = ["clip_polygon_rect", "clip_polygon_convex", "poly2mask", "roipoly", "polygeom", "minboundrect", "polyxpoly",
            "convhull", "polyarea"]
 
 
@@ -72,30 +72,15 @@ def clip_polygon_rect(x, y, x_range: tuple[float, float], y_range: tuple[float, 
     xmin, xmax = float(min(x_range)), float(max(x_range))
     ymin, ymax = float(min(y_range)), float(max(y_range))
 
-    # Each edge is (inside test, intersection parameter along the segment).
-    edges = [
-        (lambda p: p[0] >= xmin, 0, xmin),
-        (lambda p: p[0] <= xmax, 0, xmax),
-        (lambda p: p[1] >= ymin, 1, ymin),
-        (lambda p: p[1] <= ymax, 1, ymax),
+    # Each half-plane is (inside test, intersection with the boundary line).  The four are applied in exactly
+    # this order (xmin, xmax, ymin, ymax) -- ch06's 46 verified clips depend on it, so do not reorder.
+    planes = [
+        (lambda p: p[0] >= xmin, lambda p, q, a=0, b=xmin: _intersect_axis(p, q, a, b)),
+        (lambda p: p[0] <= xmax, lambda p, q, a=0, b=xmax: _intersect_axis(p, q, a, b)),
+        (lambda p: p[1] >= ymin, lambda p, q, a=1, b=ymin: _intersect_axis(p, q, a, b)),
+        (lambda p: p[1] <= ymax, lambda p, q, a=1, b=ymax: _intersect_axis(p, q, a, b)),
     ]
-    for inside, axis, bound in edges:
-        if not poly:
-            break
-        out: list[tuple[float, float]] = []
-        n = len(poly)
-        for i in range(n):
-            cur = poly[i]
-            prev = poly[i - 1]
-            cur_in = inside(cur)
-            prev_in = inside(prev)
-            if cur_in:
-                if not prev_in:
-                    out.append(_intersect_axis(prev, cur, axis, bound))
-                out.append(cur)
-            elif prev_in:
-                out.append(_intersect_axis(prev, cur, axis, bound))
-        poly = out
+    poly = _sutherland_hodgman(poly, planes)
     if not poly:
         return np.zeros(0), np.zeros(0)
     # NOTE (ch06 verification, open item 2): MATLAB's `polybool` returns a **closed** ring -- it appends a copy of
@@ -111,6 +96,140 @@ def clip_polygon_rect(x, y, x_range: tuple[float, float], y_range: tuple[float, 
     # 0 of 46 clips follow max-y, min-y, max-x, min-x or lexicographic order.  A rotated start vertex shifts `snakeindex`'s insertion parity by one, the +-1 instability
     # quantified in `reports/ch06_verification.md` Deviation 3.
     if poly[0] != poly[-1]:
+        poly = poly + [poly[0]]
+    arr = np.asarray(poly, dtype=np.float64)
+    return arr[:, 0], arr[:, 1]
+
+
+def _sutherland_hodgman(poly: list[tuple[float, float]], planes) -> list[tuple[float, float]]:
+    """Clip the open vertex ring ``poly`` successively against each ``(inside, intersect)`` half-plane.
+
+    Sutherland & Hodgman, *Reentrant polygon clipping*, CACM 17(1):32–42, 1974.  Shared by
+    :func:`clip_polygon_rect` (axis-aligned, ch06 §6.5.3) and :func:`clip_polygon_convex` (an arbitrary convex
+    clip ring, ch09 §9.3.2.1) so both chapters run one implementation (project rule 9).
+    """
+    for inside, intersect in planes:
+        if not poly:
+            break
+        out: list[tuple[float, float]] = []
+        n = len(poly)
+        for i in range(n):
+            cur = poly[i]
+            prev = poly[i - 1]
+            cur_in = inside(cur)
+            prev_in = inside(prev)
+            if cur_in:
+                if not prev_in:
+                    out.append(intersect(prev, cur))
+                out.append(cur)
+            elif prev_in:
+                out.append(intersect(prev, cur))
+        poly = out
+    return poly
+
+
+def _signed_area(poly: list[tuple[float, float]]) -> float:
+    """Shoelace signed area of an open vertex ring (positive = counter-clockwise in a right-handed frame)."""
+    s = 0.0
+    n = len(poly)
+    for i in range(n):
+        x1, y1 = poly[i]
+        x2, y2 = poly[(i + 1) % n]
+        s += x1 * y2 - x2 * y1
+    return 0.5 * s
+
+
+def _intersect_line(p, q, a, b) -> tuple[float, float]:
+    """Point where the segment ``p → q`` crosses the infinite line through ``a`` and ``b``."""
+    ex, ey = b[0] - a[0], b[1] - a[1]
+    d1 = ex * (p[1] - a[1]) - ey * (p[0] - a[0])
+    d2 = ex * (q[1] - a[1]) - ey * (q[0] - a[0])
+    den = d1 - d2
+    t = 0.0 if den == 0.0 else d1 / den
+    return (p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1]))
+
+
+def clip_polygon_convex(sx, sy, cx, cy, *, drop_degenerate: bool = True, tol: float = 0.0,
+                        close: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    """``[xx, yy] = polybool('intersection', sx, sy, cx, cy)`` for a **convex clip ring** ``(cx, cy)``.
+
+    Book: §9.3.2.1 "Model sea ice floe modeling" (p. 207, Fig. 9.15(b)) — the overlap flag of two rectangularized
+    model floes.  MATLAB source: ``MATLAB_ROOT/ch9/Model_Ice_Floe_Identification/model_ice_model.m`` line 53
+    (``polybool('intersection', v(:,1), v(:,2), vj(:,1), vj(:,2))`` on two ``minboundrect`` rings).
+
+    Both rings may be open or closed; the subject polygon need not be convex, the **clip** polygon must be.  The
+    clip ring's orientation is detected from its signed area, so ``minboundrect``'s counter-clockwise output and a
+    clockwise ring both work.
+
+    # DEVIATION: `reimplemented` — `polybool` is the Mapping Toolbox front end for the compiled GPC library
+    # (`gpcmex`, no readable source) and its start vertex and traversal direction are **not reproducible**
+    # (ch06/ch08 finding; 0 of 46 clips followed any of six candidate orderings).  `model_ice_model.m` consumes
+    # only `isempty(xx)` (the `if xx ~= NaN` idiom of erratum E9 = `~isempty`), and *emptiness* IS reproducible —
+    # **provided** the degenerate zero-area output of naive Sutherland-Hodgman is dropped.  An R2025a probe
+    # (analysis/ch09.md §5.2) pins the four cases: contained -> 5 vertices, partial -> 5, disjoint -> empty,
+    # **edge-touching (a shared full edge, zero area) -> empty**.  With `drop_degenerate=True` this port matches
+    # all four.  Compare vertex *sets* and rasterised masks, never vertex order.
+
+    Parameters
+    ----------
+    sx, sy : array_like
+        Subject-polygon vertices.
+    cx, cy : array_like
+        Convex clip-polygon vertices.
+    drop_degenerate : bool
+        ``True`` (default, GPC's behaviour): a result with fewer than 3 distinct vertices or with
+        ``|signed area| <= tol`` is returned empty.  ``False`` keeps the raw Sutherland–Hodgman output.
+    tol : float
+        Area tolerance for the degeneracy test (``0.0`` = drop only exactly-zero-area slivers).
+    close : bool
+        Append a copy of the first vertex, as ``polybool`` does.
+
+    Returns
+    -------
+    (x, y) : float64 arrays; both empty when the polygons do not overlap.
+    """
+    sx = np.asarray(sx, dtype=np.float64).ravel()
+    sy = np.asarray(sy, dtype=np.float64).ravel()
+    cx = np.asarray(cx, dtype=np.float64).ravel()
+    cy = np.asarray(cy, dtype=np.float64).ravel()
+    if sx.size != sy.size or cx.size != cy.size:
+        raise ValueError("each polygon needs the same number of x and y coordinates")
+    if sx.size < 3 or cx.size < 3:
+        return np.zeros(0), np.zeros(0)
+    if sx[0] == sx[-1] and sy[0] == sy[-1]:
+        sx, sy = sx[:-1], sy[:-1]
+    if cx[0] == cx[-1] and cy[0] == cy[-1]:
+        cx, cy = cx[:-1], cy[:-1]
+    subject = list(zip(sx.tolist(), sy.tolist()))
+    clip = list(zip(cx.tolist(), cy.tolist()))
+    if len(subject) < 3 or len(clip) < 3:
+        return np.zeros(0), np.zeros(0)
+
+    ccw = _signed_area(clip) >= 0.0
+    planes = []
+    m = len(clip)
+    for i in range(m):
+        a = clip[i]
+        b = clip[(i + 1) % m]
+        if ccw:
+            def inside(p, a=a, b=b):
+                return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) >= 0.0
+        else:
+            def inside(p, a=a, b=b):
+                return (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]) <= 0.0
+        planes.append((inside, lambda p, q, a=a, b=b: _intersect_line(p, q, a, b)))
+
+    poly = _sutherland_hodgman(subject, planes)
+    if drop_degenerate:
+        uniq = [p for i, p in enumerate(poly) if i == 0 or p != poly[i - 1]]
+        if len(uniq) > 1 and uniq[0] == uniq[-1]:
+            uniq = uniq[:-1]
+        if len(uniq) < 3 or abs(_signed_area(uniq)) <= tol:
+            return np.zeros(0), np.zeros(0)
+        poly = uniq
+    if not poly:
+        return np.zeros(0), np.zeros(0)
+    if close and poly[0] != poly[-1]:
         poly = poly + [poly[0]]
     arr = np.asarray(poly, dtype=np.float64)
     return arr[:, 0], arr[:, 1]

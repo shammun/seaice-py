@@ -1,7 +1,8 @@
 """Histogram thresholding — Otsu (global, local/block, multilevel) and ice-concentration bookkeeping.
 
 Book: Chapter 3 §3.1, Eqs. (3.1)–(3.28).  MATLAB sources: ``MATLAB_ROOT/ch3/Otsu.m`` (``graythresh``, ``im2bw``,
-``multithresh``, ``imquantize``), ``MATLAB_ROOT/ch3/local_Otsu.m`` (block Otsu, identical to ``ch9/block_threshold.m``),
+``multithresh``, ``imquantize``), ``MATLAB_ROOT/ch3/local_Otsu.m`` (block Otsu; ``ch9/block_threshold.m`` is the **same algorithm with a different
+ice-counting comparison** — ``>=`` instead of ``>`` — see :func:`block_otsu`'s ``compare`` parameter),
 ``MATLAB_ROOT/ch3/separability.m`` (η from the equations).  ``graythresh``, ``im2bw`` and ``multithresh`` are ported
 line by line from the R2025a toolbox sources (``graythresh.m``, ``otsuthresh.m``, ``im2bw.m``, ``multithresh.m``,
 ``imquantize.m``) so that later chapters (ch4–ch9 all call ``im2bw(I, graythresh(I))``) get bit-identical masks.
@@ -591,11 +592,14 @@ class BlockOtsu:
     ----------
     thresholds : (n_r*n_c,) gray-level thresholds ``th = 255 * graythresh(block)`` (float, may be half-integer)
     levels : (n_r*n_c,) normalised levels
-    counts : (n_r*n_c,) number of ice pixels ``block > th`` (script ``num``)
-    ic_local : (n_r*n_c,) per-block ice concentration ``num / (r_t c_t)``
-    ic : overall ice concentration ``Σ num / (r c)`` (script ``IC``)
+    counts : (n_r*n_c,) number of ice pixels ``block > th`` (``compare='gt'``, ch3 ``num``) or ``block >= th``
+        (``compare='ge'``, ch9)
+    ic_local : (n_r*n_c,) per-block ice concentration ``num / (r_t c_t)`` (ch3 ``IC_local``, ch9 ``IC``)
+    ic : pixel-weighted overall ice concentration ``Σ num / (r c)`` (ch3 ``local_Otsu.m`` line 50; **ch9's
+        ``block_threshold.m`` has no such line** — see :attr:`ic_mean`)
     bw : (r, c) bool — the block-wise binary image assembled from the ``im2bw(temp, t)`` tiles
     slices : list of ``(slice_rows, slice_cols)`` per block (0-based)
+    compare : ``'gt'`` or ``'ge'`` — which rule produced ``counts``
     """
 
     thresholds: np.ndarray
@@ -605,19 +609,64 @@ class BlockOtsu:
     ic: float
     bw: np.ndarray
     slices: list[tuple[slice, slice]]
+    compare: str = "gt"
+
+    @property
+    def ic_mean(self) -> float:
+        """The **unweighted mean of the per-block ICs** — the "average IC" of the Fig. 9.4 caption (p. 198).
+
+        Proof that the caption means this and not ``ic``: the six printed block values 83.93, 84.57, 82.65,
+        80.69, 82.97, 84.07 average to 498.88/6 = 83.1467 % → the caption's "83.14 %"
+        (`analysis/ch09.md` N4).  With equal-size blocks ``ic_mean == ic``; they differ only if a caller slices
+        unequal blocks, which neither script does.
+        """
+        return float(np.mean(self.ic_local))
+
+    @property
+    def thresh_mean(self) -> float:
+        """Unweighted mean of the six block thresholds — the Fig. 9.4 caption's "average threshold"
+        (mean(83, 82, 85, 81, 83, 91) = 505/6 = 84.17 → the printed "84")."""
+        return float(np.mean(self.thresholds))
 
 
-def block_otsu(gray: np.ndarray, n_r: int = 2, n_c: int = 3) -> BlockOtsu:
-    """Local Otsu thresholding on an ``n_r × n_c`` grid of equal blocks — Book §3.1.2, Fig. 3.4(c).
+def block_otsu(gray: np.ndarray, n_r: int = 2, n_c: int = 3, *, compare: str = "gt") -> BlockOtsu:
+    """Local Otsu thresholding on an ``n_r × n_c`` grid of equal blocks — Book §3.1.2 Fig. 3.4(c) / §9.2.1 Fig. 9.4.
 
-    MATLAB source: ``MATLAB_ROOT/ch3/local_Otsu.m`` lines 6–36 and 50 (identical algorithm in
-    ``MATLAB_ROOT/ch9/block_threshold.m``): ``c_r = r/n_r``, ``t1 = (0:n_r-1)*c_r + 1``, ``t2 = (1:n_r)*c_r`` (same
-    for columns), per block ``t = graythresh(temp)``, ``th = t*255``, ``n = #(temp > th)``, ``IC_local = n/(r_t c_t)``,
-    finally ``IC = Σ num / (r c)``.
+    MATLAB sources: ``MATLAB_ROOT/ch3/local_Otsu.m`` lines 6–36 and 50, and
+    ``MATLAB_ROOT/ch9/block_threshold.m`` lines 6–35.  The two are **not** byte-identical (md5
+    ``33836d820255efbd9db459e5ef4f02c8`` vs ``d0bbee029865e079c3765fd0edb731ae``; 5 ``diff`` hunks,
+    `analysis/ch09.md` §0.3) and one hunk is numeric:
 
-    ``r`` must be divisible by ``n_r`` and ``c`` by ``n_c`` — MATLAB's non-integer block indices raise an error;
-    so does this port (``ValueError``).  Parity: exact.
+    ===================================== ================================== ==================================
+    ch3 ``local_Otsu.m``                  ch9 ``block_threshold.m``          consequence
+    ===================================== ================================== ==================================
+    l. 2 ``imread('t.jpg')``              l. 2 ``imread('04100_analyse.jpg')`` different data
+    l. 13 ``figure,`` before the loop     absent                             display only
+    l. 27 ``if temp(r1,c1) > th``         l. 26 ``if temp(r1,c1) >= th``     **``compare='gt'`` vs ``'ge'``**
+    l. 33 ``num(...) = n``                absent                             ch9 keeps no per-block count
+    l. 36/38 ``IC_local(...)``            l. 33/35 ``IC(...)``               renamed only
+    l. 50 ``IC = sum(num(:))/(r*c)``      absent                             ch9 computes no overall IC
+    ===================================== ================================== ==================================
+
+    R2025a probe: ``uint8([100 101 102]) > 101`` → ``[F F F]``, ``>= 101`` → ``[F T T]``, while
+    ``im2bw(·, 101/255)`` → ``[F F T]`` (strict ``>``).  So in **both** chapters the displayed tile (``im2bw``,
+    which is always strict ``>``) and the counted ``IC`` use different rules; ch9 widens the gap by one level.
+    ``bw`` therefore reproduces the *displayed* tiles and ``counts`` the *counted* pixels, in both chapters.
+
+    Parameters
+    ----------
+    gray : ndarray
+        Grayscale image (RGB is converted with :func:`~seaice.core.matlab_compat.rgb2gray_matlab`).
+    n_r, n_c : int
+        Block grid.  ``r`` must be divisible by ``n_r`` and ``c`` by ``n_c`` — MATLAB's non-integer block indices
+        raise an error; so does this port (``ValueError``).
+    compare : {'gt', 'ge'}
+        ``'gt'`` (default) = ch3's ``> th``, the behaviour verified in ch03.  ``'ge'`` = ch9's ``>= th``.
+
+    Parity: exact.
     """
+    if compare not in ("gt", "ge"):
+        raise ValueError("compare must be 'gt' (ch3 local_Otsu.m) or 'ge' (ch9 block_threshold.m)")
     gray = np.asarray(gray)
     if gray.ndim == 3:
         gray = rgb2gray_matlab(gray)
@@ -641,13 +690,14 @@ def block_otsu(gray: np.ndarray, n_r: int = 2, n_c: int = 3) -> BlockOtsu:
             t, _ = graythresh(temp)
             th = t * 255.0
             thresholds[b], levels[b] = th, t
-            n = int(np.count_nonzero(temp.astype(np.float64) > th))
+            v = temp.astype(np.float64)
+            n = int(np.count_nonzero(v >= th if compare == "ge" else v > th))
             counts[b] = n
             ic_local[b] = n / temp.size
             bw[sl] = im2bw(temp, t)
             slices.append(sl)
     return BlockOtsu(thresholds=thresholds, levels=levels, counts=counts, ic_local=ic_local,
-                     ic=float(counts.sum() / (r * c)), bw=bw, slices=slices)
+                     ic=float(counts.sum() / (r * c)), bw=bw, slices=slices, compare=compare)
 
 
 # ---------------------------------------------------------------------------------------------------------------

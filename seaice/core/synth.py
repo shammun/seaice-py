@@ -1378,3 +1378,249 @@ for _name, _value in list(globals().items()):
     if _name.startswith("FIG_7_"):
         _freeze(_value)
 del _name, _value
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Chapter 9 fixtures — model-basin (ice-tank) imagery (Tier 3, seeded)
+#
+# The three external inputs of chapter 9 (`04100_analyse.jpg`, `dypic_05100_cam1_top.avi`, `05100.avi`) are HSVA /
+# DYPIC campaign assets that were **never published**: there is no Tier-2 (free online) and no Tier-4 (login)
+# source for a top-view photograph of a *cut, rectangular* model-ice field (`analysis/ch09.md` §8, risk R1).  The
+# generators below therefore stand in for them.  They reproduce the *structure* the scripts need, never the book's
+# numbers: every quantity computed on them is `unverified` as a book number and only `exact` as a parity number
+# against MATLAB running the same `.m` file on the same file.
+#
+# Each generator's constraints come from `analysis/ch09.md` §8 and are load-bearing for the verifier: they exist so
+# that every branch of the ported code is exercised (a fixture that cannot distinguish erratum E4 from the correct
+# rule is not a fixture -- pitfall 44).
+# ---------------------------------------------------------------------------------------------------------------
+
+def _draw_rect(img: np.ndarray, cy: float, cx: float, h: float, w: float, angle: float, value: float) -> None:
+    """Paint a filled, rotated rectangle of extent ``h x w`` centred at ``(cy, cx)`` into ``img``."""
+    M, N = img.shape[:2]
+    half = 0.5 * (h + w)
+    r0 = max(0, int(np.floor(cy - half)))
+    r1 = min(M, int(np.ceil(cy + half)) + 1)
+    c0 = max(0, int(np.floor(cx - half)))
+    c1 = min(N, int(np.ceil(cx + half)) + 1)
+    if r1 <= r0 or c1 <= c0:
+        return
+    rr, cc = np.mgrid[r0:r1, c0:c1]
+    ca, sa = np.cos(angle), np.sin(angle)
+    u = (cc - cx) * ca + (rr - cy) * sa
+    v = -(cc - cx) * sa + (rr - cy) * ca
+    sel = (np.abs(u) <= w / 2.0) & (np.abs(v) <= h / 2.0)
+    block = img[r0:r1, c0:c1]
+    block[sel] = value
+    img[r0:r1, c0:c1] = block
+
+
+def model_ice_tank(shape: tuple[int, int] = (348, 1770), *, floe_sizes: tuple[float, ...] = (0.5, 1.0, 1.5),
+                   shares: tuple[float, ...] = (0.45, 0.40, 0.15), target_ic: float = 0.86,
+                   px_per_m: float = 26.0, seed: int = 0, ice_level: float = 205.0,
+                   water_level: float = 55.0, illumination: float = 0.10, noise: float = 4.0,
+                   blur: float = 0.9, corner_triangle: bool = True) -> np.ndarray:
+    """A synthetic **overall tank image** — the Tier-3 stand-in for ``04100_analyse.jpg`` (Book Fig. 9.1, p. 197).
+
+    Book: §9.1 (a 54 m level-ice sheet cut into squares and spread over 64 m of tank) and §9.2.1 (the image
+    ``block_threshold.m`` thresholds).  The printed Fig. 9.1 bitmap is 442 x 87 px, aspect **5.08 : 1**; the
+    default ``shape`` is **348 x 1770** (aspect 5.09 : 1) with ``348 / 2 = 174`` rows and ``1770 / 3 = 590``
+    columns, so ``block_threshold.m``'s ``n_r = 2, n_c = 3`` grid slices it into six equal blocks without the
+    non-integer indices that make MATLAB error.
+
+    Structure reproduced from the text: bright quasi-square floes of three sizes in the Table 9.1 mix, a
+    near-uniform illumination gradient (so the two Otsu assumptions of p. 199 hold and global ~ local ~ k-means),
+    and -- when ``corner_triangle`` -- the **out-of-tank bright triangle in the upper-right corner** that p. 199
+    blames for the 3-8 % ice-concentration deficit.
+
+    **Tier 3, synthetic, seeded.**  Never present any number computed from it as a book number.
+
+    Parameters
+    ----------
+    shape : (rows, cols)
+    floe_sizes, shares : the Table 9.1 square edge lengths in metres and their percentages
+    target_ic : float
+        Fraction of the image the floes should cover before overlap (Table 9.1's 86 % for run 5100).
+    px_per_m : float
+        Model-scale pixels per metre (``1.5 m`` -> 39 px at the default).
+    ice_level, water_level, illumination, noise : appearance controls
+    blur : float
+        Gaussian sigma applied before the noise.  It is **not** cosmetic: hard-edged rectangles on a two-tone
+        background leave an *empty band* in the histogram, and every threshold inside that band gives the same
+        mask — which would make a ``compare='gt'`` vs ``compare='ge'`` comparison (and a global-vs-local Otsu
+        comparison) agree for a reason that has nothing to do with the algorithms (CUMULATIVE pitfall 60, the
+        ch08 "degenerate fixture" trap).  The blur populates every gray level between water and ice, so a
+        one-level move of the threshold changes the count.
+    seed : int
+
+    Returns a uint8 RGB image (``(rows, cols, 3)``) so ``rgb2gray`` in the port has something to convert, exactly
+    as ``block_threshold.m`` line 3 expects.
+    """
+    rng = np.random.default_rng(seed)
+    M, N = shape
+    img = np.full((M, N), water_level, dtype=np.float64)
+    sizes_px = [max(3.0, s * px_per_m) for s in floe_sizes]
+    # Place floes size class by size class, largest first, so the big ones are not crowded out, and keep adding
+    # until the *union* coverage reaches the class's share of `target_ic` (random placement overlaps, so drawing
+    # `target_area / side^2` rectangles would only cover 1 - exp(-target_ic) ~ 58 % of the image).
+    ice = np.zeros((M, N), dtype=bool)
+    order = np.argsort(sizes_px)[::-1]
+    covered = 0.0
+    for idx in order:
+        side = sizes_px[idx]
+        want = covered + target_ic * M * N * shares[idx]
+        guard = 0
+        while ice.sum() < want and guard < 200000:
+            guard += 1
+            cy = rng.uniform(side / 2, M - side / 2)
+            cx = rng.uniform(side / 2, N - side / 2)
+            ang = rng.uniform(-0.12, 0.12)              # the cut squares are nearly, not exactly, aligned
+            jitter = rng.uniform(0.9, 1.1)
+            _draw_rect(img, cy, cx, side * jitter, side * jitter, ang, ice_level + rng.uniform(-10.0, 10.0))
+            _draw_rect(ice, cy, cx, side * jitter, side * jitter, ang, True)
+        covered = float(ice.sum())
+    if corner_triangle:
+        # p. 199: the bright region outside the tank in the upper-right corner of Fig. 9.1.
+        rr, cc = np.mgrid[0:M, 0:N]
+        tri_h, tri_w = M // 3, N // 12
+        img[(rr < tri_h) & (cc > N - 1 - tri_w * (1.0 - rr / max(tri_h, 1)) - 1)] = 240.0
+    if illumination:
+        ramp = 1.0 + illumination * (np.linspace(-0.5, 0.5, N)[None, :] + np.linspace(-0.3, 0.3, M)[:, None])
+        img = img * ramp
+    if blur:
+        from scipy.ndimage import gaussian_filter
+
+        img = gaussian_filter(img, blur, mode="nearest")
+    if noise:
+        img = img + rng.normal(0.0, noise, img.shape)
+    gray = np.clip(np.floor(img + 0.5), 0, 255).astype(np.uint8)
+    return np.repeat(gray[:, :, None], 3, axis=2)
+
+
+def model_ice_tank_video(n_frames: int = 60, shape: tuple[int, int] = (480, 640), *,
+                         drift: tuple[float, float] = (0.0, -2.0), seed: int = 0,
+                         vessel_box: tuple[tuple[int, int], tuple[int, int]] = ((307, 400), (268, 380)),
+                         ic_range: tuple[float, float] = (0.55, 0.88), n_floes: int = 1000,
+                         ice_level: float = 200.0, water_level: float = 50.0,
+                         highlight: bool = True) -> np.ndarray:
+    """A synthetic **top-view tank video** -- the Tier-3 stand-in for ``dypic_05100_cam1_top.avi`` (§9.2.2).
+
+    Book: §9.2.2 (Figs. 9.6-9.10), where a carriage-mounted top-view camera films the managed-ice field around the
+    towed vessel and the video is decimated to 1 fps.  MATLAB consumers:
+    ``MATLAB_ROOT/ch9/movie_otsu.m`` and ``MATLAB_ROOT/ch9/movie_kmeans.m``.
+
+    The constraints below are **load-bearing** (`analysis/ch09.md` §8, test-design note 1) -- do not relax them:
+
+    1. ``shape`` must be at least ``(400, 521)``: the scripts hard-code the crop ``y 180:400``, ``x 125:521``.
+    2. The ice concentration inside the crop **changes over time**, so ``IC(t)`` has structure.
+    3. A visually distinct region sits under ``rows 307:400 x cols 268:380`` (the vessel), so the blanking step of
+       lines 29-30 is observable.
+    4. **At least two consecutive frames have a decreasing Otsu threshold.**  Without that,
+       ``max_{j<=k} t(j) == t(k)`` and erratum **E4** of ``movie_otsu.m`` (``if I(i,j) >= t*255`` against the whole
+       growing ``t`` vector => the running maximum) is invisible -- the fixture could not distinguish the bug from
+       the correct per-frame rule.  It is achieved by ramping the ice brightness up and then down.
+    5. A bright **light reflection** on the water (``highlight``), the p.-200 source of the upward IC bias.
+
+    **Tier 3, synthetic, seeded.**  Returns ``(N, H, W, 3)`` uint8 (imageio order -- pass it straight to
+    :func:`seaice.core.video.write_video`, which also accepts MATLAB's ``(H, W, 3, N)``).
+    """
+    M, N = shape
+    (y3, y2), (x3, x4) = vessel_box
+    if M < y2 or N < 521:
+        raise ValueError(f"model_ice_tank_video: shape {shape} is too small for the scripts' hard-coded crop "
+                         "(y 180:400, x 125:521) -- need at least (400, 521)")
+    rng = np.random.default_rng(seed)
+    # Floe field in a coordinate system that drifts; sizes in px roughly matching the 0.5/1.0/1.5 m mix.
+    sides = rng.choice([14.0, 22.0, 34.0], size=n_floes, p=[0.45, 0.40, 0.15])
+    cy0 = rng.uniform(-40, M + 40, n_floes)
+    cx0 = rng.uniform(-60, N + 60, n_floes)
+    ang = rng.uniform(-0.15, 0.15, n_floes)
+    bright = rng.uniform(-12.0, 12.0, n_floes)
+    # Fraction of floes present in frame k: rises, then falls, so IC(t) is non-monotone.
+    phase = np.linspace(0.0, 1.0, n_frames)
+    present_frac = ic_range[0] + (ic_range[1] - ic_range[0]) * np.sin(np.pi * phase) ** 0.7
+    # Constraint 4: a brightness ramp that goes up for the first half and down for the second half moves the
+    # per-frame Otsu threshold in both directions.
+    gain = 1.0 + 0.22 * np.sin(2.0 * np.pi * phase)
+    order = rng.permutation(n_floes)
+    out = np.zeros((n_frames, M, N, 3), dtype=np.uint8)
+    rr, cc = np.mgrid[0:M, 0:N]
+    for k in range(n_frames):
+        img = np.full((M, N), water_level, dtype=np.float64)
+        keep = order[: int(round(present_frac[k] * n_floes))]
+        for i in keep:
+            cy = cy0[i] + drift[0] * k
+            cx = (cx0[i] + drift[1] * k) % (N + 120) - 60
+            _draw_rect(img, cy, cx, sides[i], sides[i], ang[i], (ice_level + bright[i]) * gain[k])
+        if highlight:                       # p. 200: tank-bottom lights reflecting off the water
+            d2 = (rr - 220.0) ** 2 / 900.0 + (cc - 180.0 - 0.6 * k) ** 2 / 3600.0
+            img = img + 120.0 * np.exp(-d2)
+        # Constraint 3: the vessel is a distinct dark hull with bright deck marks inside the blanking box.
+        img[y3 - 1:y2, x3 - 1:x4] = 20.0
+        img[y3 + 9:y3 + 30, x3 + 19:x3 + 60] = 225.0
+        img = img + rng.normal(0.0, 3.0, img.shape)
+        gray = np.clip(np.floor(img + 0.5), 0, 255).astype(np.uint8)
+        out[k] = np.repeat(gray[:, :, None], 3, axis=2)
+    return out
+
+
+def segmented_floe_video(n_frames: int = 60, shape: tuple[int, int] = (240, 320), *, seed: int = 0,
+                         blank_frame: int | None = None) -> np.ndarray:
+    """A synthetic **already-segmented** floe video -- the Tier-3 stand-in for ``05100.avi`` (§9.3.3, Fig. 9.18).
+
+    Book: §9.3.3 "monitoring maximum floe size".  MATLAB consumer:
+    ``MATLAB_ROOT/ch9/Model_Ice_Floe_Identification/movie_floe.m``, whose line 18 is ``im2bw(mov(k).cdata)``
+    with **no level** (=> 0.5 => ``rgb2gray`` then ``> 127.5``).  The AVI it reads must therefore already hold the
+    **binary** result of the per-frame Algorithm-7 segmentation, which the book never ships (gap **G2**).  Here the
+    masks are rendered as 0/255 RGB, so ``im2bw`` at the default level recovers them exactly.
+
+    Constraints (`analysis/ch09.md` §8, load-bearing for the verifier):
+
+    1. The **largest** component changes from frame to frame, so ``floe(k) = max(ice_areas)`` is a real time series.
+    2. Every frame contains one component of exactly **19 px** and one of exactly **20 px**, pinning
+       ``bwareaopen``'s ``>= P`` rule (19 removed, 20 kept at ``P = 20``).
+    3. Every frame contains a pair of blobs that are **8-connected but not 4-connected** (a diagonal touch),
+       pinning ``bwlabel(.., 4)`` -- with 8-connectivity they would be one component.
+    4. ``blank_frame`` (optional): the index of an **empty** frame, which makes ``max([])`` return ``[]`` and
+       ``floe(k) = []`` **delete** the element in MATLAB (risk R13).  ``None`` (default) leaves it out.
+
+    **Tier 3, synthetic, seeded.**  Returns ``(N, H, W, 3)`` uint8.
+    """
+    rng = np.random.default_rng(seed)
+    M, N = shape
+    # A 3 x 4 grid inside rows [40, M) keeps the floes **separate** (so "the largest floe" is a floe, not a merged
+    # blob) and leaves the top-left corner free for the 19/20-px and diagonal-touch fixtures below.
+    n_rows, n_cols = 3, 4
+    n_big = n_rows * n_cols
+    cell_h = (M - 40) / n_rows
+    cell_w = N / n_cols
+    cy0 = np.array([40 + (i // n_cols + 0.5) * cell_h for i in range(n_big)])
+    cx0 = np.array([(i % n_cols + 0.5) * cell_w for i in range(n_big)])
+    sides = rng.permutation(np.linspace(18.0, 40.0, n_big))
+    ang = rng.uniform(-0.3, 0.3, n_big)
+    # Constraint 1: each floe breathes with its own amplitude, period and phase, so the maximum area is
+    # **non-monotone** and the floe that attains it **changes identity** several times over the sequence.  A
+    # monotone series (a common first attempt) cannot distinguish `max` from `last` or from a running maximum.
+    amp = rng.uniform(4.0, 14.0, n_big)
+    period = rng.uniform(11.0, 29.0, n_big)
+    phase = rng.uniform(0.0, 2.0 * np.pi, n_big)
+    cap = 0.72 * min(cell_h, cell_w)                # never let two neighbours touch
+    out = np.zeros((n_frames, M, N, 3), dtype=np.uint8)
+    for k in range(n_frames):
+        bw = np.zeros((M, N), dtype=np.float64)
+        if blank_frame is None or k != blank_frame:
+            for i in range(n_big):
+                s = float(np.clip(sides[i] + amp[i] * np.sin(2.0 * np.pi * k / period[i] + phase[i]),
+                                  8.0, cap))
+                _draw_rect(bw, cy0[i], cx0[i], s, s * 0.85, ang[i], 1.0)
+            # Constraint 2: exactly 19 px and exactly 20 px, isolated in the top-left corner.
+            bw[2:5, 2:8] = 1.0                       # 18 px
+            bw[5, 2] = 1.0                           # -> 19 px  (dropped by bwareaopen(.., 20))
+            bw[2:5, 12:18] = 1.0                     # 18 px
+            bw[5, 12:14] = 1.0                       # -> 20 px  (kept: the rule is `>= P`)
+            # Constraint 3: two 5x5 blocks touching only at a corner -> one 8-component, two 4-components.
+            bw[M - 24:M - 19, 8:13] = 1.0
+            bw[M - 19:M - 14, 13:18] = 1.0
+        gray = (bw > 0).astype(np.uint8) * 255
+        out[k] = np.repeat(gray[:, :, None], 3, axis=2)
+    return out

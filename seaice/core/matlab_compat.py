@@ -277,3 +277,28 @@ def matlab_colon(start: float, step: float, stop: float) -> np.ndarray:
     if n >= 1 and abs(v[-1] - stop) <= 3.0 * np.finfo(float).eps * max(abs(stop), 1.0):
         v[-1] = stop
     return v
+
+
+def num2str(x: float) -> str:
+    """MATLAB ``num2str`` for a scalar double (R2025a ``num2str.m``).
+
+    Integers print as ``%d``; otherwise ``%.<n>g`` with ``n = max(floor(log10(|x|)) + 5, 5)`` significant digits
+    — 4 significant digits after the leading ones: ``73.8472``, ``86.496``, ``pi`` → ``'3.1416'``,
+    ``0.123456789`` → ``'0.12346'``, ``1234.56789`` → ``'1234.5679'``.  Needed for byte-identical figure titles
+    (``ch3/local_Otsu.m`` line 38 and ``ch9/block_threshold.m`` line 40, both
+    ``title({['{\\it IC}=', num2str(ic0), '%']; ['Threshold=', num2str(th)]})``).
+
+    Parity: exact (ten sample strings and twelve titles checked against MATLAB,
+    ``reference/ch03/local_otsu.mat: n2s``).  Promoted here from
+    ``seaice.ch03_ice_pixel_detection._num2str`` when chapter 9 became the second caller (ch03 open item 3);
+    that name remains as an alias so no chapter-3 test moves.
+    """
+    x = float(x)
+    if np.isnan(x):
+        return "NaN"
+    if np.isinf(x):
+        return "Inf" if x > 0 else "-Inf"
+    if x.is_integer():
+        return str(int(x))
+    ndigits = max(int(np.floor(np.log10(abs(x)))) + 5, 5)
+    return f"{x:.{ndigits}g}"

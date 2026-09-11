@@ -36,7 +36,7 @@ from .core.distance import bwdist
 from .core.filters import fspecial, imfilter
 from .core.matlab_compat import matlab_round, rgb2gray_matlab
 from .core.morphology import imdilate, imregionalmin, strel
-from .core.polygon import clip_polygon_rect
+from .core.polygon import clip_polygon_rect, minboundrect
 from .core.regionprops import regionprops
 from .core.snake import gaussian_blur, gradient2, gradient2_magnitude, gvf, snakedeform, snakeinterp
 from .core.threshold import graythresh, im2bw
@@ -408,6 +408,10 @@ class PassRecord:
     init: ContourInit | None = None
     seeds: list[SeedRecord] = field(default_factory=list)
     stopped: bool = False            # True when `length(k) == 0` broke the loop
+    #: Gap G1 (`analysis/ch09.md` R10): True when the **opt-in** ``stop='count'`` rule broke the loop because
+    #: the floe count after steps N and N+1 was equal (book Algorithm 7 lines 2/6/7/19, p. 206).  The shipped
+    #: M-code computes ``num`` but never compares it, so this is always False with the default ``stop='criteria'``.
+    stopped_on_count: bool = False
     #: Review S9 — seeds whose clipped initial contour had fewer than 3 vertices and were skipped (MATLAB errors).
     #: They are recorded in ``skipped_seeds`` (``rec.seeds`` keeps holding deformed contours only, so existing
     #: consumers may still assume ``s.x_final is not None`` there).
@@ -476,21 +480,38 @@ class KmeanGVF:
 
 
 def component_criteria(bw: np.ndarray, Ra: float, Rc: float, Rl: float,
-                       conn: int = 4) -> tuple[np.ndarray, int, np.ndarray, np.ndarray, np.ndarray,
-                                               np.ndarray, np.ndarray, np.ndarray]:
+                       conn: int = 4, *, ratio: str = "ellipse") -> tuple[np.ndarray, int, np.ndarray,
+                                                                          np.ndarray, np.ndarray, np.ndarray,
+                                                                          np.ndarray, np.ndarray]:
     """The three re-segmentation criteria of book Ch. 9 p. 205, as ``GVF_distance.m`` lines 80–102 implement them.
 
     ``[label, num] = bwlabel(bw1, 4)``; per component ``Area``, ``Solidity``, ``MajorAxisLength``,
     ``MinorAxisLength``; ``rl = l ./ w``; ``k = unique([find(a > Ra); find(rc < Rc); find(rl > Rl)])``.
 
     Criterion 1 = the floe area exceeds the threshold; criterion 2 = ``Solidity`` (the convex hull *is* the
-    minimum-area bounding polygon); criterion 3 is written in the book as the length-to-width ratio of the
-    minimum-area bounding **rectangle** but implemented with the **ellipse** axis ratio — a documented deviation
-    of the shipped code from the text (:func:`seaice.core.polygon.minboundrect` computes the book's version).
+    minimum-area bounding polygon); criterion 3 is written in the book (Ch. 9 p. 205, third bullet) as the
+    length-to-width ratio of the minimum-area bounding **rectangle**, but ``GVF_distance.m`` lines 90–95
+    implement the **ellipse** axis ratio ``MajorAxisLength / MinorAxisLength``.
+
+    Parameters
+    ----------
+    ratio : {'ellipse', 'minrect'}
+        ``'ellipse'`` (**default**) = what the shipped M-code computes and what ch06 verified at 0 px against
+        MATLAB R2025a — never change this default.  ``'minrect'`` = the **book text's** variant: ``rl`` is the
+        long-side/short-side ratio of :func:`seaice.core.polygon.minboundrect` over the component's pixels
+        (``minboundrect(c, r, 'a')`` with ``x = column``, ``y = row``, exactly as ``ch9/rect.m`` line 52 calls
+        it).  ch9 ships ``minboundrect.m``, so the book's version is computable — but only ``rect.m`` uses it.
+
+        # DEVIATION: `reimplemented` (text-vs-code) — `ratio='minrect'` is **not** what any shipped `.m` file
+        # does; it is the criterion the book *states*.  It has no MATLAB reference and must never be used for a
+        # parity claim.  `'ellipse'` stays the default everywhere, so no ch06/ch07 number moves.
 
     Returns ``(label, num, area, solidity, major, minor, rl, k)`` with ``k`` 0-based and sorted (MATLAB's
-    ``unique``).  Parity: exact.
+    ``unique``).  With ``ratio='minrect'`` the returned ``major``/``minor`` are the rectangle's long and short
+    sides (so ``rl = major / minor`` still holds).  Parity: exact for ``ratio='ellipse'``.
     """
+    if ratio not in ("ellipse", "minrect"):
+        raise ValueError("ratio must be 'ellipse' (the shipped code) or 'minrect' (the book text)")
     label = label_components(np.asarray(bw) != 0, conn)
     num = int(label.max())
     if num == 0:
@@ -499,8 +520,11 @@ def component_criteria(bw: np.ndarray, Ra: float, Rc: float, Rl: float,
     stats = regionprops(label, ("Area", "Solidity", "MajorAxisLength", "MinorAxisLength"))
     area = np.array([s.Area for s in stats])
     solidity = np.array([s.Solidity for s in stats])
-    major = np.array([s.MajorAxisLength for s in stats])
-    minor = np.array([s.MinorAxisLength for s in stats])
+    if ratio == "minrect":
+        major, minor = _minrect_sides(label, num)
+    else:
+        major = np.array([s.MajorAxisLength for s in stats])
+        minor = np.array([s.MinorAxisLength for s in stats])
     with np.errstate(divide="ignore", invalid="ignore"):
         rl = major / minor
     k = np.unique(np.concatenate([np.nonzero(area > Ra)[0], np.nonzero(solidity < Rc)[0],
@@ -508,11 +532,33 @@ def component_criteria(bw: np.ndarray, Ra: float, Rc: float, Rl: float,
     return label, num, area, solidity, major, minor, rl, k.astype(np.int64)
 
 
+def _minrect_sides(label: np.ndarray, num: int) -> tuple[np.ndarray, np.ndarray]:
+    """Long and short side of each component's minimum-area bounding rectangle (book Ch. 9 p. 205 criterion 3).
+
+    ``[r, c] = find(label == i); [rectx, recty] = minboundrect(c, r, 'a')`` — the ``(x = column, y = row)``
+    argument order of ``ch9/rect.m`` line 52.  Used only by ``component_criteria(..., ratio='minrect')``.
+
+    The coordinates are left 0-based (``rect.m``'s are MATLAB's 1-based ``find``); a ratio of two side lengths is
+    translation-invariant, so the two conventions give the same ``rl`` to the last bit.
+    """
+    long_side = np.zeros(num)
+    short_side = np.zeros(num)
+    for i in range(1, num + 1):
+        r, c = np.nonzero(label == i)
+        rectx, recty, _a, _p = minboundrect(c.astype(np.float64), r.astype(np.float64), "a")
+        s1 = float(np.hypot(rectx[1] - rectx[0], recty[1] - recty[0]))
+        s2 = float(np.hypot(rectx[2] - rectx[1], recty[2] - recty[1]))
+        long_side[i - 1] = max(s1, s2)
+        short_side[i - 1] = min(s1, s2)
+    return long_side, short_side
+
+
 def _run_snake_passes(bw1: np.ndarray, px: np.ndarray, py: np.ndarray, *, iter: int, alpha: float, beta: float,
                       gamma: float, kappa: float, Dmin: float, Dmax: float, Ra_min: float, Ra: float,
                       Rc: float, Rl: float, se_radius: int, timer: int, max_seeds: int | None,
                       keep_history: bool, progress,
-                      solver: str = "auto") -> tuple[np.ndarray, list[PassRecord], int, int]:
+                      solver: str = "auto", stop: str = "criteria",
+                      ratio: str = "ellipse") -> tuple[np.ndarray, list[PassRecord], int, int]:
     """The ``for time = 1:timer`` body shared verbatim by ``GVF_distance.m`` and both passes of
     ``seaice_kmean_GVF_forenhancement.m`` (lines 79–161 / 100–183 / 212–295)."""
     bw1 = np.asarray(bw1).astype(np.float64).copy() if not np.asarray(bw1).dtype == np.bool_ \
@@ -521,14 +567,24 @@ def _run_snake_passes(bw1: np.ndarray, px: np.ndarray, py: np.ndarray, *, iter: 
     passes: list[PassRecord] = []
     n_seeds_total = 0
     n_seeds_run = 0
+    n0 = 0                       # Algorithm 7 line 2 `N0 <- 0`; only consulted when stop == 'count'
     for time in range(1, int(timer) + 1):
-        label, num, area, solidity, major, minor, rl, k = component_criteria(bw1 != 0, Ra, Rc, Rl, conn=4)
+        label, num, area, solidity, major, minor, rl, k = component_criteria(bw1 != 0, Ra, Rc, Rl, conn=4,
+                                                                            ratio=ratio)
         rec = PassRecord(time=time, label=label, num=num, area=area, solidity=solidity, major=major,
                          minor=minor, rl=rl, k=k)
         if k.size == 0:
             rec.stopped = True
             passes.append(rec)
             break
+        if stop == "count" and num == n0:
+            # Algorithm 7 lines 6-7/19 (p. 206): `N1 <- total floes`, stop when `N0 == N1`.  Gap G1 --
+            # `GVF_distance.m` line 80 computes `num` and never compares it, so this branch is opt-in only.
+            rec.stopped = True
+            rec.stopped_on_count = True
+            passes.append(rec)
+            break
+        n0 = num
         bw2 = np.zeros((s1, s2), dtype=np.float64)
         for m in k:
             bw2[label == (m + 1)] = 1.0
@@ -596,7 +652,8 @@ def gvf_distance(I: np.ndarray, *, sigma: float = 0.0, GradientOn: bool = True, 
                  Ra_min: float = 10, Ra: float = 2500, Rc: float = 0.9, Rl: float = 2, se_radius: int = 3,
                  timer: int = 1, normalize: bool = True, max_seeds: int | None = None,
                  keep_history: bool = True, progress=None, solver: str = "auto",
-                 field_cache: tuple[np.ndarray, ...] | None = None) -> GVFDistance:
+                 field_cache: tuple[np.ndarray, ...] | None = None, stop: str = "criteria",
+                 ratio: str = "ellipse") -> GVFDistance:
     """Port of ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/GVF_distance.m`` — **Algorithm 1** (§6.4, p. 136).
 
     ::
@@ -627,7 +684,12 @@ def gvf_distance(I: np.ndarray, *, sigma: float = 0.0, GradientOn: bool = True, 
     -----------------------------------------
     ``normalize`` — see :func:`gvf_force_field`; ``max_seeds`` — stop after N contours (runtime cap, reported in
     the result); ``keep_history`` — record the contour after each 5-iteration block; ``progress`` — callback
-    ``(i, n)``; ``solver`` — passed to :func:`seaice.core.snake.snakedeform` (``'dense'`` = MATLAB's literal
+    ``(i, n)``; ``stop`` — ``'criteria'`` (**default**, the shipped code: stop when no component fails the three criteria) or
+``'count'``, the **book's own** Algorithm 7 convergence test (lines 2/6/7/19, p. 206: stop when the total floe
+count after steps N and N+1 is equal), which the M-file computes (``num``, line 80) but never applies — gap G1
+of `analysis/ch09.md`.  Opt-in only: making it the default would silently move every verified ch06/ch07 number.
+``ratio`` — passed to :func:`component_criteria` (``'ellipse'`` = the code, ``'minrect'`` = the book text).
+``solver`` — passed to :func:`seaice.core.snake.snakedeform` (``'dense'`` = MATLAB's literal
     ``inv``, ``'auto'`` = the FFT solve for long contours; see the DEVIATION note there — with ``'auto'`` a
     handful of contour points can land on the other side of a ``ceil`` boundary, which is why the burnt-pixel
     count may differ by ~1 in 1000 from the dense run); ``field_cache`` — reuse a computed ``(f2, u, v, px, py)``.
@@ -648,7 +710,7 @@ def gvf_distance(I: np.ndarray, *, sigma: float = 0.0, GradientOn: bool = True, 
     bw1, passes, n_seeds, n_run = _run_snake_passes(
         bw, px, py, iter=iter, alpha=alpha, beta=beta, gamma=gamma, kappa=kappa, Dmin=Dmin, Dmax=Dmax,
         Ra_min=Ra_min, Ra=Ra, Rc=Rc, Rl=Rl, se_radius=se_radius, timer=timer, max_seeds=max_seeds,
-        keep_history=keep_history, progress=progress, solver=solver)
+        keep_history=keep_history, progress=progress, solver=solver, stop=stop, ratio=ratio)
     return GVFDistance(gray=gray, level=float(level), bw=bw, f2=f2, u=u, v=v, px=px, py=py, passes=passes,
                        bw1=bw1 != 0, n_seeds=n_seeds, n_seeds_run=n_run)
 

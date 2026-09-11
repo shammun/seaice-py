@@ -40,12 +40,16 @@ import numpy as np
 from .connectivity import label_components
 from .polygon import convhull, poly2mask
 
-__all__ = ["RegionProps", "regionprops", "region_table", "PROPERTIES"]
+__all__ = ["RegionProps", "regionprops", "region_table", "PROPERTIES", "BASIC_PROPERTIES"]
 
 #: Properties this module computes (superset of what ch6–ch9 request).
 PROPERTIES = ("Area", "Centroid", "BoundingBox", "ConvexHull", "ConvexImage", "ConvexArea", "Solidity",
               "MajorAxisLength", "MinorAxisLength", "Eccentricity", "Orientation", "Perimeter", "PixelIdxList",
               "PixelList", "Image")
+
+#: MATLAB's ``regionprops(L, 'basic')`` shorthand — ``movie_floe.m`` line 23 (``icedata = regionprops(cc,'basic')``).
+#: R2025a ``regionprops.m``: ``basicProps = {'Area', 'Centroid', 'BoundingBox'}``.
+BASIC_PROPERTIES = ("Area", "Centroid", "BoundingBox")
 
 
 @dataclass
@@ -222,7 +226,9 @@ def regionprops(L, properties: str | tuple[str, ...] | list[str] | None = None, 
         Label matrix (integer with more than one region) or binary image, which is labelled with ``conn``
         (default 8, MATLAB's ``bwlabel`` default) in MATLAB's column-major numbering.
     properties : str or sequence of str, optional
-        Which properties to compute (``'all'`` / ``None`` = every entry of :data:`PROPERTIES`).  Requesting only
+        Which properties to compute (``'all'`` / ``None`` = every entry of :data:`PROPERTIES`; ``'basic'`` =
+        :data:`BASIC_PROPERTIES` = ``Area``, ``Centroid``, ``BoundingBox``, MATLAB's own shorthand used by
+        ``MATLAB_ROOT/ch9/Model_Ice_Floe_Identification/movie_floe.m`` line 23).  Requesting only
         what is needed matters: ``ConvexArea``/``Solidity`` cost a convex hull and a ``poly2mask`` per component.
     conn : int
         Connectivity used when ``L`` is binary.
@@ -239,10 +245,18 @@ def regionprops(L, properties: str | tuple[str, ...] | list[str] | None = None, 
     lab = _as_label_image(L, conn)
     if properties is None or (isinstance(properties, str) and properties.lower() == "all"):
         want = set(PROPERTIES)
+    elif isinstance(properties, str) and properties.lower() == "basic":
+        want = set(BASIC_PROPERTIES)          # R2025a regionprops.m 'basic' = Area, Centroid, BoundingBox
     elif isinstance(properties, str):
         want = {_canonical(properties)}
     else:
-        want = {_canonical(p) for p in properties}
+        # MATLAB allows 'basic' inside a list too (regionprops(L,'basic','Perimeter')).
+        want = set()
+        for p in properties:
+            if isinstance(p, str) and p.lower() == "basic":
+                want |= set(BASIC_PROPERTIES)
+            else:
+                want.add(_canonical(p))
     # dependencies
     if want & {"Solidity", "ConvexArea"}:
         want |= {"ConvexImage", "Area"}

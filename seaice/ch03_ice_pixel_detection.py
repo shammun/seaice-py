@@ -25,7 +25,7 @@ import numpy as np
 from .core import synth
 from .core.clustering import KMeansResult, kmeans_gray, kmeans_lloyd, pairwise_distance
 from .core.histogram import imhist
-from .core.matlab_compat import rgb2gray_matlab
+from .core.matlab_compat import num2str as _mc_num2str, rgb2gray_matlab
 from .core.threshold import block_otsu, class_coverage, class_mean_intensity, graythresh, ice_concentration, \
     im2bw, imquantize, multithresh, otsu_criterion
 
@@ -161,20 +161,10 @@ def local_otsu(gray: np.ndarray, n_r: int = 2, n_c: int = 3) -> dict[str, Any]:
             "titles": titles}
 
 
-def _num2str(x: float) -> str:
-    """MATLAB ``num2str`` for a scalar double (R2025a ``num2str.m``: integers print as ``%d``; otherwise
-    ``%.<n>g`` with ``n = max(floor(log10(|x|)) + 5, 5)`` significant digits, e.g. ``73.8472`` → ``'73.8472'``,
-    ``pi`` → ``'3.1416'``, ``0.123456789`` → ``'0.12346'``, ``1234.56789`` → ``'1234.5679'``).
-    Parity: exact (ten sample strings checked against MATLAB, ``reference/ch03/local_otsu.mat: n2s``)."""
-    x = float(x)
-    if np.isnan(x):
-        return "NaN"
-    if np.isinf(x):
-        return "Inf" if x > 0 else "-Inf"
-    if x.is_integer():
-        return str(int(x))
-    ndigits = max(int(np.floor(np.log10(abs(x)))) + 5, 5)
-    return f"{x:.{ndigits}g}"
+#: MATLAB ``num2str`` for a scalar double — **promoted to** :func:`seaice.core.matlab_compat.num2str` when
+#: chapter 9's ``block_threshold.m`` became the second caller (ch03 open item 3).  This name is kept as an alias
+#: so every chapter-3 call site and test keeps working; the implementation lives in ``core`` only.
+_num2str = _mc_num2str
 
 
 # ---------------------------------------------------------------------------------------------------------------
