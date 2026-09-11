@@ -33,7 +33,7 @@ from pathlib import Path
 import numpy as np
 
 __all__ = ["VideoInfo", "read_video", "write_video", "video_num_frames", "video_info",
-           "frames_to_matlab", "frames_to_imageio"]
+           "frames_to_matlab", "frames_to_imageio", "infer_frame_layout"]
 
 
 @dataclass(frozen=True)
@@ -63,12 +63,35 @@ def frames_to_imageio(frames: np.ndarray) -> np.ndarray:
     return np.transpose(frames, (3, 0, 1, 2))
 
 
+def infer_frame_layout(shape) -> str | None:
+    """The project's **single** rule for telling a 4-D frame stack's axis order from its shape.
+
+    Returns ``'nhwc'`` for imageio's ``(N, H, W, 3)``, ``'hwcn'`` for MATLAB's ``read(VideoReader)`` order
+    ``(H, W, 3, N)``, or ``None`` when neither applies (no axis of length 3 in either place).
+
+    The last axis is tested **first**, so the genuinely ambiguous ``(3, H, W, 3)`` / ``(H, W, 3, 3)`` case — a
+    3-frame, 3-channel stack — resolves to ``'nhwc'``.  Pass the layout explicitly (or a list of frames) when
+    that matters.  Shared by :func:`_normalise_layout` here and by
+    :func:`seaice.ch09_model_ice._as_frame_list`, which previously spelled the same rule two different ways
+    (review nit N-b); the two are behaviourally identical on every shape either accepted before.
+    """
+    shape = tuple(shape)
+    if len(shape) != 4:
+        return None
+    if shape[3] == 3:
+        return "nhwc"
+    if shape[2] == 3:
+        return "hwcn"
+    return None
+
+
 def _normalise_layout(frames: np.ndarray, layout: str) -> np.ndarray:
     """Return the stack in imageio's ``(N, H, W, 3)`` order.
 
-    ``layout='auto'`` decides from the shape: ``(..., 3)`` in the last axis is ``NHWC``, otherwise ``(·, ·, 3, ·)``
-    is MATLAB's ``HWCN``.  When both are 3 (a 3-frame 3-channel stack) ``NHWC`` wins — pass ``layout`` explicitly
-    to remove the ambiguity.
+    ``layout='auto'`` decides with :func:`infer_frame_layout`: ``(..., 3)`` in the last axis is ``NHWC``,
+    otherwise ``(·, ·, 3, ·)`` is MATLAB's ``HWCN``.  When both are 3 (a 3-frame 3-channel stack) ``NHWC`` wins —
+    pass ``layout`` explicitly to remove the ambiguity.  A stack that matches neither is written as ``HWCN`` and
+    then fails the channel check below, as before.
     """
     frames = np.asarray(frames)
     if frames.ndim == 3:                       # a single frame, or a stack of gray frames
@@ -80,7 +103,7 @@ def _normalise_layout(frames: np.ndarray, layout: str) -> np.ndarray:
         raise ValueError(f"expected 3-D or 4-D frames, got shape {frames.shape}")
     lay = layout.lower()
     if lay == "auto":
-        lay = "nhwc" if frames.shape[3] == 3 else "hwcn"
+        lay = infer_frame_layout(frames.shape) or "hwcn"
     if lay == "hwcn":
         frames = frames_to_imageio(frames)
     elif lay != "nhwc":

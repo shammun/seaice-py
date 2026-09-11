@@ -56,6 +56,17 @@ Errata reproduced literally (the corrected form is always an opt-in flag)
   this loop never reaches.  :func:`movie_floe`'s default ``empty='raise'`` therefore *is* the literal behaviour;
   ``empty='delete'`` offers the deletion semantics for the reachable case.
 
+Deviations of this port from MATLAB
+-----------------------------------
+* **D9 (new, review finding M1)** — the two **degenerate** ``minboundrect`` branches return MATLAB's values but
+  not MATLAB's *shapes*, so :func:`rect` differs from ``rect.m`` on a 1-pixel component (MATLAB's ``Vertices``
+  is a **1×10** row, ours a ``(5, 2)`` ring — and MATLAB's ``model_ice_model.m`` line 32 then **errors** with
+  ``MATLAB:badsubscript`` where this port gets ``k = 0/0 = NaN`` and silently rejects the floe) and on a
+  2-pixel component (MATLAB's ``Perimeter`` is a **2×1** vector, ours the same value as a scalar).  Both are
+  unreachable from ``model_ice_demo.m`` (``bwareaopen(·, 20)`` runs first), so no shipped number moves; the
+  literal shapes are not reproduced because ``minboundrect`` is a ch06-verified `exact` primitive.  Full
+  statement in :func:`rect` and :func:`seaice.core.polygon.minboundrect`; extends open item **O7**.
+
 Gaps in the shipped code
 ------------------------
 * **G1** — Algorithm 7's convergence test (lines 2/6/7/19, "stop if the total number of floes after steps N and
@@ -105,6 +116,7 @@ from .core.morphology import imfill
 from .core.polygon import clip_polygon_convex, minboundrect, roipoly
 from .core.regionprops import regionprops
 from .core.threshold import BlockOtsu, block_otsu, graythresh, ice_concentration, im2bw
+from .core.video import infer_frame_layout
 
 __all__ = [
     "BOOK_PARAMS_CH9", "CROP_5100", "BOX_5100", "IC_DENOMINATOR_5100",
@@ -513,10 +525,12 @@ class RectFloe:
     Attributes
     ----------
     Vertices : (5, 2) float — ``[rectx, recty]``, a **closed** ring (``minboundrect`` returns 5 points),
-        column (x) first, row (y) second
+        column (x) first, row (y) second.  **For a 1-pixel component MATLAB's is a 1x10 row instead** —
+        deviation **D9**, see :func:`rect`.
     Center : (2,) float — ``[mean(rectx(1:4)), mean(recty(1:4))]``
     Area : float — the rectangle's area
-    Perimeter : float — the rectangle's perimeter
+    Perimeter : float — the rectangle's perimeter.  **For a 2-pixel component MATLAB's is a 2x1 vector**
+        holding this value twice — deviation **D9**, see :func:`rect`.
     """
 
     Vertices: np.ndarray
@@ -552,15 +566,55 @@ def rect(img: np.ndarray, metric: str = "a", *, conn: int = 4) -> list[RectFloe]
     ----------
     img : ndarray
         Binary (or nonzero-is-object) image — ``model_ice_demo.m`` passes ``bw4``.
-    metric : str
+    metric : str or None
         Accepted and validated, never used (E8).  ``'a'``/``'p'`` or any unambiguous contraction.
+        ``''`` and ``None`` select the default ``'a'``, exactly as ``rect.m`` line 32
+        (``if (nargin<3) || isempty(metric)``) does — R2025a probed on a 1-px image (the only input on which the
+        shipped file still runs, since ``minboundrect`` line 102 passes the obsolete ``{'Qt'}`` to ``convhull``):
+        ``rect(bw, '')`` and ``rect(bw, [])`` both return the ``'a'`` result (review nit N-c).
+
+        # DEVIATION (**D2**): a genuinely bogus value still raises here, where MATLAB accepts *everything* —
+        # the same probe shows `rect(bw,'x')`, `rect(bw,'ap')` and even `rect(bw,5)` all succeed, because
+        # `nargin < 3` is true in a two-argument function and the whole `elseif` validation is dead code (E8).
+        # Raising is the deliberate divergence: it stops a caller believing `'p'` did anything.
     conn : int
         ``bwlabel``'s connectivity; the M-file hard-codes **4**.
 
-    Returns a list of :class:`RectFloe` in ``bwlabel`` label order.  Parity: exact.
+    Returns a list of :class:`RectFloe` in ``bwlabel`` label order.
+
+    Parity: **exact for every component MATLAB can process** — i.e. every component whose pixels are not
+    collinear and number more than 3 (``minboundrect.m`` line 102 sends anything larger to ``convhull``, which
+    R2025a refuses for a collinear cloud: ``MATLAB:convhull:EmptyConvhull2DErrId``; this port is more
+    permissive, see ``test_matlab_refuses_a_collinear_component_but_this_port_does_not``).  The two **degenerate
+    components** — 1 and 2 pixels — carry deviation **D9** (review finding M1), inherited from the
+    ``nedges ∈ {1, 2}`` branches of :func:`seaice.core.polygon.minboundrect`:
+
+    # DEVIATION (**D9**, R2025a-probed 2026-09-11; unreachable from `model_ice_demo.m`, whose
+    # `bwareaopen(., 20)` precedes `rect`, so **no shipped number moves**):
+    #   1-pixel component: MATLAB's `rectx`/`recty` come back as 1x5 ROWS, so line 56 `v = [rectx, recty]` is a
+    #     **1x10** -- `size(s(1).Vertices) -> 1 10`, `s(1).Vertices -> 4 4 4 4 4 3 3 3 3 3` -- and NOT the 5x2
+    #     ring the docstring of `RectFloe` describes.  `Center`, `Area` and `Perimeter` still agree
+    #     (`[4 3]`, `0`, `0`), because `rectx(1:4)` is linear indexing and reads the first four elements either
+    #     way.  Downstream the shapes diverge in behaviour: MATLAB's `model_ice_model.m:32` indexes `v(2,1,1)`
+    #     on that 1x10 and **errors** (`MATLAB:badsubscript`, "Index in position 1 exceeds array bounds. Index
+    #     must not exceed 1."), whereas this port's (5, 2) ring gives `k = 0/0 = NaN`, fails the strict
+    #     `NaN < k2` test and silently drops the floe.  A ch9 pipeline that contains a 1-px component therefore
+    #     *runs* here and *stops* in MATLAB.
+    #   2-pixel component: `Vertices` (5x2), `Center` and `Area` agree; MATLAB's `Perimeter` is a **2x1 vector**
+    #     with both entries equal (`minboundrect.m` line 148 differences the closed 3-element x/y), e.g. `[2; 2]`
+    #     for two horizontally adjacent pixels, where `RectFloe.Perimeter` is the scalar `2.0`.  Consumers of
+    #     the *value* agree; a consumer of `numel(Perimeter)` would not.  `model_ice_model` accepts neither
+    #     engine's version (`k = 1/0 = Inf` fails `k < k2` in both), which was probed: MATLAB returns an empty
+    #     `s_model`, and so does this port.
+    # The literal shapes are not reproduced because `minboundrect` is a ch06-verified `exact` primitive whose
+    # 541 tests must stay green (two of them evaluate `abs(perimeter - <scalar>) < 1e-12` inside an `assert`,
+    # which a 2-vector makes ambiguous).  See :func:`seaice.core.polygon.minboundrect` for the branch-by-branch
+    # statement of what MATLAB returns.
     """
+    if metric is None or metric == "":                 # rect.m:32 `if (nargin<3) || isempty(metric)`
+        metric = "a"
     m = str(metric).lower()
-    if not (m and ("area".startswith(m) or "perimeter".startswith(m))):
+    if not ("area".startswith(m) or "perimeter".startswith(m)):
         raise ValueError("metric does not match either 'area' or 'perimeter'")
     label = label_components(np.asarray(img) != 0, conn)
     num = int(label.max())
@@ -670,8 +724,14 @@ def model_ice_model(S: Sequence[RectFloe], img: np.ndarray, k1: float = 0.4, k2:
     for i, s in enumerate(S):
         v = np.asarray(s.Vertices, dtype=np.float64)
         # line 32-33: k = |v1 - v2| / |v3 - v2|  (1-based vertices 1, 2, 3 of the closed ring)
-        num = np.hypot(v[0, 0] - v[1, 0], v[0, 1] - v[1, 1])
-        den = np.hypot(v[2, 0] - v[1, 0], v[2, 1] - v[1, 1])
+        # `sqrt(dx^2 + dy^2)` LITERALLY, never np.hypot: MATLAB's line writes the square root of the sum of
+        # squares, and `hypot` is a different (scaled, more accurate) algorithm -- an R2025a probe found
+        # `sqrt(dx^2+dy^2) ~= hypot(dx,dy)` on 22 945 of 200 000 random pairs (max 2.2e-16 relative, 1 ulp).
+        # `k` then feeds the **strict** `k < k2 && k > k1` test (E7), where one ulp can flip accept/reject.
+        dx1, dy1 = v[0, 0] - v[1, 0], v[0, 1] - v[1, 1]
+        dx2, dy2 = v[2, 0] - v[1, 0], v[2, 1] - v[1, 1]
+        num = np.sqrt(dx1 * dx1 + dy1 * dy1)
+        den = np.sqrt(dx2 * dx2 + dy2 * dy2)
         with np.errstate(divide="ignore", invalid="ignore"):
             k = num / den
         ratios[i] = k
@@ -999,9 +1059,12 @@ def segment_video(frames: np.ndarray, *, params: dict | None = None, max_seeds: 
 def _as_frame_list(frames: np.ndarray) -> list[np.ndarray]:
     """Accept ``(H, W, 3, N)`` (MATLAB ``read(VideoReader)`` order), ``(N, H, W, 3)`` or a list of frames.
 
-    The layout is inferred from the shape: ``(·, ·, 3, N≠3)`` is MATLAB's ``HWCN``, ``(·, ·, ·, 3)`` is imageio's
-    ``NHWC``.  A stack that is **3 frames wide and 3 channels deep at once** (``(H, W, 3, 3)`` vs ``(3, H, W, 3)``)
-    cannot be told apart and is read as ``NHWC``; pass a list of frames if that ever matters.
+    The layout is inferred by :func:`seaice.core.video.infer_frame_layout` — the **one** shared rule, so this
+    function and ``core/video.py``'s ``_normalise_layout`` cannot drift apart (review nit N-b): ``(·, ·, ·, 3)``
+    is imageio's ``NHWC``, otherwise ``(·, ·, 3, N)`` is MATLAB's ``HWCN``.  A stack that is **3 frames wide and
+    3 channels deep at once** (``(H, W, 3, 3)`` vs ``(3, H, W, 3)``) cannot be told apart and is read as
+    ``NHWC``; pass a list of frames if that ever matters.  Unlike ``_normalise_layout`` (which falls back to
+    ``HWCN`` and then fails its own channel check), an unrecognisable shape raises here.
     """
     if isinstance(frames, (list, tuple)):
         return [np.asarray(f) for f in frames]
@@ -1010,10 +1073,11 @@ def _as_frame_list(frames: np.ndarray) -> list[np.ndarray]:
         return [arr]
     if arr.ndim != 4:
         raise ValueError(f"expected a 4-D frame stack, got shape {arr.shape}")
-    if arr.shape[2] == 3 and arr.shape[3] != 3:
-        return [arr[:, :, :, k] for k in range(arr.shape[3])]      # (H, W, 3, N)
-    if arr.shape[3] == 3:
+    lay = infer_frame_layout(arr.shape)
+    if lay == "nhwc":
         return [arr[k] for k in range(arr.shape[0])]               # (N, H, W, 3)
+    if lay == "hwcn":
+        return [arr[:, :, :, k] for k in range(arr.shape[3])]      # (H, W, 3, N)
     raise ValueError(f"cannot tell the frame layout of shape {arr.shape}; "
                      "pass (H, W, 3, N) or (N, H, W, 3)")
 

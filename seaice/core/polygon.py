@@ -519,10 +519,34 @@ def minboundrect(x, y, metric: str = "a") -> tuple[np.ndarray, np.ndarray, float
     ``MATLAB_ROOT/ch6/Sea_Ice_Floe_Identification/minboundrect.m`` (John D'Errico, File Exchange, Release 3.0).
 
     ``metric`` is ``'a'`` (minimum **area**, default) or ``'p'`` (minimum **perimeter**); any unambiguous
-    contraction of ``'area'``/``'perimeter'`` is accepted, as in the original.  The ``nedges ∈ {0, 1, 2}``
-    special cases are reproduced.  The author's own example (50 000 uniform points in the unit square) gives
-    ``area ≈ 0.99994``.  Parity: exact (same algorithm, ``convhull`` via Qhull).
+    contraction of ``'area'``/``'perimeter'`` is accepted, as in the original, and ``''``/``None`` select the
+    default (M-file line 71, ``if (nargin<3) || isempty(metric)``).  The author's own example (50 000 uniform
+    points in the unit square) gives ``area ≈ 0.99994``.
+
+    Parity: **exact for ``nedges >= 3``** — the only branch any shipped script reaches (values *and* 5-element
+    ring shapes, verified in ch06 against MATLAB R2025a on 12 point clouds × 2 metrics).  The three degenerate
+    branches return MATLAB's **values** but not MATLAB's **shapes**:
+
+    # DEVIATION (**D9**, review finding M1; R2025a-probed 2026-09-11, not reachable from any shipped driver):
+    #   nedges == 0 (`n == 0`): MATLAB returns `rectx = recty = []` (0x0) and `area = perimeter = []` (0x0
+    #     EMPTY); this port returns empty `rectx`/`recty` but `area = perimeter = NaN`, so a scalar consumer
+    #     sees a number where MATLAB sees an empty (in MATLAB `if area < 2` on an empty is simply false).
+    #   nedges == 1 (a single point): line 138 `rectx = repmat(x,1,5)` on a **1x1 column** gives a **1x5 ROW**,
+    #     so MATLAB's `rectx`/`recty` are `1x5`, not `5x1`; this port returns a flat `(5,)` vector.  The
+    #     consequence is visible one level up: `rect.m:56` `v = [rectx, recty]` is a **1x10** in MATLAB
+    #     (probe: `size(s(1).Vertices) -> 1 10`, `Vertices -> 4 4 4 4 4 3 3 3 3 3`) where this port builds a
+    #     (5, 2) ring -- see `seaice.ch09_model_ice.rect`.
+    #   nedges == 2 (two points): line 148 `perimeter = 2*sqrt(diff(x).^2 + diff(y).^2)` runs on the **closed**
+    #     3-element `x = [x1; x2; x1]`, so MATLAB's `perimeter` is a **2x1 vector** with both entries equal
+    #     (probe: `minboundrect([5;6],[5;5])` -> `[2; 2]`; `minboundrect([1;5],[2;7])` ->
+    #     `[12.8062484748657; 12.8062484748657]`); this port returns that value as a **scalar**.
+    # Reproducing the literal shapes was tried and rejected: a 2-element `perimeter` breaks two ch06 assertions
+    # (`tests/test_ch06.py:378` and `:906` evaluate `abs(per - <scalar>) < 1e-12` inside an `assert`, which is
+    # ambiguous for a 2-vector), and ch06's `minboundrect` is a verified `exact` primitive that this chapter is
+    # not allowed to disturb.  The values agree in every branch; only the shapes do not.
     """
+    if metric is None or metric == "":                      # M-file line 71 `isempty(metric)` -> 'a'
+        metric = "a"
     m = str(metric).lower()
     if m and ("area".startswith(m) or "perimeter".startswith(m)):
         m = m[0]
@@ -548,11 +572,15 @@ def minboundrect(x, y, metric: str = "a") -> tuple[np.ndarray, np.ndarray, float
         nedges = n
 
     if nedges == 0:
+        # PARITY: shape-only deviation D9 -- MATLAB returns area = perimeter = [] (0x0), not NaN.
         return np.zeros(0), np.zeros(0), float("nan"), float("nan")
     if nedges == 1:
+        # PARITY: shape-only deviation D9 -- MATLAB's `repmat(x,1,5)` on a 1x1 column gives a 1x5 ROW.
         return np.repeat(x[:1], 5), np.repeat(y[:1], 5), 0.0, 0.0
     if nedges == 2:
         idx = [0, 1, 1, 0, 0]
+        # PARITY: shape-only deviation D9 -- MATLAB evaluates `2*sqrt(diff(x).^2 + diff(y).^2)` on the CLOSED
+        # 3-element x/y, so its `perimeter` is a 2x1 vector whose two entries are this same value.
         per = float(2 * np.sqrt(np.diff(x[:2])[0] ** 2 + np.diff(y[:2])[0] ** 2))
         return x[idx], y[idx], 0.0, per
 

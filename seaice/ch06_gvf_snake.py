@@ -546,8 +546,12 @@ def _minrect_sides(label: np.ndarray, num: int) -> tuple[np.ndarray, np.ndarray]
     for i in range(1, num + 1):
         r, c = np.nonzero(label == i)
         rectx, recty, _a, _p = minboundrect(c.astype(np.float64), r.astype(np.float64), "a")
-        s1 = float(np.hypot(rectx[1] - rectx[0], recty[1] - recty[0]))
-        s2 = float(np.hypot(rectx[2] - rectx[1], recty[2] - recty[1]))
+        # `sqrt(dx^2 + dy^2)`, not np.hypot -- MATLAB spells the side length that way wherever it computes one
+        # (`model_ice_model.m` lines 32-33), and `hypot` is a different algorithm that can differ by 1 ulp
+        # (22 945 of 200 000 random pairs in an R2025a probe).  Kept consistent with
+        # :func:`seaice.ch09_model_ice.model_ice_model` so the two side-ratio rules cannot drift.
+        s1 = float(np.sqrt((rectx[1] - rectx[0]) ** 2 + (recty[1] - recty[0]) ** 2))
+        s2 = float(np.sqrt((rectx[2] - rectx[1]) ** 2 + (recty[2] - recty[1]) ** 2))
         long_side[i - 1] = max(s1, s2)
         short_side[i - 1] = min(s1, s2)
     return long_side, short_side
@@ -698,6 +702,11 @@ of `analysis/ch09.md`.  Opt-in only: making it the default would silently move e
     -------
     :class:`GVFDistance` with every intermediate array of the M-file.  Parity target: exact.
     """
+    if stop not in ("criteria", "count"):
+        # Validated exactly like `ratio=` in `component_criteria`: `stop` is consumed only as
+        # `if stop == 'count'`, so an unvalidated typo ('counts', 'N0', ...) would silently select the
+        # **shipped** 'criteria' behaviour instead of the book's Algorithm-7 test (review finding S3).
+        raise ValueError("stop must be 'criteria' (the shipped code) or 'count' (the book's Algorithm 7)")
     I = np.asarray(I)
     gray = rgb2gray_matlab(I) if I.ndim == 3 else I
     level, _ = graythresh(gray)

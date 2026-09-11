@@ -1581,8 +1581,16 @@ def segmented_floe_video(n_frames: int = 60, shape: tuple[int, int] = (240, 320)
        ``bwareaopen``'s ``>= P`` rule (19 removed, 20 kept at ``P = 20``).
     3. Every frame contains a pair of blobs that are **8-connected but not 4-connected** (a diagonal touch),
        pinning ``bwlabel(.., 4)`` -- with 8-connectivity they would be one component.
-    4. ``blank_frame`` (optional): the index of an **empty** frame, which makes ``max([])`` return ``[]`` and
-       ``floe(k) = []`` **delete** the element in MATLAB (risk R13).  ``None`` (default) leaves it out.
+    4. ``blank_frame`` (optional): the index of an **empty** frame, which makes ``max([])`` return ``[]``, so
+       ``movie_floe.m`` line 25 executes ``floe(k) = []`` with ``numel(floe) == k-1``.  MATLAB R2025a
+       **raises** there — ``MATLAB:matrix:singleSubscriptNumelMismatch``, "Unable to perform assignment because
+       the left and right sides have a different number of elements" (the literal ``x(k) = []`` spelling gives
+       ``MATLAB:subsdeldimmismatch``); a null assignment *past the end* is not a deletion, and this loop, which
+       appends one element per frame, never reaches the ``k <= numel(floe)`` case where deletion happens.  This
+       **corrects risk R13** of ``analysis/ch09.md``, which predicted a silent deletion — see
+       :func:`seaice.ch09_model_ice.movie_floe` (``empty='raise'`` is the default *because* it is the literal
+       behaviour; ``empty='delete'`` keeps the deletion semantics for the reachable case).  ``None`` (default)
+       leaves the blank frame out.
 
     **Tier 3, synthetic, seeded.**  Returns ``(N, H, W, 3)`` uint8.
     """
