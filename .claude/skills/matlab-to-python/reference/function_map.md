@@ -127,14 +127,16 @@ Legend for "Parity": E exact · N near · A approx (different algorithm) · R re
 | `imresize(I, s, 'nearest'/'bilinear')` enlarge, antialias off | `core.interp.resize(I, s, method)` | E | verified ch02 (0.0 full array) |
 | `imresize(I, s, 'bicubic')`, or any shrink | `core.interp.resize` (A) → write `core.interp.imresize_matlab` if needed numerically | A | border rule + antialiasing differ — verified ch02 |
 | `interp2(X,Y,V,Xq,Yq,'nearest'/'linear'/'cubic')` | `core.interp.interp2(V, u=Yq−1, v=Xq−1, method)` | E | all three exact incl. borders (Keys a=−0.5, quadratic edge) — verified ch02 |
-| `imrotate`, `imwarp`, `fitgeotrans`, `projective2d` | `skimage.transform.rotate/warp/ProjectiveTransform/estimate` | N | App. A orthorectification (DLT) → implement DLT from book Eqs |
+| `imrotate`, `imwarp`, `fitgeotrans`, `projective2d` | `skimage.transform.rotate/warp/ProjectiveTransform/estimate` | N | App. A orthorectification (DLT) → implement DLT from book Eqs. **One rectifier only** — ch7 and ch8 both deliberately declined to write theirs and left both App. A forms (A.1.1 analytic, A.1.2 linear 4-corner) to the calibration chapter |
+| `a:step:b` (colon), `jet(m)` used numerically | `core.matlab_compat.matlab_colon`, `core.plotting.matlab_jet` | N / E | verified ch08; see SKILL §1 |
 | `polyfit`/`polyval` | `np.polyfit`/`np.polyval` | E | |
 | `fminsearch` | `scipy.optimize.minimize(method='Nelder-Mead')` | N | |
-| `lsqnonlin`/`lsqcurvefit` | `scipy.optimize.least_squares` | N | |
+| `lsqnonlin`/`lsqcurvefit` | `core.fitting.lsqcurvefit` (wraps `scipy.optimize.least_squares(method='trf')`, returns all six MATLAB outputs) | N | verified ch08: same Coleman–Li family, different code; MATLAB's defaults captured from `optimoptions` (`trust-region-reflective`, tol 1e-6, `MaxIter` 400, `MaxFunEvals` 100·nvars); report `resnorm`/`exitflag` — a gap > ~1e-5 rel. is a different local minimum |
+| `optimset('TolFun',…,'MaxIter',…,'MaxFunEvals',…)` | `core.fitting.optimset(...) -> LsqOptions` | E | verified ch08; `TolFun→ftol`, `TolX→xtol`, `MaxFunEvals→max_nfev`, `MaxIter` recorded only |
 | `poly2mask(x, y, m, n)` | `core.polygon.poly2mask(x, y, M, N)` (port of `eml/poly2mask.m`) | E | verified ch06 (0 px on 19 masks); `skimage.draw.polygon2mask` is `N` |
 | `roipoly(I, xi, yi)` / `roipoly(m, n, xi, yi)` (non-interactive forms) | `core.polygon.roipoly(m, n=None, xi=None, yi=None)` | E | verified ch06 (== `poly2mask`); only the 1-argument call is interactive |
 | `polybool('intersection', ...)` (Mapping TB, compiled GPC) | `core.polygon.clip_polygon_rect(x, y, x_range, y_range)` (Sutherland–Hodgman, closed ring) | R | verified ch06: vertex **sets**/masks identical, **ordering not reproducible** (start vertex rotated, traversal reversed) |
-| `polyxpoly(x1,y1,x2,y2)`, `polyarea(x,y)`, `convhull(x,y)` | `core.polygon.polyxpoly` / `polyarea` / `convhull` | R / E / N | verified ch06; `convhull` keeps collinear hull points and rejects the old `{'Qt'}` option list |
+| `polyxpoly(x1,y1,x2,y2)`, `polyarea(x,y)`, `convhull(x,y)` | `core.polygon.polyxpoly` / `polyarea` / `convhull` | R / E / N | verified ch06; `convhull` keeps collinear hull points and rejects the old `{'Qt'}` option list. **Its vertex *order* is not reproducible either** (105 of 227 hulls, ch08) — compare vertex sets and rasterised masks |
 | `polygeom(x,y)` (Sommer, FEX), `minboundrect(x,y)` (D'Errico, FEX) | `core.polygon.polygeom`, `core.polygon.minboundrect` | N / E | verified ch06; `polygeom`'s principal angle differs by ±π (eigenvector sign); `minboundrect` = the minimum-area bounding rectangle used for length-to-width criteria |
 | `regionprops(... 'Orientation','MajorAxisLength',...)` | `core.regionprops` (see above) | E | verified ch06 |
 | `graycomatrix(I, 'Offset', [0 1], 'NumLevels', 8)` | `graycomatrix(I_quantised, [1], [0], levels=8, symmetric=False)` | E | quantise the same way |

@@ -1,10 +1,10 @@
 # CUMULATIVE knowledge — seaice-py
 (Rewritten by the knowledge-keeper after every chapter. Read this first at the start of any chapter. Last rewrite:
-after **ch07**, 2026-09-10. Per-chapter detail: `knowledge/chNN.md`; verified call mappings: `knowledge/function_map.md`.)
+after **ch08**, 2026-09-10. Per-chapter detail: `knowledge/chNN.md`; verified call mappings: `knowledge/function_map.md`.)
 
 ## Pipeline so far
 ```
-Ch2 primitives (DONE)  Ch3 ice mask (DONE)  Ch4 edges+morphology (DONE)  Ch5 watershed (DONE)  Ch6 GVF snake (DONE)  Ch7 ice types (DONE)  Ch8/9/10
+Ch2 primitives (DONE)  Ch3 ice mask (DONE)  Ch4 edges (DONE)  Ch5 watershed (DONE)  Ch6 GVF snake (DONE)  Ch7 ice types (DONE)  Ch8 applications (DONE)  Ch9/10
   io.load_image (recursive since ch06) ─► rgb2gray_matlab ─► threshold.graythresh/im2bw ─► binary ice mask ─► every later .m
   matlab_compat.{rgb2gray_matlab,      │   (bit-exact vs MATLAB on 12-Mpx JPEGs; graythresh(RGB) ≠ graythresh(gray) — ch5)
     imcomplement (class-preserving      ├─► threshold.multithresh(N=2)+imquantize ─► 3 groups (Ch8)
@@ -12,8 +12,8 @@ Ch2 primitives (DONE)  Ch3 ice mask (DONE)  Ch4 edges+morphology (DONE)  Ch5 wat
     im2double, im2uint8,                ├─► clustering.kmeans_gray (authors' ch3 kmeans.m) ─► Ch9 movie_kmeans.m
     to_uint8_saturating, del2,          └─► clustering.kmeans_lloyd('kmeans++') = Statistics-TB kmeans ─► Ch6/7/9
     saturate_to_class}
-  histogram.{imhist, normalized_histogram, hist (centres, ch07)} ─► Ch7 FSD ─► Ch8 §8.3 color_hist*.m, App. B
-  threshold.{ice_concentration, class_coverage, class_mean_intensity} ─► Ch8/Ch9 IC series
+  histogram.{imhist, normalized_histogram, hist (centres, ch07)} ─► Ch7 FSD ─► **Ch8 color_hist*.m + App. B FSD (done)**
+  threshold.{ice_concentration, class_coverage, class_mean_intensity} ─► **Ch8 §8.1 shipborne IC (done)** ─► Ch9 video IC
   connectivity.{label_components (= bwlabel), bwareaopen, bwperim} ─► Ch4 specks, Ch5 basins, Ch6 regionprops, Ch7 pieces, Ch8–9
   distance.{bwdist (single!), distance_transform} ─► Ch5 −bwdist(~bw) ─► watershed ─► Ch6 §6.3 seed/radius init ─► Ch7–9
   filters.{conv2, imfilter, fspecial, homomorphic_butterworth} ─► Ch4 edge() ─► Ch5 Sobel surface, Ch6 GVF edge map
@@ -27,12 +27,22 @@ Ch2 primitives (DONE)  Ch3 ice mask (DONE)  Ch4 edges+morphology (DONE)  Ch5 wat
       ─► Ch6 GVF snake ─► **Ch7 (23 byte-identical .m) and Ch9 (13 byte-identical .m) reuse this unchanged**
   regionprops.regionprops (MATLAB moments/hull/perimeter) ─► Ch6 Ra/Rc/Rl ─► Ch7 centroid/perimeter per piece ─► Ch8 FSD, Ch9
   polygon.{poly2mask, roipoly, convhull, polyarea, polyxpoly, polygeom, minboundrect, clip_polygon_rect}
-      ─► Ch6 clips ─► Ch8 §8.2 sea_ice_model + App. B, Ch9 §9.3 rectangularization
-  plotting.{…, label2rgb (large-index since ch07), size_colorbar (ch07), surface_plot, contour_overlay, snake_plot} · setops · color · synth · cli
-Ch7 ice_shape_enhancement (Algorithms 2/4/5, Eqs. 7.5/7.6) ─► **Ch8 applications** (owns sea_ice_model.m,
-SeaIce_Image_Structure.m, color_hist*.m — all four consume ch7's IcePiece{Center,Area,Perimeter,PixelsPosition})
-                                                            ─► **Ch9 model ice** (GVF stack + minboundrect + hist/imfill)
-                                                            ─► **Ch10 = App. A** (owns the rectifier ch7 deliberately did not write)
+      ─► Ch6 clips ─► **Ch8 §8.2 sea_ice_model + App. B (done)** ─► Ch9 §9.3 rect.m / model_ice_model.m
+  stats.{mean_caliper_diameter (Eq. 8.1), cumulative_size_distribution (Eq. 8.2)} · fitting.{lsqcurvefit, power_law,
+      truncated_power_law, weibull_survival} · icestruct (App. B format + .mat io + overlap_graph) ─► Ch8 §8.3 ─► Ch9 §9.3
+  matlab_compat.matlab_colon (MATLAB ':' count/endpoint rule, ch08) ─► every 0:step:stop vector from here on
+  plotting.{…, label2rgb (large-index since ch07), size_colorbar (ch07), matlab_jet + mcd_colorbar (ch08), surface_plot,
+      contour_overlay, snake_plot} · setops · color · synth · cli
+Ch7 ice_shape_enhancement (Algorithms 2/4/5, Eqs. 7.5/7.6) ─► Ch8 §8.2 sea_ice_model ─► App. B IceImage ─► Eq. 8.1 MCD
+   ─► Eq. 8.2 cumulative FSD ─► Eq. 8.3 power-law fit (α = 1.3704)          **[Ch8 DONE: 9/9 .m, App. B closed]**
+Ch8 ─► **Ch9 model ice**: icestruct (model_ice_model.m = sea_ice_model.m for rectangles — same cat(1,S(i).Vertices),
+   same `if xx ~= NaN`, same roipoly), polygon.minboundrect (= rect.m), matlab_colon, stats.mean_caliper_diameter
+   (§9.3 max floe size), fitting.lsqcurvefit, threshold.block_otsu (= block_threshold.m = ch3 local_Otsu.m),
+   clustering.kmeans_gray (movie_kmeans.m), core.snake (13 byte-identical .m), label_components/bwareaopen/
+   regionprops (movie_floe.m).
+Ch8 ─► **Ch10 = App. A**, which owns **both** rectifiers: A.1.1 (deferred by ch7) and the A.1.2 linear 4-corner one
+   §8.1 deliberately did NOT implement (ch08 O1). **No second rectifier** — wire ch10's into
+   shipborne_ice_concentration and into ch07_ice_type.local_segmentation between Algorithms 3 and 4 (p. 166).
 ```
 Conventions fixed in ch02–ch07 and binding for all later chapters:
 - Coordinates: book `x` = row, `y` = col (Eq. 2.1). Python is 0-based `(row, col)` everywhere; tests add 1 to compare
@@ -74,7 +84,8 @@ Conventions fixed in ch02–ch07 and binding for all later chapters:
 | `rgb2gray_matlab`, **`imcomplement` (class-preserving, all 11 MATLAB classes)**, `matlab_round`, `im2double`, `im2uint8`, `to_uint8_saturating` | `matlab_compat` | §2.1–2.2, Eq. 2.3 | ch3–ch10 | exact (`imcomplement` re-verified ch07) |
 | `del2(f, hx=1, hy=None)` (`∇²/(2·ndims)`, borders extrapolated) | `matlab_compat` | Eq. 6.52c | ch6, ch7, ch9 | exact (21 cases 0.0) |
 | `saturate_to_class(x, dtype)` (one MATLAB integer-class op) | `matlab_compat` | — | ch6 `GVF`, ch7+ | exact |
-| `imshow_scale`, `to_display_uint8`, `save_image`, `imshow_matlab`, `show_matrix`, `finish_figure`, `label2rgb` (tolerates ~10⁴ index values + RGB-triple background), **`size_colorbar`** (Eq. 7.6 ticks), `surface_plot`, `contour_overlay`, `snake_plot`, `quiver_field` | `plotting` | display | all | display only |
+| `imshow_scale`, `to_display_uint8`, `save_image`, `imshow_matlab`, `show_matrix`, `finish_figure`, `label2rgb` (tolerates ~10⁴ index values + RGB-triple background), `size_colorbar` (Eq. 7.6 ticks), **`mcd_colorbar`** (clamped `[c₁,c_N]`, Figs. 8.19/8.20), `surface_plot`, `contour_overlay`, `snake_plot`, `quiver_field` | `plotting` | display | all | display only |
+| **`matlab_jet(m)`** — R2025a `jet.m` incl. the `mod(m,4)==1` rule | `plotting` | §8.3 | ch8, ch9 | exact (`jet(1/3/4/7/30/255)` 0.0) — **numeric**, its rows are painted into `rgbImage` |
 | `split_rgb`, `rgb2cmy`, `rgb2cmyk`, `rgb2hsi`, `indexed_to_rgb` | `color` | §2.1, Eqs. 2.2–2.6 | ch6/ch7 colour stats, ch8 | exact / reimplemented (HSI, CMYK) |
 | `imhist(img, nbins=None)`, `normalized_histogram`, **`hist(y, bins)` → `(counts, centres)`** | `histogram` | §2.2, Eqs. 2.7–2.8; §7.2.4 | ch3, ch6, **ch7**, ch8+ | exact (`hist`: 23 cases 0 px, ch07) |
 | `n4/nd/n8`, `is_adjacent`, `is_m_adjacent`, `find_paths` | `connectivity` | §2.3.1–2.3.3 | teaching only | reimplemented |
@@ -95,16 +106,19 @@ Conventions fixed in ch02–ch07 and binding for all later chapters:
 | `regionprops(L_or_bw, properties, conn=8)`, `region_table` (MATLAB moments +1/12, `perim8` mid-edge hull, Vossepoel–Smeulders perimeter; both call forms) | `regionprops` | ch9 p. 205, §7.1/§8.2 | ch6–ch9 | exact (≤ 1.07e-14; ch7 centroid ≤ 1e-12, perimeter ≤ 1e-9 per piece) |
 | `poly2mask`, `roipoly`, `clip_polygon_rect`, `convhull`, `polyarea`, `polyxpoly`, `polygeom`, `minboundrect` | `polygon` | §6.5.3, §8.2, §9.3 | ch6, ch8, ch9 | exact / near / reimplemented (see function_map) |
 | `graythresh -> (level, em)`, `otsuthresh`, `im2bw`, `multithresh`, `imquantize`, `otsu_criterion`, `separability`, `block_otsu`, `ice_concentration`, `class_coverage`, `class_mean_intensity` | `threshold` | §3.1 | ch4–ch9 | exact (multithresh `N=3` reimplemented) |
+| **`mean_caliper_diameter(area, scale)`** (Eq. 8.1), **`cumulative_size_distribution(sizes)`** (Eq. 8.2) | `stats` | §8.3 | ch8, ch9 | exact (0.0 vs the authors' shipped `MCD_results.mat`, 2888 values) |
+| **`lsqcurvefit(fun, p0, x, y, lb, ub, options) -> LsqResult`**, `optimset`, `MATLAB_LSQ_DEFAULTS`, `power_law`, `truncated_power_law`, `weibull_survival` | `fitting` | Eq. 8.3, C9/C10 | ch8, ch9 | near (SciPy `trf` = the same Coleman–Li family, not the same code) / exact (the models) |
+| **`IceImage/Param/Field/Floe/Polygon/Intersect/Brash/Circle`, `load_iceimage_mat`, `save_iceimage_mat`, `overlap_graph`** | `icestruct` | **Appendix B** pp. 221–225 | ch8, ch9 | exact (field by field + round-trip; 1106/1171/1171/544 overlap entries) |
+| **`matlab_colon(start, step, stop)`** (MATLAB `:`, count computed once) | `matlab_compat` | — | ch8, ch9+ | near (≤ 1 ulp on 30 of 126 non-integer angles; counts and endpoints exact) |
 | `kmeans_gray(gray, k, shift_bug=False)`, `kmeans_lloyd(X, k, init, seed, …)`, `objective_J`, `pairwise_distance` | `clustering` | §3.2.2 | ch3, ch6, ch7, ch9 | exact (`shift_bug=True`) / approx (toolbox mapping) |
 | `point_image`, `spur_shape`, `book_fixtures`, `FIG_2_*`, `FIG_4_8_*`, `FIG_5_15/16_*`, `FIG_6_14_*`, `fig_6_16_circles`, `u_shape`, `synthetic_floe_field`, **`FIG_7_2_*`…`FIG_7_8_*`, `FIG_7_7_STEPS_BOOK`, `FIG_7_7_X8_TYPO`**, `uneven_illumination`, `bimodal_image`, `two_touching_floes`, `plateau_fixtures` | `synth` | Figs 2.10–7.8 | tests ch2–ch7, public fallbacks | exact (printed truths) / synthetic |
-| Chapter modules: `ch03_ice_pixel_detection`, `ch04_ice_edge_detection`, `ch05_watershed`, `ch06_gvf_snake` (`BOOK_PARAMS`, `gvf_distance`, `seaice_kmean_gvf`, `initialize_contours`, `component_criteria`), **`ch07_ice_type`** (`morphological_cleaning`, `connected_component_extract`, `hole_fill_dilation`, `border_marker`, `hole_fill_reconstruct`, `adaptive_se_radius`, `size_color`/`color_to_area`/`colorbar_area_ticks`, **`ice_shape_enhancement`**, `sea_ice_edge_detection`, `sea_ice_shape_enhancement`, `ice_types_classification`, `floe_size_distribution`, `tile_grid`, `local_segmentation`, `resample_categorical`, `IcePiece`/`Coverage`/`IceShapeEnhancement`) | — | per chapter | later chapters call these directly | exact (scripts) / reimplemented (text forms) |
+| Chapter modules: `ch03_ice_pixel_detection`, `ch04_ice_edge_detection`, `ch05_watershed`, `ch06_gvf_snake` (`BOOK_PARAMS`, `gvf_distance`, `seaice_kmean_gvf`, `initialize_contours`, `component_criteria`), **`ch07_ice_type`** (`morphological_cleaning`, `connected_component_extract`, `hole_fill_dilation`, `border_marker`, `hole_fill_reconstruct`, `adaptive_se_radius`, `size_color`/`color_to_area`/`colorbar_area_ticks`, **`ice_shape_enhancement`**, `sea_ice_edge_detection`, `sea_ice_shape_enhancement`, `ice_types_classification`, `floe_size_distribution`, `tile_grid`, `local_segmentation`, `resample_categorical`, `IcePiece`/`Coverage`/`IceShapeEnhancement`), **`ch08_applications`** (`mcd_analysis`, `plot_color_bar_and_floe`, `cumulative_fsd_powerlaw`, `power_law_fit`, `three_distribution_fits`, `sea_ice_model`, `sea_ice_image_structure`, `iceimage_to_pieces`, `color_hist`, `color_hist_comparison`, `shipborne_ice_concentration`, `sea_ice_field`) | — | per chapter | later chapters call these directly | exact (scripts) / reimplemented (text forms) |
 
-Not yet in core (first needed by): `bwmorph` LUTs; a fast exact `watershed` engine for 12-Mpx frames (ch8–ch9);
-`imresize_matlab` with antialiasing (ch9 if needed); **DLT / orthorectification / lens distortion (ch10 — ch7
-deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters: `sea_ice_model.m`,
-`SeaIce_Image_Structure.m`, `color_hist.m`, `color_hist_comparison.m` → **ch8 / Appendix B**
-(`scripts/ch06_sea_ice_demo.py --full` still raises `NotImplementedError` for `sea_ice_model` alone;
-`ice_shape_enhancement` landed in ch7).
+Not yet in core (first needed by): `bwmorph` LUTs; a fast exact `watershed` engine for 12-Mpx frames (ch9);
+`imresize_matlab` with antialiasing and a `VideoReader` reader (ch9); **DLT / orthorectification / lens distortion
+and the linear 4-corner rectification (ch10 — ch7 and ch8 both deliberately declined to write a rectifier)**.
+**No `.m` is deferred any more**: ch8 absorbed the last four (`sea_ice_model.m`, `SeaIce_Image_Structure.m`,
+`color_hist.m`, `color_hist_comparison.m`) and Appendix B, and `scripts/ch06_sea_ice_demo.py --full` is un-stubbed.
 
 ## Global pitfalls (MATLAB → Python) confirmed in this project
 1. Book `x` = row, `y` = col; MATLAB 1-based; Python 0-based `(row, col)`. `interp2(X, Y, …)` has `X` = column.
@@ -182,7 +196,11 @@ deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters
     for a whole verification round); a fix whose fixtures cannot distinguish it from the bug **is not tested** (ch07's
     `eps(edges)` would have survived a revert — the discriminating case had to be constructed, and the test now computes
     the wrong variant too); pin a fixed defect in **both** directions (monkey-patch the old expression back and assert
-    it fails); settle an ordering question by *enumerating* candidate rules over many cases.
+    it fails); settle an ordering question by *enumerating* candidate rules. **Choose fixture *shapes* that can fail** —
+    a square fixture cannot catch a (row,col)↔(x,y) swap, a field where both pixel maxima are attained cannot tell a
+    grown array from a pre-allocated one, and an empty histogram band forces the k=2-vs-Otsu agreement (ch08 S1/S4/S6;
+    the swap was performed, observed to fail, reverted). **Prefer the authors' own deterministic routine to a library
+    equivalent with an RNG** when both exist (`kmeans_gray`, not `kmeans_lloyd`).
 45. **Look for `eml/<builtin>.m`** before reverse-engineering a compiled builtin; and read the plain M-file
     (`imfill.m`, `hist.m`, `imcomplement.m`) when the "builtin" turns out to be ordinary M-code.
 46. **Performance**: the pure-Python watershed heap is ≈ 3 s/Mpx; `snakedeform`'s dense `inv` is O(N³) per resample
@@ -197,27 +215,27 @@ deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters
 50. **Contour point counts are unstable at the 1e-13 level** where an insertion test is discontinuous. Report the curve
     (Hausdorff) and the mask, not the length.
 51. **An eigenvector's sign is arbitrary** (`polygeom`'s `ang1` ±π); the axes are identical.
-52. **Old FEX / old-graphics code may not run in current MATLAB**: `minboundrect.m`'s `convhull(x,y,{'Qt'})` is rejected
-    by R2025a, and **HG1 handle graphics** (`get(bar,'Children')` → `'Faces'` → `'FaceVertexCData'`) error there —
-    which blocks the reference for ch07's central file `ice_shape_enhancement.m` and will block ch08's `color_hist*.m`.
-    Patch **graphics only**, change no numeric literal, record the patch verbatim (`patches.json`), and check that every
-    quantity the removed lines consumed is still computed and saved.
+52. **Old FEX / old-graphics code may not run in current MATLAB**: `convhull(x,y,{'Qt'})` is rejected by R2025a and
+    **HG1 handle graphics** (`get(bar,'Children')` → `'Faces'` → `'FaceVertexCData'`) error there — which blocked the
+    reference for ch07's `ice_shape_enhancement.m` and ch08's two `color_hist*.m` (same patch, transferred verbatim).
+    Patch **graphics only** (ch08: 122 edits), change no numeric expression, record it in `patches.json`, and check
+    every quantity the removed lines consumed is still computed and saved. A shipped file can even be **un-runnable**
+    (`fitting_iceFloes_distribution.m:57` is a MATLAB **syntax error**) — capture the refusal as evidence.
 53. **A book figure may need an input the book never prints**, and a caption parameter can hide the effect it claims —
     sweep the parameter and print the sweep.
 54. **Verify docstring parity labels *and* line-number citations at chapter end** (ch06: five wrong labels; ch07: the
     `hist.m` citations pointed at the complex branch).
 55. **MATLAB `hist` uses bin CENTRES, `np.histogram` uses edges.** `hist(y, n)` returns the centres of `n` equal bins
-    (widening by `±n/2 − 0.5` when `min == max`); an explicit vector *is* the centres and its two outer bins are
-    **unbounded**, so out-of-range values are counted, not dropped. `−Inf` lands in the first bin and `+Inf` in the last
-    (the first comparison edge is `−Inf`) — a "drop non-finite values" filter is wrong; the non-finite guard only
-    excludes them from `min`/`max`, and an all-non-finite input gives `miny = maxy = 0`.
+    (widened by `±n/2 − 0.5` when `min == max`); a vector *is* the centres and its two outer bins are **unbounded**, so
+    out-of-range values are counted, `−Inf` in the first bin and `+Inf` in the last (a "drop non-finite" filter is
+    wrong; all-non-finite gives `miny = maxy = 0`). Consequence in ch08: the Appendix-B FSD's stored interval **labels
+    do not describe its counts** — the counts are right, the labels are wrong (1861 vs 1411, 24 of 51 intervals).
 56. **`eps(x)` is the spacing at `|x|`, not `nextafter`.** `hist.m`'s `edges + eps(edges)` must be
     `edges + abs(np.spacing(edges))`; on a negative edge at an exact power of two `nextafter` steps half as far and
     flips a bin (verified bit-exact against MATLAB's own `eps` on seven values).
 57. **`imfill` ≠ `scipy.ndimage.binary_fill_holes`**: the library call matches MATLAB only on the **logical conn-4**
-    branch (3 of 13 logical cases differ at conn 8) and never on a numeric input — wrong values for `uint8`, wrong
-    values *and class* for grayscale/`int16`/`±Inf`. ch7 passes a **double**, and the returned class is seen by
-    `bwlabel`/`imclose`/`out(pp) = t` downstream.
+    branch (3 of 13 logical cases differ at conn 8) and never on a numeric input (wrong values for `uint8`, wrong
+    values *and class* for grayscale/`int16`/`±Inf`); ch7 passes a **double**, and the class is seen downstream.
 58. **MATLAB `sort` is stable, and where a sort decides an overwrite order it decides the result** — use
     `np.argsort(kind='stable')` and pin it with a tie fixture (ch07 Algorithm 2 superimposes small → large; ties are
     everywhere among 2–5 px brash pieces).
@@ -225,11 +243,30 @@ deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters
     its `sea_ice_test.jpg` is the same photo **re-encoded** (84.13 % of samples differ): `bwlabel(bw,4)` 215 vs 231,
     and a stage ch06 measured at 0 px now differs on 0.125 %. **Diff the data, not just the code, before inheriting a
     previous chapter's numbers**, and make `load_image` resolve to the chapter's own copy.
-60. **Beware an agreement a saturating function makes inevitable.** Eq. (7.6) `fix(10⁴(1 − e^{−A/10³}))` is 9997 for
-    *every* `A ≥ 8112`, so four of the book's eleven colour-bar tick lists are reproduced by any run with the same
-    smallest piece. Before recording an exact match as parity, ask what fraction of the input space would produce it.
+60. **Beware an agreement a saturating function — or a constants-only formula — makes inevitable.** Eq. (7.6)
+    `fix(10⁴(1 − e^{−A/10³}))` is 9997 for *every* `A ≥ 8112` (4 of 11 printed tick lists constrain nothing), and
+    ch08's nine `color_hist` ticks depend on three literals only. Ask what fraction of the input space would match.
 61. **A cited measurement must name its input.** ch07's 1232/433/290 came from the port's Algorithm 3, MATLAB's own
     segmentation gives 1211/433/274 — both true, only one is a parity number.
+62. **MATLAB grows an array on an out-of-range assignment instead of erroring**, so a result's *size* is
+    data-dependent: `rgbImage(y(j),x(j),:) = …` on an empty variable ends up `max(y) × max(x) × 3`, not the image size
+    (627×1114 / 627×1096 / 489×865 on three subsets, all byte-identical). **Never pre-allocate where the original
+    grows**; a run where both maxima are attained cannot prove the rule.
+63. **`if x ~= NaN` is `if ~isempty(x)`** (a NaN comparison is false elementwise). `sea_ice_model.m` and ch9's
+    `model_ice_model.m` use it for overlap detection, so **containment without a boundary crossing is never
+    detected** — reproduce literally, expose the corrected behaviour behind a flag.
+64. **`a:step:b` with a non-integer step does not reach `b`** and MATLAB's colon beats `start + k·step` by ≤ 1 ulp:
+    `0:0.05:6.28` = **126** points ending **6.25**, `21:79:3979` = **51** ending **3971**. Use `matlab_colon`, pin the
+    **count and the last value**, and avoid a fixture whose `(b−a)/step` is integral (it exercises no truncation).
+65. **A shipped `.mat` of the authors' own results outranks any synthetic fixture** — re-run their code on their own
+    stored inputs and compare **structure to structure** (2888 floes + 3452 brash, hull vertex sets 2888/2888, all
+    3992 overlap entries equal as sets).
+66. **An unidentifiable parameter makes "parity" meaningless along that direction** (the truncated power law's `ε₃`:
+    9.94e5 vs MATLAB's 766, Python's residual smaller in 2 of 3 fixtures). **Measure the objective, not the
+    parameter**, report both minima, prove the flatness with a refit test. And **capture a toolbox optimiser's
+    defaults from `optimoptions(...)` itself** rather than assuming them (`trust-region-reflective`, tol 1e-6, 400).
+67. **`convhull`'s vertex order is not reproducible either** (105 of 227 floes) — the `polybool` rule generalises:
+    contract on the **vertex set and the rasterised mask**, label the ordered field `near`.
 
 ## Data inventory
 | file | chapter | tier | shows |
@@ -240,12 +277,16 @@ deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters
 | `data/book/ch05/q.jpg` (96×81×3) + `nrm_junction_ending.fig` | ch05 | 1 | two touching floes; the `.fig` is the authors' Fig 5.14(f) L3 truth |
 | `data/book/ch06/Sea_Ice_Floe_Identification/sea_ice_test.jpg` (1038×394×3, **180 058 B**, md5 `fca33143…`) | ch06 | 1 | `sea_ice_demo.m`/`dist.m`; 231 components, 598 seeds, 540 radii |
 | `data/book/ch06/for test/test8.jpg` (108×148×3), `alg_seg_gray.jpg` (201×202×3 = **Fig 6.15(a)**, NCC 0.9882) | ch06 | 1 | single-snake demo; 83 components, 46 seeds |
-| `data/book/ch07/Sea_Ice_Floe_Identification/sea_ice_test.jpg` (1038×394×3, **167 601 B**, md5 `54e56aa8…`) | ch07 | 1 | **Fig 7.22, printed transposed** (NCC 0.9787; 7.23/7.25 are overlays at 0.8886/0.7311). A *re-encoding* of ch6's copy — 84.13 % of samples differ. Otsu 162/255, `bwlabel(·,4)` **215**; MATLAB's segmentation → 1211 pieces, 712 labels, 433 floes / 274 brash, 106 border-touching |
+| `data/book/ch07/Sea_Ice_Floe_Identification/sea_ice_test.jpg` (1038×394×3, **167 601 B**, md5 `54e56aa8…`) | ch07 | 1 | **Fig 7.22, printed transposed** (NCC 0.9787; 7.23/7.25 are overlays at 0.8886/0.7311). A *re-encoding* of ch6's copy — 84.13 % of samples differ. Otsu 162/255, `bwlabel(·,4)` **215**; MATLAB's segmentation → 1211 pieces, 712 labels, 433 floes / 274 brash, 106 border-touching. **Also Fig. 8.8** (printed transposed *and* inverted, NCC 0.982) — ch08 reuses this copy through a `('ch08', …)` alias with its own 394×1038 substitute key, no third private copy |
 | `seaice/core/synth.py` fixtures | ch02–ch07 | 3 | printed matrices (Figs 2.10–2.21, 4.8, 5.15/5.16, 6.14, **7.2–7.8**), `bimodal_image`, `uneven_illumination`, `two_touching_floes`, `plateau_fixtures`, `fig_6_16_circles`, `u_shape`, `synthetic_floe_field` |
 | `reference/ch02..ch07/*.mat` (8/13/6/16/13/**7 + 18 per-fixture**) + `inputs*.mat` | ch02–ch07 | MATLAB refs | ch07: `clf`, `fig767`, `imfill` (21 cases), `imcomplement` (11 classes), `hist` (23 cases), `iceenh` (9 `(bk,seg)` fixtures), `demo` (44.7 min end to end) |
 | Public-domain substitutes (`core/public_images.py`, `data/online/SOURCES.md`) | ch02–ch07 | 2 | NASA Worldview MODIS/Terra Beaufort at the book images' **exact sizes** (2048×1536, 4290×2856, 81×96, 394×1038 for **both** ch06 and ch07 keys, 148×108, 202×201) |
 | Fig 2.7 gray; `ch3ice.jpg`, `t.jpg`; §4.3 pack ice; §5.3 Ny-Ålesund; ch6 §6.1/§6.2/§6.5 sources; **ch7 Figs 7.1, 7.9, 7.10–7.21 (155×125 crops, the 205×263 §7.2 image, the aerial §7.3.1 scene)** | ch02–ch07 | missing | not shipped, no `.m` produces them → procedure-only; **154/189, 2511/2624 and the eight coverage percentages stay `unverified` and were not fabricated** |
-| `dypic_05100_cam1_top.avi` (ch9), raw JPEG behind ch8 `MCD/*.mat` | ch08/ch09 | missing | see `data/online/SOURCES.md` |
+| `data/book/ch08/MCD/IceImage_290915_2_jpg.0000179.mat` (877 304 B) | ch08 | 1 | the complete **Appendix-B structure** of the §8.3 helicopter frame: 2888 floes / 3452 brash, coverages 58.00/4.85/21.21/15.94 %, 51 FSD triplets, 1114×627 px at 1.1794 m/px |
+| `data/book/ch08/MCD/MCD_results.mat` (7 575 B, `Raw_MCD` 1×2888) | ch08 | 1 | the authors' **own saved output** = the chapter's **gold L3 reference**; reproduced from the structure at max \|Δ\| **0.0** |
+| `reference/ch08/*.mat` (8 MATLAB sessions: `misc`, `fit`, `colorhist`, `model`, `orphan`, `window`, `mcd`+`mcd_rgb`, `grow`) + `patches.json` (122 graphics-only edits), `fixtures.py`, `probe.mat` | ch08 | MATLAB refs | the `touching` fixture is **80×137** (non-square, S1), `center2x2`/`nested` pin the MATLAB idioms, `_ramp_frame` pins §8.1, the two `grow` subsets pin the grown `rgbImage`; `probe.mat` is the one-off `optimoptions` licence probe |
+| §8.1 imagery (Figs. 8.1–8.6, OTC 2016), the raw §8.3 frame (Fig. 8.18), Figs. 8.7/8.16/8.17 | ch08 | missing | third-party or unshipped → §8.1 is **procedure-only** and every §8.1/§8.2-count book number stays `unverified`; **none was fabricated** |
+| `dypic_05100_cam1_top.avi`, `05100.avi`, `model_ice.jpg` (ch9) | ch09 | missing / to check | see `data/online/SOURCES.md`; **md5 `model_ice.jpg` and diff the 13 shared `.m` before inheriting any ch6/ch7/ch8 number** (pitfall 59) |
 
 ## Parity summary per chapter
 | chapter | exact | near | approx | reimplemented | unverified | verdict |
@@ -256,6 +297,7 @@ deliberately did not write a rectifier)**. Deferred `.m` owned by later chapters
 | ch05 Watershed floe segmentation | 24 | 0 | 1 (`watershed_skimage`) | 3 | 1 (§5.3 images) | PASS — 399 tests, 15/15 `.m` exact incl. label values |
 | ch06 GVF snake | 21 | 6 | 1 (Statistics-TB `kmeans`) | 4 | 0 (+5 deferred) | PASS — 429 tests (1574 total); `regionprops` ≤ 1.07e-14, `dist.m` 540/540 bit-exact; residual **0.050 %** of `bw1` = `polybool`'s start vertex |
 | ch07 Ice type identification | 22 | 5 | 1 (Statistics-TB `kmeans` on ch7's JPEG) | 3 | 3 (unshipped §7.2/§7.3 images, the §7.3.2 sweeps, the ch10 rectifier) | PASS — 275 tests (**1849 total**, 2 skipped, 1 xfailed); 27/27 `.m` rows (6 ported + 17 reused + 4 deferred); `ice_shape_enhancement` **0 px** on 36 fixture runs and on 1211 real pieces; `imfill` exact in values **and class** on 21 cases × 2 conn; 47 of 48 printed Fig. 7.2–7.8 blocks 0 px (the 48th is a **book erratum**) |
+| ch08 Applications (+ **Appendix B**) | 10 | 5 | 0 | 0 | 2 (§8.1's results — no code, no data; §8.2's printed 498/201) | PASS — **19 rows** (+1 `display`, +1 mixed), 88 tests (**1937 total**, 2 skipped, 1 xfailed); 9/9 `.m`, 8 MATLAB sessions, **0 must-fix** at review; the §8.3 chain is **bit-exact** down to the 627×1114×3 painted map and re-running `sea_ice_model.m` on the authors' own 2888 + 3452 pieces reproduces their shipped Appendix-B structure incl. all **3992** overlap entries; 11 errata confirmed (E1 a shipped file with a **syntax error**, E2 the text describes an estimator its code does not use, E8 the FSD labels are wrong while its counts are right, E9 `if x ~= NaN`, E10 the 126-point "circle", E11 Fig. 8.15's sign) |
 
 ## Setup findings (2026-09-09, /setup-project)
 - Reference engine: **MATLAB R2025a** via `tools/run_matlab_ref.py`; Octave absent (never needed — Statistics & ML and
