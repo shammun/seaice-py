@@ -46,6 +46,11 @@ _NASA_WORLDVIEW_202 = (
     "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
     "&WIDTH=202&HEIGHT=201&WRAP=DAY"
 )
+_NASA_WORLDVIEW_76 = (
+    "https://wvs.earthdata.nasa.gov/api/v1/snapshot?REQUEST=GetSnapshot"
+    "&LAYERS=MODIS_Terra_CorrectedReflectance_TrueColor&CRS=EPSG:4326&FORMAT=image/jpeg"
+    "&WIDTH=76&HEIGHT=181&WRAP=DAY"
+)
 _NASA_PD = "NASA imagery is in the public domain (https://www.earthdata.nasa.gov/engage/open-data-services-and-software/data-and-information-policy)"
 
 #: ``{(chapter, book file name lower-cased): {"url", "filename", "credit", "licence", "description"}}``
@@ -173,6 +178,27 @@ REGISTRY: dict[tuple[str, str], dict[str, str]] = {
         "licence": _NASA_PD,
         "description": "Distinct ice floes separated by leads over open water, in a tall strip; "
                        "394x1038 RGB like the book's sea_ice_test.jpg (Figure 8.8 = Figure 7.22)",
+    },
+    # --- ch09: the ONLY image the chapter ships is `model_ice.jpg` (76x181 RGB, md5 4d10f303..., unique - it
+    # matches no other book image).  Unlike ch06/ch07/ch08 it is NOT a printed figure: analysis/ch09.md searched
+    # every chapter-9 page bitmap at 4 orientations x 28 scales and the best matchTemplate score was 0.373
+    # (ch06 scored 0.988, ch07 0.979), and the whole-book whole-image NCC peaked at 0.167.  So there is no plate
+    # to reproduce side by side and the substitute only has to keep the notebook's crops and pixel indices valid.
+    #
+    # The book image is a LABORATORY photograph - white model-ice pieces cut into rectangles, floating on the dark
+    # water of the HSVA/DYPIC towing tank.  No public-domain photograph of a *cut rectangular* model-ice field
+    # exists (see analysis/ch09.md, data verdict), so this substitute is a real sea-ice scene with the same
+    # STRUCTURE - bright distinct floes on dark water at the book image's own 76x181 size - not the same subject.
+    # Section 9.1's tank strip and the three .avi inputs have no substitute at all and are generated
+    # synthetically by `seaice.core.synth` instead; see data/online/SOURCES.md.
+    ("ch09", "model_ice.jpg"): {
+        "url": _NASA_WORLDVIEW_76 + "&TIME=2019-07-25&BBOX=74.60,-151.00,75.20,-150.74807",
+        "filename": "nasa_modis_terra_beaufort_floes_76x181_2019-07-25.jpg",
+        "credit": "NASA Worldview Snapshots, MODIS/Terra corrected reflectance (true colour), Beaufort Sea pack "
+                  "ice, 25 July 2019, 74.60-75.20 N 151.00-150.75 W",
+        "licence": _NASA_PD,
+        "description": "Bright ice floes on dark open water in a tall narrow strip; 76x181 RGB like the book's "
+                       "model_ice.jpg (a towing-tank photograph of cut model ice, which has no public equivalent)",
     },
 }
 
