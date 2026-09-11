@@ -7,7 +7,8 @@ Runs the ORIGINAL ``.m`` files of ``MATLAB_ROOT/ch9/`` (and ``ch9/Model_Ice_Floe
 Usage::
 
     .venv/Scripts/python.exe reference/ch09/make_refs.py [name ...]
-    names = video, probes, block, rect, model, polybool, r13, movie_otsu, movie_kmeans, movie_floe, demo
+    names = video, probes, block, rect, model, polybool, r13, degenerate, movie_otsu, movie_kmeans,
+            movie_floe, demo
 
 Scratch policy (CLAUDE.md rule 8 — nothing under ``MATLAB_ROOT`` is ever touched)
 ---------------------------------------------------------------------------------
@@ -15,7 +16,10 @@ Every ``.m`` file is **copied** into ``outputs/ch09/verify/scratch/`` under a no
 with that folder as its cwd; the ch6/ch7/ch9 folders are never put on the MATLAB path (they ship
 ``minboundrect.m``, and the three ``movie_*.m`` / ``block_threshold.m`` are scripts that write into the cwd).
 The copies are line-for-line the originals except for the patches produced by :func:`_patch`, which are recorded
-verbatim (removed line beside its replacement) in ``reference/ch09/patches_verified.json``.  Only two classes of
+verbatim (removed line beside its replacement) in ``reference/ch09/patches_verified.json`` **and**, since the
+ch09 review (finding S8), in ``reference/ch09/patches.json`` — the two names now carry the *same generated*
+record, and ``tests/test_ch09.py::test_the_patch_record_is_faithful_to_the_shipped_m_files`` asserts they are
+equal and that every recorded ``removed`` line is byte-identical to the shipped ``.m`` line.  Only two classes of
 patch exist in this chapter, and **no numeric expression is altered anywhere**:
 
 1. **IO** — ``mmreader`` (``movie_floe.m`` line 5) and ``movie2avi`` (``movie_otsu.m`` line 65,
@@ -233,7 +237,13 @@ def prepare_scratch() -> None:
                 SYNTH / "dypic_synth_top.avi", SYNTH / "05100_synth_segmented.avi"):
         shutil.copyfile(src, SCRATCH / src.name)
 
-    (REF / "patches_verified.json").write_text(json.dumps(PATCHES, indent=1), encoding="utf-8")
+    # Both names carry the SAME generated record.  `patches.json` was originally hand-written and was found by
+    # the ch09 review (finding S8) to misstate the `movie_otsu` replacement block and the removed line range, so
+    # it is now regenerated from the same dictionaries that actually drive `_patch` and can no longer drift;
+    # `tests/test_ch09.py::test_the_patch_record_is_faithful_to_the_shipped_m_files` asserts both properties.
+    record = json.dumps(PATCHES, indent=1)
+    (REF / "patches_verified.json").write_text(record, encoding="utf-8")
+    (REF / "patches.json").write_text(record, encoding="utf-8")
 
 
 # ===================================================================================================
@@ -538,6 +548,77 @@ maxempty = mat2str(size(max([])));
                    REF / "r13.mat", workdir=SCRATCH, timeout=600)
 
 
+def ref_degenerate():
+    """Deviation **D9** (review finding M1): the literal shapes MATLAB returns from the three degenerate
+    ``minboundrect`` branches, and what ``rect.m`` / ``model_ice_model.m`` do with them.
+
+    Also re-probes erratum **E8** / review nit **N-c**: every value of ``rect``'s dead ``metric`` argument.
+    None of this is reachable from ``model_ice_demo.m`` (``bwareaopen(., 20)`` precedes ``rect``), so no shipped
+    number depends on it — it is recorded because ``rect``/``minboundrect`` are public API.
+    """
+    code = r"""
+% ---- nedges == 1 : a single-pixel component -----------------------------------------------------
+bw1 = false(12,20); bw1(3,4) = true;
+s1 = rect(bw1);
+n1 = numel(s1);
+v1_size = size(s1(1).Vertices);
+v1 = s1(1).Vertices(:).';                 % flattened, whatever the shape is
+c1 = s1(1).Center; a1 = s1(1).Area; p1 = s1(1).Perimeter;
+c1_size = size(s1(1).Center); p1_size = size(s1(1).Perimeter);
+[rx1, ry1, ra1, rp1] = minboundrect(4, 3, 'a');
+rx1_size = size(rx1); ry1_size = size(ry1); ra1_size = size(ra1);
+rx1v = rx1(:).'; ry1v = ry1(:).';
+mm1_id = ''; mm1_msg = ''; mm1_ok = false; mm1_n = -1;
+try
+    sm1 = model_ice_model(s1, bw1, 0.4, 2.5); mm1_ok = true; mm1_n = numel(sm1);
+catch err1
+    mm1_id = err1.identifier; mm1_msg = err1.message;
+end
+
+% ---- nedges == 2 : a two-pixel component --------------------------------------------------------
+bw2 = false(12,20); bw2(5,5) = true; bw2(5,6) = true;
+s2 = rect(bw2);
+n2 = numel(s2);
+v2_size = size(s2(1).Vertices); v2 = s2(1).Vertices;
+p2_size = size(s2(1).Perimeter); p2 = s2(1).Perimeter(:).';
+a2 = s2(1).Area; a2_size = size(s2(1).Area); c2 = s2(1).Center;
+[rx2, ry2, ra2, rp2] = minboundrect([1;5], [2;7], 'a');
+rx2_size = size(rx2); ra2_size = size(ra2); rp2_size = size(rp2);
+rx2v = rx2(:).'; ry2v = ry2(:).'; ra2v = ra2(:).'; rp2v = rp2(:).';
+mm2_id = ''; mm2_ok = false; mm2_n = -1;
+try
+    sm2 = model_ice_model(s2, bw2, 0.4, 2.5); mm2_ok = true; mm2_n = numel(sm2);
+catch err2
+    mm2_id = err2.identifier;
+end
+
+% ---- nedges == 0 : no points at all -------------------------------------------------------------
+[rx0, ry0, ra0, rp0] = minboundrect([], [], 'a');
+rx0_size = size(rx0); ry0_size = size(ry0); ra0_size = size(ra0); rp0_size = size(rp0);
+ra0_empty = isempty(ra0); rp0_empty = isempty(rp0);
+ra0_lt2 = false; try, if ra0 < 2, ra0_lt2 = true; end, catch, end     % `if <empty>` is simply false
+
+% ---- E8 / N-c : rect's dead `metric` argument accepts EVERYTHING ---------------------------------
+mflags = zeros(1,6); mids = cell(1,6); for q=1:6, mids{q} = ''; end
+try, q1 = rect(bw1,'');   mflags(1) = isequal(q1, s1); catch em1, mids{1} = em1.identifier; end
+try, q2 = rect(bw1,[]);   mflags(2) = isequal(q2, s1); catch em2, mids{2} = em2.identifier; end
+try, q3 = rect(bw1,'x');  mflags(3) = isequal(q3, s1); catch em3, mids{3} = em3.identifier; end
+try, q4 = rect(bw1,'ap'); mflags(4) = isequal(q4, s1); catch em4, mids{4} = em4.identifier; end
+try, q5 = rect(bw1,5);    mflags(5) = isequal(q5, s1); catch em5, mids{5} = em5.identifier; end
+try, q6 = rect(bw1,"a");  mflags(6) = isequal(q6, s1); catch em6, mids{6} = em6.identifier; end
+mid1=mids{1}; mid2=mids{2}; mid3=mids{3}; mid4=mids{4}; mid5=mids{5}; mid6=mids{6};
+"""
+    return run_ref(code, ["n1", "v1_size", "v1", "c1", "a1", "p1", "c1_size", "p1_size",
+                          "rx1_size", "ry1_size", "ra1_size", "rx1v", "ry1v",
+                          "mm1_id", "mm1_msg", "mm1_ok", "mm1_n",
+                          "n2", "v2_size", "v2", "p2_size", "p2", "a2", "a2_size", "c2",
+                          "rx2_size", "ra2_size", "rp2_size", "rx2v", "ry2v", "ra2v", "rp2v",
+                          "mm2_id", "mm2_ok", "mm2_n",
+                          "rx0_size", "ry0_size", "ra0_size", "rp0_size", "ra0_empty", "rp0_empty",
+                          "ra0_lt2", "mflags", "mid1", "mid2", "mid3", "mid4", "mid5", "mid6"],
+                   REF / "degenerate.mat", workdir=SCRATCH, timeout=900)
+
+
 def ref_movie_otsu():
     return run_ref("run('ch09_movie_otsu_ref.m'); done_otsu = 1;", ["done_otsu"],
                    REF / "movie_otsu_done.mat", workdir=SCRATCH, timeout=3600)
@@ -566,6 +647,7 @@ SESSIONS = {
     "model": ref_model,
     "polybool": ref_polybool,
     "r13": ref_r13,
+    "degenerate": ref_degenerate,
     "movie_otsu": ref_movie_otsu,
     "movie_kmeans": ref_movie_kmeans,
     "movie_floe": ref_movie_floe,

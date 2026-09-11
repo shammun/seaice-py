@@ -117,6 +117,57 @@ def test_the_four_new_ch9_files_are_not_shared():
     assert "iftemp(r1,c1)>th" in ch3 and "iftemp(r1,c1)>=th" not in ch3
 
 
+@pytest.mark.skipif(not SIFI.exists(), reason="MATLAB_ROOT not present")
+def test_the_patch_record_is_faithful_to_the_shipped_m_files():
+    """Review **S8**.  ``reference/ch09/patches.json`` was hand-written and misstated two things: the
+    ``movie_otsu`` replacement block was recorded **without** the two lines ``make_refs.py`` really appends
+    (``I1first = I1(1).cadata; I2first = I2(1).cadata;``, which ``test_movie_otsu_parity`` then *consumes*) and
+    without them in the ``save`` list, and it recorded the removed range as "50-53" where line 50
+    (``k = 1 : numFrames;``) is **kept**.
+
+    Both names now carry the **generated** record that ``reference/ch09/make_refs.py::prepare_scratch`` writes
+    from the very dictionaries that drive ``_patch``, so the record cannot drift from the patch again.  This
+    test asserts that, and — the point of the record — that every ``removed`` line is **byte-identical to the
+    shipped ``.m`` line it claims to replace**, which is what makes "IO/graphics only, no numeric expression
+    altered" an auditable statement rather than a promise."""
+    import json
+    a = json.loads((REF / "patches.json").read_text(encoding="utf-8"))
+    b = json.loads((REF / "patches_verified.json").read_text(encoding="utf-8"))
+    assert a == b, "patches.json has drifted from the generated record"
+    assert len(a) == 7
+
+    checked = 0
+    for entry in a:
+        src = entry["source"]
+        if "{" in src:                                    # the verbatim-copy entry names a whole list
+            assert entry["edits"] == []
+            continue
+        m_file = MATLAB_ROOT / src
+        assert m_file.exists(), src
+        lines = m_file.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n").split("\n")
+        for ed in entry["edits"]:
+            if ed["line"] == "appended":
+                assert ed["removed"] is None              # an appended block removes nothing
+                continue
+            i = int(ed["line"])
+            assert lines[i - 1] == ed["removed"], f"{src}:{i} record does not match the shipped line"
+            checked += 1
+    # 1 minboundrect + 1 block_threshold + 10 movie_otsu + 11 movie_kmeans + 1 movie_floe + 14 model_ice_demo
+    assert checked == 38
+
+    # the two S8 defects, asserted directly so a regression of the record is caught by name
+    otsu = next(e for e in a if e["source"].endswith("movie_otsu.m"))
+    removed = {e["line"] for e in otsu["edits"] if e["line"] != "appended"}
+    assert 50 not in removed, "line 50 `k = 1 : numFrames;` is KEPT, not removed"
+    assert {51, 52, 53} <= removed
+    app = next(e["replaced_by"] for e in otsu["edits"] if e["line"] == "appended")
+    assert "I1first = I1(1).cadata; I2first = I2(1).cadata;" in app
+    assert "'I1first','I2first'" in app                   # ... and they ARE in the save list
+    mb = next(e for e in a if e["source"].endswith("minboundrect.m"))
+    assert mb["edits"][0]["removed"].startswith("  edges = convhull(x,y,{'Qt'});")
+    assert "% 'Pp' will silence the warnings" in mb["edits"][0]["removed"]   # indentation + comment kept
+
+
 @needs_book
 def test_model_ice_jpg_is_the_shipped_image_and_not_a_printed_figure():
     """§0.4: the only shipped ch9 image, 181 x 76 x 3, md5 unique.  It is **not** a book figure (the analyst's
@@ -131,7 +182,10 @@ def test_N4_the_fig_9_4_caption_is_the_unweighted_mean_of_the_six_blocks():
     so the caption's "average IC = 83.14 %, average threshold = 84" can only be the plain mean of the six
     printed block values — and it is."""
     assert abs(float(np.mean(ch9.FIG_9_4_IC)) - 83.1467) < 5e-5
-    assert f"{np.mean(ch9.FIG_9_4_IC):.2f}" == "83.15"          # 83.1467 -> the book *truncates* to 83.14
+    # 83.1467 rounds to 83.15 but the caption prints 83.14.  `num2str(83.146666...)` is '83.1467', so the
+    # caption was **hand-typed**, not printed by the script; whether the author truncated, or copied two digits
+    # from a 6-digit display, is a hypothesis and not a finding.  Both readings are pinned below.
+    assert f"{np.mean(ch9.FIG_9_4_IC):.2f}" == "83.15"
     assert int(np.floor(np.mean(ch9.FIG_9_4_IC) * 100)) / 100 == 83.14
     assert abs(float(np.mean(ch9.FIG_9_4_THRESH)) - 505 / 6) < 1e-12
     assert round(float(np.mean(ch9.FIG_9_4_THRESH))) == 84
@@ -344,6 +398,9 @@ def test_E8_rect_metric_is_dead_code_in_matlab_but_validated_here():
     a = ch9.rect(bw)
     assert [s.Area for s in a] == [s.Area for s in ch9.rect(bw, "p")]     # 'p' is ignored, as in MATLAB
     assert [s.Area for s in a] == [s.Area for s in ch9.rect(bw, "AREA")]
+    # review nit N-c: `rect.m` line 32 is `if (nargin<3) || isempty(metric)`, so '' and [] select 'a'
+    assert [s.Area for s in a] == [s.Area for s in ch9.rect(bw, "")]
+    assert [s.Area for s in a] == [s.Area for s in ch9.rect(bw, None)]
     with pytest.raises(ValueError):
         ch9.rect(bw, "not-a-metric")                                     # DEVIATION: MATLAB does not raise
 
@@ -399,6 +456,49 @@ def test_component_criteria_default_is_ellipse_and_minrect_changes_the_failing_s
     assert not np.allclose(rl_e, rl_m)
     with pytest.raises(ValueError):
         component_criteria(bw, 1e9, 0.0, 2.0, 4, ratio="bbox")
+    with pytest.raises(ValueError):
+        gvf_distance(np.zeros((8, 8), np.uint8), stop="counts")    # `stop` is validated too (review S3)
+
+
+def test_minrect_ratio_has_the_exact_known_answer_and_is_not_the_bounding_box():
+    """**L1 known answer** for ``ratio='minrect'`` (review S9).  Asserting only that the two rules *disagree*
+    would still pass for a ``_minrect_sides`` that returned the **bounding-box** ratio, or ``short/long``.
+
+    Two components with ratios that can be written down exactly:
+
+    * an axis-aligned 30 x 10 block of pixels -> hull corners 29 apart in x and 9 in y -> **29/9 = 3.2222...**;
+    * a **45-degree rotated** rectangle, the integer set ``|du+dv| <= 2a`` and ``|du-dv| <= 2b`` with
+      ``a = 12, b = 3``.  Its four hull corners are lattice points, its sides are ``2a*sqrt(2)`` and
+      ``2b*sqrt(2)``, so the min-area-rectangle ratio is **a/b = 4 exactly** -- while its **bounding box is
+      31 x 31, i.e. ratio 1.0**.  The second component is therefore the discriminator: a bounding-box
+      implementation gives 1.0 where the correct answer is 4.0, and ``short/long`` gives 0.25.
+    """
+    bw = np.zeros((70, 70), bool)
+    bw[5:15, 5:35] = True
+    rr, cc = np.mgrid[0:70, 0:70]
+    a, b = 12, 3
+    du, dv = rr - 45, cc - 35
+    bw |= (np.abs(du + dv) <= 2 * a) & (np.abs(du - dv) <= 2 * b)
+
+    lab, n, _ar, _so, _Ma, _mi, rl_m, _k = component_criteria(bw, 1e9, 0.0, 1e9, 4, ratio="minrect")
+    assert n == 2
+    assert rl_m[0] == pytest.approx(29 / 9, abs=1e-12)      # NOT 9/29, and NOT the ellipse rule's 3.0
+    assert rl_m[1] == pytest.approx(4.0, abs=1e-9)          # NOT the bounding box's 1.0
+
+    # prove the fixture discriminates: compute the two WRONG rules explicitly and show they differ
+    bbox, inv = [], []
+    for i in range(1, n + 1):
+        r, c = np.nonzero(lab == i)
+        h, w = r.max() - r.min(), c.max() - c.min()
+        bbox.append(max(h, w) / min(h, w))
+        inv.append(min(h, w) / max(h, w))
+    assert bbox[1] == pytest.approx(1.0) and abs(bbox[1] - rl_m[1]) > 2.9      # bbox rule would fail
+    assert inv[0] == pytest.approx(9 / 29) and abs(inv[0] - rl_m[0]) > 2.9     # short/long would fail too
+    assert not np.allclose(bbox, rl_m) and not np.allclose(inv, rl_m)
+
+    _l, _n, _a, _s, _M, _m, rl_e, _k = component_criteria(bw, 1e9, 0.0, 1e9, 4)
+    assert rl_e[0] == pytest.approx(3.0, abs=1e-9)          # the shipped ellipse rule, for contrast
+    assert not np.allclose(rl_e, rl_m)
 
 
 @needs_book
@@ -834,6 +934,115 @@ def test_matlab_refuses_a_collinear_component_but_this_port_does_not():
     assert d["deg_single_id"].size == 0 or str(d["deg_single_id"][0]) == ""   # a SINGLE point is fine (n <= 1)
     S = ch9.rect(FX.rect_mask_degenerate())                                   # the port does not raise
     assert len(S) == 2 and S[1].Area == pytest.approx(0.0)
+    # S[0] is the SINGLE pixel at 1-based (4, 5) -- the `nedges == 1` branch, deviation D9 (pinned in the test below).
+    # MATLAB reaches it (`minboundrect` returns from `case 1` before `convhull` is ever called) and only then
+    # refuses the whole `rect` call because of the 1 x 7 collinear line in S[1]; the values it would have
+    # produced for S[0] are pinned against `degenerate.mat`.
+    assert S[0].Area == pytest.approx(0.0) and S[0].Perimeter == pytest.approx(0.0)
+    assert np.allclose(S[0].Center, [5.0, 4.0])                               # (x, y) = (column, row), 1-based
+    assert S[0].Vertices.shape == (5, 2)                                      # MATLAB's is 1 x 10 -- D9
+
+
+@needs("degenerate.mat")
+def test_D9_matlab_degenerate_minboundrect_shapes_are_pinned():
+    """Deviation **D9** (review must-fix M1, option 2 -- the values stay, the divergence is documented).
+
+    ``minboundrect.m`` has three degenerate branches (``nedges`` 0, 1, 2) whose MATLAB **shapes** this port does
+    not reproduce.  Reproducing them literally was tried and rejected by the porter: a 2-element ``perimeter``
+    makes two ch06 assertions (``tests/test_ch06.py:378`` and ``:906``, ``abs(per - <scalar>) < 1e-12`` inside
+    an ``assert``) ambiguous, and ``minboundrect`` is a ch06-verified ``exact`` primitive.  **The values agree
+    in every branch; only the shapes do not.**  Nothing here is reachable from ``model_ice_demo.m``
+    (``bwareaopen(., 20)`` precedes ``rect``), so no shipped number moves.
+
+    This test pins **MATLAB's** actual shapes (R2025a probe, ``reference/ch09/degenerate.mat``) and then
+    asserts, branch by branch, exactly which quantity agrees and which diverges.  *If one of the three
+    divergence assertions ever starts failing, the port was changed to match MATLAB and D9 must be retired from
+    the report* -- asserting the divergence, rather than skipping it, is what makes that detectable.
+    """
+    d = loadmat(REF / "degenerate.mat")
+
+    # ---- nedges == 1 (a one-pixel component) -------------------------------------------------------------
+    assert list(d["v1_size"].ravel()) == [1, 10]                       # MATLAB: a 1 x 10 ROW, not a 5 x 2 ring
+    assert list(d["v1"].ravel()) == [4, 4, 4, 4, 4, 3, 3, 3, 3, 3]
+    assert list(d["rx1_size"].ravel()) == [1, 5] and list(d["ry1_size"].ravel()) == [1, 5]
+    assert list(d["c1"].ravel()) == [4, 3] and sc(d["a1"]) == 0.0 and sc(d["p1"]) == 0.0
+    assert list(d["p1_size"].ravel()) == [1, 1]                        # Perimeter IS a scalar in this branch
+
+    bw1 = np.zeros((12, 20), bool)
+    bw1[2, 3] = True                                                   # 1-based (3, 4) -- MATLAB's own fixture
+    S = ch9.rect(bw1)
+    assert len(S) == int(sc(d["n1"])) == 1
+    assert S[0].Area == pytest.approx(sc(d["a1"])) and S[0].Perimeter == pytest.approx(sc(d["p1"]))
+    assert np.allclose(S[0].Center, d["c1"].ravel())                   # Center / Area / Perimeter: EXACT
+    # DIVERGENCE 1 of 3 -- the ring shape, and therefore the flattened values, differ
+    assert S[0].Vertices.shape == (5, 2) != tuple(d["v1_size"].ravel())
+    assert not np.array_equal(S[0].Vertices.ravel(), d["v1"].ravel())
+
+    # DIVERGENCE 2 of 3 -- MATLAB's `model_ice_model.m:32` indexes `v(2,1,1)` on that 1 x 10 and ERRORS;
+    # the port's (5, 2) ring gives k = 0/0 = NaN, which fails the strict band and silently rejects the floe.
+    assert int(sc(d["mm1_ok"])) == 0
+    assert str(d["mm1_id"][0]) == "MATLAB:badsubscript"
+    assert "exceeds array bounds" in str(d["mm1_msg"][0])
+    m = ch9.model_ice_model(S, bw1, 0.4, 2.5)                          # the port does NOT raise
+    assert len(m.s_model) == 0 and np.isnan(m.ratios).all()
+
+    # ---- nedges == 2 (a two-pixel component) ------------------------------------------------------------
+    assert list(d["v2_size"].ravel()) == [5, 2]                        # Vertices IS a 5 x 2 ring here ...
+    assert list(d["p2_size"].ravel()) == [2, 1]                        # ... but Perimeter is a 2 x 1 VECTOR
+    assert list(d["p2"].ravel()) == [2.0, 2.0]
+    assert list(d["a2_size"].ravel()) == [1, 1] and sc(d["a2"]) == 0.0
+    assert list(d["rp2_size"].ravel()) == [2, 1]
+    assert np.allclose(d["rp2v"].ravel(), [12.8062484748657, 12.8062484748657])
+
+    bw2 = np.zeros((12, 20), bool)
+    bw2[4, 4] = True
+    bw2[4, 5] = True                                                   # 1-based (5, 5) and (5, 6)
+    S2 = ch9.rect(bw2)
+    assert len(S2) == int(sc(d["n2"])) == 1
+    assert np.allclose(S2[0].Vertices, d["v2"])                        # the ring itself: EXACT
+    assert np.allclose(S2[0].Center, d["c2"].ravel()) and S2[0].Area == pytest.approx(sc(d["a2"]))
+    # DIVERGENCE 3 of 3 -- the port returns the perimeter ONCE, MATLAB twice
+    assert np.ndim(S2[0].Perimeter) == 0 and S2[0].Perimeter == pytest.approx(2.0)
+    assert d["p2"].size == 2
+    sx, sy, sa, sp = minboundrect([1.0, 5.0], [2.0, 7.0], "a")
+    assert np.allclose(sx, d["rx2v"].ravel()) and np.allclose(sy, d["ry2v"].ravel())
+    assert sa == pytest.approx(sc(d["ra2v"])) and sp == pytest.approx(12.8062484748657)
+    assert np.ndim(sp) == 0
+    # here MATLAB does NOT error -- `model_ice_model` runs and accepts nothing, exactly as the port does
+    assert int(sc(d["mm2_ok"])) == 1 and int(sc(d["mm2_n"])) == 0
+    assert len(ch9.model_ice_model(S2, bw2, 0.4, 2.5).s_model) == 0
+
+    # ---- nedges == 0 (no points at all) -- the third divergence, which the review did not list -----------
+    assert list(d["rx0_size"].ravel()) == [0, 0] and list(d["ry0_size"].ravel()) == [0, 0]
+    assert list(d["ra0_size"].ravel()) == [0, 0] and list(d["rp0_size"].ravel()) == [0, 0]
+    assert int(sc(d["ra0_empty"])) == 1 and int(sc(d["rp0_empty"])) == 1
+    assert int(sc(d["ra0_lt2"])) == 0                                  # `if <0x0 empty>` is simply FALSE
+    rx0, ry0, ra0, rp0 = minboundrect([], [], "a")
+    assert rx0.size == 0 and ry0.size == 0
+    assert np.isnan(ra0) and np.isnan(rp0)                             # DIVERGENCE: MATLAB returns 0x0 EMPTY
+    # the consequence is benign for a comparison -- `if area < 2` is False on MATLAB's empty and False here
+    # too (NaN compares false), so only a caller that asks for the SIZE can tell the two apart
+    assert bool(ra0 < 2) is False
+
+
+@needs("degenerate.mat")
+def test_E8_matlab_accepts_every_metric_value_including_a_number_and_a_string():
+    """Erratum **E8**, re-probed for review nit **N-c**.  Because ``nargin < 3`` is always true in the
+    two-argument ``rect.m``, MATLAB accepts **every** value of ``metric`` -- ``''``, ``[]``, ``'x'``, ``'ap'``,
+    the number ``5`` and the string ``"a"`` -- and returns the ``'a'`` result each time.  This port accepts the
+    two that ``rect.m`` line 32's ``isempty`` would have accepted and raises on the rest (deviation **D2**)."""
+    d = loadmat(REF / "degenerate.mat")
+    assert list(d["mflags"].ravel().astype(int)) == [1, 1, 1, 1, 1, 1]
+    for key in ("mid1", "mid2", "mid3", "mid4", "mid5", "mid6"):
+        assert d[key].size == 0 or str(d[key][0]) == ""                # no error identifier anywhere
+    bw = np.zeros((12, 20), bool)
+    bw[2, 3] = True
+    base = ch9.rect(bw)
+    for ok in ("", None):                                              # `isempty(metric)` -> 'a'
+        assert np.allclose(ch9.rect(bw, ok)[0].Vertices, base[0].Vertices)
+    for bogus in ("x", "ap", 5):                                       # DEVIATION D2: MATLAB accepts these
+        with pytest.raises(ValueError):
+            ch9.rect(bw, bogus)
 
 
 @needs("polybool.mat")
@@ -938,6 +1147,34 @@ def test_model_ice_demo_chain_against_matlab():
     assert len(res.S) == int(sc(d["nS"])) == 30
     assert len(res.model.s_model) == int(sc(d["nM"])) == 23
 
+    # ---- D6, review S4: the END-TO-END consequence of those 28 pixels, with ceilings -------------------
+    # The count-only assertions above (30 and 23) are insensitive to where the rectangles are, so a
+    # regression in the model stage could hide behind them.  These are the measured values of 2026-09-11.
+    A_py = np.sort(np.array([f.Area for f in res.S]))
+    A_ml = np.sort(d["SA"].ravel())
+    dA = float(np.abs(A_py - A_ml).max())
+    assert dA <= 15.0, f"max |Area diff| (sorted) grew to {dA:.4f} px^2"     # measured 12.3424
+    dS = float(abs(A_py.sum() - A_ml.sum()))
+    assert dS <= 20.0, f"sum of rectangle areas moved by {dS:.4f} px^2"      # 12257.8017 vs 12243.5426
+
+    MI = d["MI"].astype(bool)
+    flags = np.zeros_like(MI)
+    for i, f in enumerate(res.model.s_model):
+        for j in f.Intersection:
+            flags[i, j - 1] = True
+    # NOT equal -- this is the documented consequence, pinned in BOTH directions so neither a drift nor a
+    # silent "fix" can pass unnoticed.  The `exact` row of the parity table is measured on MATLAB's own bw4.
+    assert int(MI.sum()) == 34
+    assert int(flags.sum()) == 36, "the end-to-end overlap-flag count moved (D6)"
+    assert not np.array_equal(flags, MI)
+
+    # ... and therefore `rect_ice_concentration` moves too (0.104 pp on this image)
+    ic_py = ch9.rect_ice_concentration(res.model.s_model, res.bw4.shape)
+    ic_ml = float(d["MA"].ravel().sum()) / float(res.bw4.size)
+    assert ic_py == pytest.approx(0.821082, abs=5e-5)
+    assert ic_ml == pytest.approx(0.820045, abs=5e-5)
+    assert abs(ic_py - ic_ml) <= 2e-3, "rect_ice_concentration drifted further than D6 records"
+
 
 @needs("ch09_demo.mat")
 def test_rect_and_model_ice_model_are_EXACT_on_matlabs_own_bw4():
@@ -985,6 +1222,32 @@ def test_segment_video_and_tiled_segmentation_are_labelled_as_ours():
     assert "OURS, not the book's" in ch9.segment_video.__doc__
     with pytest.raises(ValueError):
         ch9.tiled_segmentation(np.zeros((20, 20, 3), np.uint8), grid=(2, 3), gvf_iters=ch9.TABLE_9_4)
+
+
+def test_tiled_segmentation_runs_but_is_unverified():
+    """Review **S5**: before this, ``tiled_segmentation`` was never *executed* successfully by any test -- the
+    test above only checks the ``DEVIATION`` marker and the grid/iteration-count ``ValueError``.
+
+    It now runs end to end on a tiny synthetic frame, which is a **smoke** result and nothing more: the grid,
+    the pixel overlap and the OR stitch are ours, the book gives no grid shape, no overlap and no stitch rule,
+    and there is no ``.m`` file to compare against.  That is why the parity table labels it **`unverified`**
+    (open item O10), not `reimplemented`."""
+    frame = segmented_floe_video(1, shape=(40, 60))[0]              # (40, 60, 3) uint8, one synthetic frame
+    out, per_tile = ch9.tiled_segmentation(frame, grid=(2, 2), overlap=4, gvf_iters=(5, 5, 5, 5),
+                                           params=dict(Num=5, iter=10, timer=1), max_seeds=2)
+    assert out.shape == frame.shape[:2] and out.dtype == np.bool_
+    assert len(per_tile) == 4
+    assert out.sum() > 0                                   # it does segment something ...
+    # ... but the stitch is ours: the OR of the four tiles is exactly what came back, by construction
+    ref = np.zeros_like(out)
+    hs, ws = 20, 30
+    for i in range(2):
+        for j in range(2):
+            r0, r1 = max(0, i * hs - 4), min(40, (i + 1) * hs + 4)
+            c0, c1 = max(0, j * ws - 4), min(60, (j + 1) * ws + 4)
+            ref[r0:r1, c0:c1] |= per_tile[i * 2 + j].bw1
+    assert np.array_equal(out, ref)
+    assert len(ch9.TABLE_9_4) == 20                        # the book's own 20 counts need a 20-tile grid
 
 
 def test_segment_video_runs_on_a_tiny_stack():

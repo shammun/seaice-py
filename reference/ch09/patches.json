@@ -1,20 +1,43 @@
 [
  {
-  "source": "block_threshold.m",
-  "target": "ch09_block_threshold_ref.m",
-  "note": "Renamed only (non-shadowing scratch copy, project policy) and a `save` appended. NO edit to any statement: `figure`, `imshow(..,'border','tight')`, `subplot`, `title`, `hold on`, `axis off` all run under `matlab -batch`. The input file name is unchanged; the scratch cwd holds the Tier-3 `04100_analyse.jpg` written by `seaice.ch09_model_ice.ensure_synthetic_tank` (JPEG q95, 4:4:4), so MATLAB's `imread` and Python's decode the same bytes (the ch03 t.jpg precedent). VERIFIED: thresh and IC agree with `ch09_model_ice.block_threshold` to 0.0 on all six blocks.",
+  "source": "ch9/Model_Ice_Floe_Identification/{GVF_distance.m, GVF.m, gradient2.m, xconv2.m, gaussianMask.m, gaussianBlur.m, BoundMirrorExpand.m, BoundMirrorEnsure.m, BoundMirrorShrink.m, snakedeform.m, snakeinterp.m, snakeindex.m, snakedisp.m, rect.m, model_ice_model.m}",
+  "target": "(same name)",
+  "note": "Copied verbatim, zero edits.",
+  "edits": []
+ },
+ {
+  "source": "ch9/Model_Ice_Floe_Identification/minboundrect.m",
+  "target": "minboundrect.m",
+  "note": "R2025a: 'CONVHULL no longer supports or requires Qhull-specific options'. The option list is dropped; the hull point set is unchanged. Graphics/API only.",
   "edits": [
+   {
+    "line": 102,
+    "removed": "  edges = convhull(x,y,{'Qt'});  % 'Pp' will silence the warnings",
+    "replaced_by": "  edges = convhull(x,y);  % 'Pp' will silence the warnings"
+   }
+  ]
+ },
+ {
+  "source": "ch9/block_threshold.m",
+  "target": "ch09_block_threshold_ref.m",
+  "note": "Renamed only (non-shadowing scratch copy) and a `save` appended. The imread line keeps the SAME file name; the scratch cwd holds the Tier-3 04100_analyse.jpg (the book's is unobtainable, risk R1). Every numeric statement -- graythresh, th = t*255, the `if temp(r1,c1) >= th` double loop, im2bw(temp, t), IC = n/(r_t*c_t) -- is verbatim.",
+  "edits": [
+   {
+    "line": 2,
+    "removed": "I = imread('04100_analyse.jpg');",
+    "replaced_by": "I = imread('04100_analyse.jpg');   % Tier-3 stand-in, same file name"
+   },
    {
     "line": "appended",
     "removed": null,
-    "replaced_by": "save('ch09_block_threshold.mat','thresh','IC','r','c');"
+    "replaced_by": "save('ch09_block.mat','thresh','IC','r','c','n_r','n_c','c_r','c_c','t1','t2','t3','t4');"
    }
   ]
  },
  {
-  "source": "movie_otsu.m",
+  "source": "ch9/movie_otsu.m",
   "target": "ch09_movie_otsu_ref.m",
-  "note": "IO/graphics only. `movie2avi` is REMOVED in R2025a (probe: `exist('movie2avi') == 0`, MATLAB:UndefinedFunction), so the display-and-record block of lines 59-65 is replaced by VideoWriter('Uncompressed AVI') + writeVideo, which writes the SAME frames (`bw(k).cadata`) at the SAME 12 fps. The IC plot of lines 50-53 is dropped (display only; `IC` is saved instead). The input file name is pointed at the Tier-3 Uncompressed AVI. NO numeric expression is touched: `t(k) = graythresh(...)`, the `if I(k).cdata(i,j) >= t*255` double loop (erratum E4), `n = n+1` (erratum E5), `bw(k).cadata = im2bw(I(k).cdata, t(k))` and `IC(k) = n(k)/(r*c-r2*c2)` are verbatim. Every quantity the removed lines consumed is still computed and saved (`bw` -> `bwstack`, `I` -> `graystack`, `M` was only a getframe buffer of `bw`). VERIFIED bit-exact against `ch09_model_ice.movie_otsu`: t 0.0, n (E5 vector) equal, IC 0.0, bw 0/2 105 688 px, gray 0/2 105 688 px.",
+  "note": "IO/graphics only. `movie2avi` is REMOVED in R2025a (exist == 0), so the getframe/movie2avi replay of lines 59-65 is replaced by a VideoWriter('Uncompressed AVI') block that writes the SAME frames (bw(k).cadata) at the SAME 12 fps; the IC plot of lines 51-53 is display only and IC is saved instead. The input name points at the Tier-3 uncompressed AVI. NO numeric expression is touched: t(k) = graythresh(...), the `if I(k).cdata(i,j) >= t*255` double loop (E4), `n = n+1` (E5), bw(k).cadata = im2bw(I(k).cdata, t(k)) and IC(k) = n(k)/(r*c-r2*c2) are verbatim.",
   "edits": [
    {
     "line": 7,
@@ -22,21 +45,61 @@
     "replaced_by": "readerobj = VideoReader('dypic_synth_top.avi');"
    },
    {
-    "line": "50-53",
-    "removed": "k = 1 : numFrames;\nfigure;plot(k,IC(k));\nxlabel('Time');\nylabel('IC');",
-    "replaced_by": "k = 1 : numFrames;"
+    "line": 51,
+    "removed": "figure;plot(k,IC(k));",
+    "replaced_by": null
    },
    {
-    "line": "59-65",
-    "removed": "figure;\nfor k = 1 : numFrames\n    imshow(bw(k).cadata);\n    M(k) = getframe;\nend\n\nmovie2avi(M,'otsu.avi','FPS',12);",
-    "replaced_by": "bwstack = false(size(bw(1).cadata,1), size(bw(1).cadata,2), numFrames);\nfor k = 1 : numFrames\n    bwstack(:,:,k) = bw(k).cadata;\nend\nvw = VideoWriter('otsu.avi','Uncompressed AVI'); vw.FrameRate = 12; open(vw);\nfor k = 1 : numFrames, writeVideo(vw, uint8(bw(k).cadata)*255); end\nclose(vw);\ngraystack = zeros(size(bw(1).cadata,1), size(bw(1).cadata,2), numFrames, 'uint8');\nfor k = 1 : numFrames, graystack(:,:,k) = I(k).cdata; end\nsave('ch09_movie_otsu.mat','t','n','IC','bwstack','graystack','numFrames','r','c','r2','c2');"
+    "line": 52,
+    "removed": "xlabel('Time');",
+    "replaced_by": null
+   },
+   {
+    "line": 53,
+    "removed": "ylabel('IC');",
+    "replaced_by": null
+   },
+   {
+    "line": 59,
+    "removed": "figure;",
+    "replaced_by": null
+   },
+   {
+    "line": 60,
+    "removed": "for k = 1 : numFrames",
+    "replaced_by": null
+   },
+   {
+    "line": 61,
+    "removed": "    imshow(bw(k).cadata);",
+    "replaced_by": null
+   },
+   {
+    "line": 62,
+    "removed": "    M(k) = getframe;",
+    "replaced_by": null
+   },
+   {
+    "line": 63,
+    "removed": "end",
+    "replaced_by": null
+   },
+   {
+    "line": 65,
+    "removed": "movie2avi(M,'otsu.avi','FPS',12);",
+    "replaced_by": null
+   },
+   {
+    "line": "appended",
+    "removed": null,
+    "replaced_by": "bwstack = false(size(bw(1).cadata,1), size(bw(1).cadata,2), numFrames);\ngraystack = zeros(size(bw(1).cadata,1), size(bw(1).cadata,2), numFrames, 'uint8');\nfor k = 1 : numFrames\n  bwstack(:,:,k) = bw(k).cadata;\n  graystack(:,:,k) = I(k).cdata;\nend\nvw = VideoWriter('otsu.avi','Uncompressed AVI'); vw.FrameRate = 12; open(vw);\nfor k = 1 : numFrames, writeVideo(vw, uint8(bw(k).cadata)*255); end\nclose(vw);\nI1first = I1(1).cadata; I2first = I2(1).cadata;\nsave('ch09_movie_otsu.mat','t','n','IC','bwstack','graystack','numFrames','r','c','r2','c2','I1first','I2first','-v7');"
    }
   ]
  },
  {
-  "source": "movie_kmeans.m",
+  "source": "ch9/movie_kmeans.m",
   "target": "ch09_movie_kmeans_ref.m",
-  "note": "Same two IO patches as movie_otsu.m: the input name, and `movie2avi(M,'05400_kmeans.avi','FPS',12)` (line 79) -> VideoWriter('Uncompressed AVI') + writeVideo of `out(k).cdata` at 12 fps, plus the IC plot of lines 65-69 dropped and `IC`/`map1`/`s`/`a`/`out` saved. NO numeric expression touched. NOTE the parity ceiling: line 44 `kmeans(ima, 2, 'EmptyAction','singleton')` is the Statistics Toolbox routine with its own RNG, so only `si`, the denominator, the column-major `reshape` and the cluster MEANS can be compared exactly; the labels cannot (label `approx`).",
+  "note": "The same two IO patches as movie_otsu.m plus the display-only plot. Line 44 `kmeans(ima, 2, 'EmptyAction','singleton')` is the Statistics Toolbox routine with its own RNG, so this reference pins `si`, the denominator, the column-major reshape and the cluster MEANS; the label numbers themselves are not reproducible (label `approx`). `rng(0)` is set by the driver, not by a patch to the file.",
   "edits": [
    {
     "line": 7,
@@ -44,21 +107,66 @@
     "replaced_by": "readerobj = VideoReader('dypic_synth_top.avi');"
    },
    {
-    "line": "65-69",
-    "removed": "figure, \nk = 1 : numFrames;\nplot(k,IC(k));\nxlabel('Time');\nylabel('IC');",
-    "replaced_by": "k = 1 : numFrames;"
+    "line": 65,
+    "removed": "figure, ",
+    "replaced_by": null
    },
    {
-    "line": "73-79",
-    "removed": "figure,\nfor k = 1 : numFrames\n    imshow(out(k).cdata);\n    M(k) = getframe;\nend\n\nmovie2avi(M,'05400_kmeans.avi','FPS',12);",
-    "replaced_by": "outstack = zeros(si(1), si(2), numFrames, 'uint8');\nfor k = 1 : numFrames, outstack(:,:,k) = out(k).cdata; end\nvw = VideoWriter('05400_kmeans.avi','Uncompressed AVI'); vw.FrameRate = 12; open(vw);\nfor k = 1 : numFrames, writeVideo(vw, out(k).cdata); end\nclose(vw);\nmapstack = zeros(si(1)*si(2), numFrames);\nfor k = 1 : numFrames, mapstack(:,k) = map1(k).cdata; end\nsave('ch09_movie_kmeans.mat','IC','a','outstack','mapstack','si','r2','c2','numFrames');"
+    "line": 67,
+    "removed": "plot(k,IC(k));",
+    "replaced_by": null
+   },
+   {
+    "line": 68,
+    "removed": "xlabel('Time');",
+    "replaced_by": null
+   },
+   {
+    "line": 69,
+    "removed": "ylabel('IC');",
+    "replaced_by": null
+   },
+   {
+    "line": 73,
+    "removed": "figure,",
+    "replaced_by": null
+   },
+   {
+    "line": 74,
+    "removed": "for k = 1 : numFrames",
+    "replaced_by": null
+   },
+   {
+    "line": 75,
+    "removed": "    imshow(out(k).cdata);",
+    "replaced_by": null
+   },
+   {
+    "line": 76,
+    "removed": "    M(k) = getframe;",
+    "replaced_by": null
+   },
+   {
+    "line": 77,
+    "removed": "end",
+    "replaced_by": null
+   },
+   {
+    "line": 79,
+    "removed": "movie2avi(M,'05400_kmeans.avi','FPS',12);",
+    "replaced_by": null
+   },
+   {
+    "line": "appended",
+    "removed": null,
+    "replaced_by": "outstack = zeros(si(1), si(2), numFrames, 'uint8');\nmapstack = zeros(si(1)*si(2), numFrames);\nsmeans = zeros(2, numFrames);\nfor k = 1 : numFrames\n  outstack(:,:,k) = out(k).cdata;\n  mapstack(:,k) = map1(k).cdata;\n  imak = ima(k).cdata;\n  for i = 1:2, smeans(i,k) = sum(imak(map1(k).cdata==i))/sum(map1(k).cdata==i); end\nend\nvw = VideoWriter('05400_kmeans.avi','Uncompressed AVI'); vw.FrameRate = 12; open(vw);\nfor k = 1 : numFrames, writeVideo(vw, out(k).cdata); end\nclose(vw);\nsave('ch09_movie_kmeans.mat','IC','a','outstack','mapstack','smeans','si','r2','c2','numFrames','-v7');"
    }
   ]
  },
  {
-  "source": "Model_Ice_Floe_Identification/movie_floe.m",
+  "source": "ch9/Model_Ice_Floe_Identification/movie_floe.m",
   "target": "ch09_movie_floe_ref.m",
-  "note": "ONE IO patch: `mmreader` is REMOVED in R2025a (probe: `exist('mmreader') == 0`, 'Undefined function mmreader for input arguments of type char'), so line 5 becomes `VideoReader`. `read(v)` and `get(v,'numberOfFrames')` still work unchanged (the latter is a case-insensitive alias of NumFrames). The file has NO plotting code at all, so nothing else is removed; a `save` is appended. NO numeric expression touched: `im2bw(mov(k).cdata)` (level-free), `bwareaopen(.., 20, 4)`, `bwlabel(.., 4)`, `regionprops(cc,'basic')` and `floe(k) = max(ice_areas)` are verbatim. VERIFIED bit-exact against `ch09_model_ice.movie_floe`: floe series equal, bwareaopen masks 0/3 072 000 px, per-frame component counts equal.",
+  "note": "ONE IO patch: `mmreader` is REMOVED in R2025a (exist == 0, 'Undefined function mmreader for input arguments of type char'), so line 5 becomes VideoReader; `read(v)` and `get(v,'numberOfFrames')` still work unchanged. The file has NO plotting code, so nothing else is removed. NO numeric expression is touched: im2bw(mov(k).cdata) (level-free), bwareaopen(.., 20, 4), bwlabel(.., 4), regionprops(cc,'basic') and floe(k) = max(ice_areas) are verbatim.",
   "edits": [
    {
     "line": 5,
@@ -68,50 +176,90 @@
    {
     "line": "appended",
     "removed": null,
-    "replaced_by": "bwstack = false(size(out(1).cdata,1), size(out(1).cdata,2), numFrames);\nnc = zeros(1,numFrames);\nfor k = 1 : numFrames\n  bwstack(:,:,k) = out(k).cdata;\n  nc(k) = max(max(bwlabel(out(k).cdata,4)));\nend\nsave('ch09_movie_floe.mat','floe','bwstack','nc','numFrames');"
+    "replaced_by": "bwstack = false(size(out(1).cdata,1), size(out(1).cdata,2), numFrames);\nimstack = false(size(im(1).cdata,1), size(im(1).cdata,2), numFrames);\nnc = zeros(1,numFrames);\nfor k = 1 : numFrames\n  bwstack(:,:,k) = out(k).cdata;\n  imstack(:,:,k) = im(k).cdata;\n  nc(k) = max(max(bwlabel(out(k).cdata,4)));\nend\nlab5 = bwlabel(out(5).cdata,4); lab5 = double(lab5);\nrp5 = regionprops(bwlabel(out(5).cdata,4),'basic');\narea5 = [rp5.Area]; cent5 = cat(1, rp5.Centroid); bbox5 = cat(1, rp5.BoundingBox);\nsave('ch09_movie_floe.mat','floe','bwstack','imstack','nc','numFrames','lab5','area5','cent5','bbox5','-v7');"
    }
   ]
  },
  {
-  "source": "Model_Ice_Floe_Identification/minboundrect.m",
-  "target": "(same name)",
-  "note": "Byte-identical to ch6's and ch7's copy (md5 3e179fb6c5bff5c52d704277550d3ddf). R2025a REJECTS its Qhull option list ('CONVHULL no longer supports or requires Qhull-specific options'), so the SAME one-literal patch the ch06 reference already carries transfers verbatim: `convhull(x,y,{'Qt'})` -> `convhull(x,y)`. Graphics/API only; the hull is the same point set.",
-  "edits": [
-   {
-    "line": "convhull call",
-    "removed": "edges = convhull(x,y,{'Qt'});",
-    "replaced_by": "edges = convhull(x,y);"
-   }
-  ]
- },
- {
-  "source": "Model_Ice_Floe_Identification/model_ice_demo.m",
+  "source": "ch9/Model_Ice_Floe_Identification/model_ice_demo.m",
   "target": "ch09_model_ice_demo_ref.m",
-  "note": "Renamed only; the input `model_ice.jpg` is copied into the scratch cwd. Lines 53-66 (rect + model_ice_model) are COMMENTED OUT in the shipped file; the reference run un-comments them (they are the authors' own lines, reproduced verbatim) and appends a `save` of I/bw/bw1/bw2/bw3/bw4/S/s_model. `figure, imshow(bw2)` on line 46 runs headless under -batch. NO numeric expression changed.",
+  "note": "Renamed only; `model_ice.jpg` is copied into the scratch cwd, so line 9's imread is untouched. Lines 53-66 are COMMENTED OUT in the shipped file; this copy un-comments the three executable ones (`S = rect(bw4);`, `k1 = 0.4; k2 = 2.5;`, `s_model = model_ice_model(S, bw4, k1, k2);`) verbatim and drops the commented display loop of lines 55-62. `figure, imshow(bw2)` on line 46 runs headless under -batch. NO numeric expression changed.",
   "edits": [
    {
-    "line": "53-66",
-    "removed": "% S = rect(bw4); ... % s_model = model_ice_model( S, bw4, k1, k2 );",
-    "replaced_by": "S = rect(bw4);\nk1 = 0.4; k2 = 2.5;\ns_model = model_ice_model( S, bw4, k1, k2 );\nsave('ch09_demo.mat','bw1','bw2','bw3','bw4','S','s_model','-v7');"
+    "line": 53,
+    "removed": "% % rectanglarize",
+    "replaced_by": "% % rectanglarize   [lines 54-66 un-commented verbatim below]"
+   },
+   {
+    "line": 54,
+    "removed": "% S = rect(bw4);",
+    "replaced_by": "S = rect(bw4);"
+   },
+   {
+    "line": 55,
+    "removed": "% figure, imshow(bw4);",
+    "replaced_by": null
+   },
+   {
+    "line": 56,
+    "removed": "% hold on, ",
+    "replaced_by": null
+   },
+   {
+    "line": 57,
+    "removed": "% for i = 1 : length(S)",
+    "replaced_by": null
+   },
+   {
+    "line": 58,
+    "removed": "%     v = cat(1, S(i).Vertices);",
+    "replaced_by": null
+   },
+   {
+    "line": 59,
+    "removed": "%     c = cat(1, S(i).Center); ",
+    "replaced_by": null
+   },
+   {
+    "line": 60,
+    "removed": "%     line(v(:, 1), v(:, 2));",
+    "replaced_by": null
+   },
+   {
+    "line": 61,
+    "removed": "%     plot(c(1), c(2), 'r+');",
+    "replaced_by": null
+   },
+   {
+    "line": 62,
+    "removed": "% end",
+    "replaced_by": null
+   },
+   {
+    "line": 63,
+    "removed": "% ",
+    "replaced_by": null
+   },
+   {
+    "line": 64,
+    "removed": "% % floe model",
+    "replaced_by": null
+   },
+   {
+    "line": 65,
+    "removed": "% k1 = 0.4; k2 = 2.5;",
+    "replaced_by": "k1 = 0.4; k2 = 2.5;"
+   },
+   {
+    "line": 66,
+    "removed": "% s_model = model_ice_model( S, bw4, k1, k2 );",
+    "replaced_by": "s_model = model_ice_model( S, bw4, k1, k2 );"
+   },
+   {
+    "line": "appended",
+    "removed": null,
+    "replaced_by": "nS = numel(S); SV = zeros(5,2,nS); SC = zeros(nS,2); SA = zeros(nS,1); SP = zeros(nS,1);\nfor i = 1:nS, SV(:,:,i)=S(i).Vertices; SC(i,:)=S(i).Center; SA(i)=S(i).Area; SP(i)=S(i).Perimeter; end\nnM = numel(s_model); MV = zeros(5,2,nM); MC = zeros(nM,2); MA = zeros(nM,1); MP = zeros(nM,1); MI = false(nM,nM);\nfor i = 1:nM\n  MV(:,:,i)=s_model(i).Vertices; MC(i,:)=s_model(i).Center; MA(i)=s_model(i).Area;\n  MP(i)=s_model(i).Perimeter; idx = s_model(i).Intersection;\n  if ~isempty(idx), MI(i, idx) = true; end\nend\nIgray = rgb2gray(I); glevel = graythresh(Igray); bw0 = im2bw(Igray, glevel);\nsave('ch09_demo.mat','bw1','bw2','bw3','bw4','SV','SC','SA','SP','MV','MC','MA','MP','MI','nS','nM','Igray','glevel','bw0','-v7');"
    }
   ]
- },
- {
-  "source": "Model_Ice_Floe_Identification/model_ice_model.m",
-  "target": "(same name)",
-  "note": "No patch. `polybool` still exists in R2025a (toolbox/map/mapobsolete/polybool.m); it warns '(X1,Y1) contains no external contours ... counterclockwise-ordered vertices' on minboundrect's ring orientation and still computes the right answer. `figure, imshow(bw), hold on, line(...), plot(...)` run headless under -batch.",
-  "edits": []
- },
- {
-  "source": "Model_Ice_Floe_Identification/rect.m",
-  "target": "(same name)",
-  "note": "No patch. `strmatch` still exists in R2025a (exist == 2) although the branch that calls it is unreachable (erratum E8: `if (nargin<3)` in a 2-argument function).",
-  "edits": []
- },
- {
-  "source": "Model_Ice_Floe_Identification/{GVF_distance, GVF, gradient2, xconv2, gaussianMask, gaussianBlur, BoundMirrorExpand, BoundMirrorEnsure, BoundMirrorShrink, snakedeform, snakeinterp, snakeindex, snakedisp}.m",
-  "target": "(same name)",
-  "note": "All byte-identical to ch6's and ch7's copies; the ch06 reference machinery applies unchanged. No ch09-specific patch.",
-  "edits": []
  }
 ]
